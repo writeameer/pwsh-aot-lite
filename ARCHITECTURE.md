@@ -36,8 +36,8 @@ incomplete-input scanner is permitted only for non-executable metadata
 completion and must remain explicitly non-authoritative, as documented below.
 Detailed consumer boundaries and rollout milestones are in
 [the language-tooling contract](docs/architecture/language-tooling-contract.md).
-The currently executable statement/variable subset and its strict scope/binder
-boundary are recorded in the
+The currently executable statement/variable/conditional subset and its strict
+scope/binder boundary are recorded in the
 [Language Compatibility Core](docs/architecture/language-compatibility-core.md).
 
 ## Diagnostic experience is part of the execution kernel
@@ -54,6 +54,9 @@ malformed, unsupported, binding, and runtime-error path needs a stable ID,
 category/severity, actionable primary message, source extent when source is
 available, and a negative snapshot test. The full contract and rollout are in
 [the diagnostic-experience contract](docs/architecture/diagnostic-contract.md).
+The host-owned ANSI policy, control-character safety rule, and future
+interactive-highlighting boundary are in
+[terminal presentation](docs/architecture/terminal-presentation.md).
 
 The recurring independent-review roles, their required evidence, and their
 blocking authority are defined in

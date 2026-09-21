@@ -2,8 +2,9 @@ namespace PwshAotLite;
 
 internal static class ScriptRunner
 {
-    internal static int Execute(string script, AotScope? scope = null)
+    internal static int Execute(string script, AotScope? scope = null, AotColorMode colorMode = AotColorMode.Auto)
     {
+        AotDiagnosticRenderOptions renderOptions = AotTerminalColorPolicy.RendererOptions(colorMode);
         try
         {
             AotExecutionPlan plan = AotExecutionKernel.Compile(script, "<command>");
@@ -11,14 +12,14 @@ internal static class ScriptRunner
             _ = plan.Execute(context, scope, static output => TableWriter.Write(output.Rows, output.Columns));
             foreach (CommandError error in context.Errors)
             {
-                Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", useAnsi: false));
+                Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", renderOptions));
             }
 
             return 0;
         }
         catch (AotDiagnosticException error)
         {
-            Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", useAnsi: false));
+            Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", renderOptions));
             return 2;
         }
         catch (Exception)
@@ -27,7 +28,7 @@ internal static class ScriptRunner
                 AotDiagnostics.Internal("The host encountered an unexpected internal failure."),
                 script,
                 "<command>",
-                useAnsi: false));
+                renderOptions));
             return 1;
         }
     }
@@ -35,7 +36,7 @@ internal static class ScriptRunner
 
 internal static class Repl
 {
-    internal static void Run()
+    internal static void Run(AotColorMode colorMode)
     {
         Console.WriteLine("pwsh-aot-lite — AOT command prototype. Type 'help' or 'exit'.");
         AotScope sessionScope = new();
@@ -83,7 +84,7 @@ internal static class Repl
                 continue;
             }
 
-            _ = ScriptRunner.Execute(line, sessionScope);
+            _ = ScriptRunner.Execute(line, sessionScope, colorMode);
         }
     }
 }

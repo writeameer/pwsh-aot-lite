@@ -34,23 +34,7 @@ internal static class UpstreamAstPipelineLowerer
     {
         ScriptBlockAst ast = parseResult.Ast;
         ValidateTopLevelBlock(ast);
-        List<AotStatementPlan> statements = [];
-        foreach (StatementAst statement in ast.EndBlock!.Statements)
-        {
-            switch (statement)
-            {
-                case AssignmentStatementAst assignment:
-                    statements.Add(LowerAssignment(assignment));
-                    break;
-                case PipelineAst pipeline:
-                    statements.Add(LowerPipeline(pipeline));
-                    break;
-                default:
-                    throw Unsupported($"statement '{statement.GetType().Name}'", statement.Extent);
-            }
-        }
-
-        return new AotBlockPlan(statements);
+        return LowerStatements(ast.EndBlock!.Statements, ast.EndBlock.Traps, ast.EndBlock.Extent);
     }
 
     private static void ValidateTopLevelBlock(ScriptBlockAst ast)
@@ -100,6 +84,118 @@ internal static class UpstreamAstPipelineLowerer
         }
 
         return new AotAssignmentPlan(name, LowerExpression(expression));
+    }
+
+    private static AotBlockPlan LowerStatementBlock(StatementBlockAst block) =>
+        LowerStatements(block.Statements, block.Traps, block.Extent);
+
+    private static AotBlockPlan LowerStatements(
+        IEnumerable<StatementAst> source,
+        IEnumerable<TrapStatementAst>? traps,
+        IScriptExtent extent)
+    {
+        if (traps?.Any() == true)
+        {
+            throw Unsupported("trap statements", extent);
+        }
+
+        List<AotStatementPlan> statements = [];
+        foreach (StatementAst statement in source)
+        {
+            statements.Add(LowerStatement(statement));
+        }
+
+        return new AotBlockPlan(statements);
+    }
+
+    private static AotStatementPlan LowerStatement(StatementAst statement) => statement switch
+    {
+        AssignmentStatementAst assignment => LowerAssignment(assignment),
+        PipelineAst pipeline => LowerPipeline(pipeline),
+        IfStatementAst conditional => LowerIf(conditional),
+        _ => throw Unsupported($"statement '{statement.GetType().Name}'", statement.Extent),
+    };
+
+    private static AotIfStatementPlan LowerIf(IfStatementAst conditional)
+    {
+        List<AotIfClausePlan> clauses = [];
+        foreach (Tuple<PipelineBaseAst, StatementBlockAst> clause in conditional.Clauses)
+        {
+            clauses.Add(new AotIfClausePlan(LowerCondition(clause.Item1), LowerStatementBlock(clause.Item2)));
+        }
+
+        AotBlockPlan? elseBlock = conditional.ElseClause is null ? null : LowerStatementBlock(conditional.ElseClause);
+        return new AotIfStatementPlan(clauses, elseBlock);
+    }
+
+    private static AotConditionPlan LowerCondition(PipelineBaseAst condition)
+    {
+        if (condition is not PipelineAst { Background: false, PipelineElements: [CommandExpressionAst command] })
+        {
+            throw Unsupported("if conditions other than one direct closed expression", condition.Extent);
+        }
+
+        return command.Expression switch
+        {
+            BinaryExpressionAst binary => LowerComparisonCondition(binary),
+            ExpressionAst expression => new AotBooleanConditionPlan(LowerExpression(expression)),
+            _ => throw Unsupported("if condition expression", command.Extent),
+        };
+    }
+
+    private static AotConditionPlan LowerComparisonCondition(BinaryExpressionAst binary)
+    {
+        if (!TryGetConditionComparison(binary.Operator, out Comparison comparison, out StringComparison stringComparison))
+        {
+            throw Unsupported($"if operator '{binary.Operator}'", binary.ErrorPosition);
+        }
+
+        return new AotComparisonConditionPlan(
+            LowerExpression(binary.Left),
+            LowerExpression(binary.Right),
+            comparison,
+            stringComparison,
+            AotScriptParser.ToSpan(binary.ErrorPosition));
+    }
+
+    private static bool TryGetConditionComparison(TokenKind token, out Comparison comparison, out StringComparison stringComparison)
+    {
+        stringComparison = token is TokenKind.Ceq or TokenKind.Cne or TokenKind.Cge or TokenKind.Cgt or TokenKind.Clt or TokenKind.Cle
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
+        comparison = token switch
+        {
+            TokenKind.Ieq or TokenKind.Ceq => Comparison.Equal,
+            TokenKind.Ine or TokenKind.Cne => Comparison.NotEqual,
+            TokenKind.Igt or TokenKind.Cgt => Comparison.GreaterThan,
+            TokenKind.Ige or TokenKind.Cge => Comparison.GreaterThanOrEqual,
+            TokenKind.Ilt or TokenKind.Clt => Comparison.LessThan,
+            TokenKind.Ile or TokenKind.Cle => Comparison.LessThanOrEqual,
+            _ => default,
+        };
+
+        return token is TokenKind.Ieq or TokenKind.Ceq
+            or TokenKind.Ine or TokenKind.Cne
+            or TokenKind.Igt or TokenKind.Cgt
+            or TokenKind.Ige or TokenKind.Cge
+            or TokenKind.Ilt or TokenKind.Clt
+            or TokenKind.Ile or TokenKind.Cle;
+    }
+
+    private static bool IsStandaloneRedirectionCommand(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return false;
+        }
+
+        if (name[0] is '>' or '<' || name.StartsWith("&>", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        int prefixLength = name[0] is '*' or >= '0' and <= '9' ? 1 : 0;
+        return prefixLength < name.Length && name[prefixLength] == '>';
     }
 
     private static AotPipelineStatementPlan LowerPipeline(PipelineAst pipeline)
@@ -223,6 +319,15 @@ internal static class UpstreamAstPipelineLowerer
             throw Unsupported("command expressions", command.Extent);
         }
 
+        // Upstream represents a redirection after a compound statement (for
+        // example `if (...) { ... } > out.txt`) as a following pseudo-command
+        // rather than CommandAst.Redirections. Do not let that parser shape
+        // drift into the generated command binder as an unknown command.
+        if (IsStandaloneRedirectionCommand(commandName.Value))
+        {
+            throw UnsupportedRedirection(commandName.Extent);
+        }
+
         List<AotCommandArgumentPlan> arguments = [];
         foreach (CommandElementAst element in command.CommandElements.Skip(1))
         {
@@ -305,7 +410,7 @@ internal static class UpstreamAstPipelineLowerer
             return new AotLiteralExpressionPlan(AotValue.Null, AotScriptParser.ToSpan(variable.Extent));
         }
 
-        if (IsAutomaticVariable(name))
+        if (AotScopeVariablePolicy.IsReservedPowerShellName(name))
         {
             throw UnsupportedVariable($"automatic variable '${name}'", variable.Extent, "Use a variable explicitly assigned in this AOT script.");
         }
@@ -321,7 +426,7 @@ internal static class UpstreamAstPipelineLowerer
         }
 
         var path = variable.VariablePath;
-        if (!path.IsUnscopedVariable || IsAutomaticVariable(path.UserPath)
+        if (!path.IsUnscopedVariable || AotScopeVariablePolicy.IsReservedPowerShellName(path.UserPath)
             || path.UserPath.Equals("true", StringComparison.OrdinalIgnoreCase)
             || path.UserPath.Equals("false", StringComparison.OrdinalIgnoreCase)
             || path.UserPath.Equals("null", StringComparison.OrdinalIgnoreCase))
@@ -331,12 +436,6 @@ internal static class UpstreamAstPipelineLowerer
 
         return path.UserPath;
     }
-
-    private static bool IsAutomaticVariable(string name) => name.Equals("_", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("PSItem", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("args", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("input", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("this", StringComparison.OrdinalIgnoreCase);
 
     private static AotValue ToAotLiteral(object? value, IScriptExtent extent) => value switch
     {
@@ -404,6 +503,16 @@ internal static class UpstreamAstPipelineLowerer
 
     private static ScriptException Unsupported(string detail, AotSourceSpan span) =>
         new(AotDiagnostics.Unsupported(detail, span, "Use only the documented Native AOT execution subset until this AST node has a reviewed plan."));
+
+    private static ScriptException UnsupportedRedirection(IScriptExtent extent) =>
+        new(new AotDiagnostic(
+            "AOT1001",
+            AotDiagnosticSeverity.Error,
+            AotDiagnosticCategory.UnsupportedExecution,
+            "Redirections are parsed but not executable by the Native AOT structural subset.",
+            AotScriptParser.ToSpan(extent),
+            "unsupported redirection",
+            "Remove the redirection or use the host's explicit output contract."));
 
     private static ScriptException UnsupportedVariable(string detail, IScriptExtent extent, string help) =>
         new(AotDiagnostics.Scope("AOT5002", $"{detail} is not supported by the Native AOT lexical scope.", AotScriptParser.ToSpan(extent), "unsupported variable form", help));

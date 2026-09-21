@@ -6,9 +6,9 @@ A deliberately focused, Native-AOT-friendly PowerShell-like runner. It proves th
 script text → upstream parser facade → AOT execution plan → precompiled C# execution
 ```
 
-The current plan is deliberately a narrow structural pipeline and lexical
-variable slice, not a claim of general script compatibility. Parse, binding,
-scope, and unsupported-feature failures use typed source-aware diagnostics.
+The current plan is deliberately a narrow structural pipeline, lexical-variable,
+and conditional slice, not a claim of general script compatibility. Parse,
+binding, scope, and unsupported-feature failures use typed source-aware diagnostics.
 See the [AOT Execution Kernel foundation](docs/architecture/aot-execution-kernel.md)
 and [Language Compatibility Core](docs/architecture/language-compatibility-core.md).
 
@@ -24,6 +24,28 @@ The first multi-statement/variable form is also executable:
 $threshold = 10
 $names = 'pwsh', 'dotnet'
 Get-Process -Name $names | Where-Object CPU -gt $threshold | Select-Object Name, Id
+```
+
+The first conditional form is also executable:
+
+```powershell
+$enabled = $true
+if ($enabled) {
+    Get-Verb -Group Common | Select-Object Verb
+}
+elseif ($false) {
+    Get-Verb -Group Filter
+}
+else {
+    Get-Verb -Group Common
+}
+```
+
+Diagnostics are plain by default in redirected output. In an interactive
+terminal, choose `--color auto` (default), `--color always`, or `--color never`:
+
+```powershell
+PwshAotLite --color always -Command "Get-Verb -Group `$missing"
 ```
 
 `Get-Process` is now a port through a reusable `IAotCmdlet` boundary, rather than a hard-wired pipeline source. It supports the existing cmdlet's core process selection shapes:

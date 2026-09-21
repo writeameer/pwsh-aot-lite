@@ -1831,6 +1831,8 @@ internal static class SelfTest
     {
         AssertExecutionKernelAndDiagnostics();
         AssertLanguageCompatibilityCore();
+        AssertControlFlowCore();
+        AssertTerminalPresentation();
         AssertClosedValuePlane();
 
         if (GeneratedCmdletPorts.Count != 290)
@@ -2864,6 +2866,59 @@ error[AOT5002]: automatic variable '$PSItem' is not supported by the Native AOT 
 
         try
         {
+            _ = AotExecutionKernel.Compile("$PID = 1", "automatic-assignment.ps1");
+            throw new InvalidOperationException("The kernel accepted a PowerShell host variable assignment.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5002", Span: { DocumentName: "automatic-assignment.ps1", StartColumn: 1 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "$PID = 1",
+                """
+error[AOT5002]: assignment target '$PID' is not supported by the Native AOT lexical scope.
+  --> automatic-assignment.ps1:1:1
+   |
+1 | $PID = 1
+   | ^^^^ unsupported variable form
+   = help: Assign one ordinary unscoped variable at a time.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Verb -Group $PSCulture", "automatic-host-read.ps1");
+            throw new InvalidOperationException("The kernel accepted a PowerShell host variable read.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5002", Span: { DocumentName: "automatic-host-read.ps1", StartColumn: 17 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Verb -Group $PSCulture",
+                """
+error[AOT5002]: automatic variable '$PSCulture' is not supported by the Native AOT lexical scope.
+  --> automatic-host-read.ps1:1:17
+   |
+1 | Get-Verb -Group $PSCulture
+   |                 ^^^^^^^^^^ unsupported variable form
+   = help: Use a variable explicitly assigned in this AOT script.
+""");
+        }
+
+        foreach (string reserved in new[]
+        {
+            "OFS", "MaximumHistoryCount", "VerboseHelpErrors", "LogCommandHealthEvent",
+            "PSSessionConfigurationName", "PSSessionApplicationName", "Event", "EventArgs", "EventSubscriber", "Sender", "PROFILE",
+        })
+        {
+            string assignment = "$" + reserved + " = 'x'";
+            string read = "Get-Verb -Group $" + reserved;
+
+            AssertReservedVariableRejected(assignment, "reserved-assignment.ps1");
+            AssertReservedVariableRejected(read, "reserved-read.ps1");
+        }
+
+        try
+        {
             _ = AotExecutionKernel.Compile("$value = '-Name'; Get-Process -Id $value", "injection.ps1")
                 .Execute(new AotExecutionContext());
             throw new InvalidOperationException("A variable value was reclassified as a parameter token.");
@@ -2941,6 +2996,260 @@ error[AOT5003]: Value kind 'Bytes' cannot be passed to a command argument in the
                 // Every accepted parser node remains explicitly fail-closed
                 // until it has a separate scope/evaluation plan.
             }
+        }
+    }
+
+    private static void AssertReservedVariableRejected(string source, string documentName)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName);
+            throw new InvalidOperationException($"The kernel accepted reserved PowerShell variable source '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT5002")
+        {
+            // The policy must apply symmetrically to reads and assignments.
+        }
+    }
+
+    private static void AssertControlFlowCore()
+    {
+        const string selectedBranchSource = """
+$threshold = 10
+if ($threshold -gt 0) {
+    $group = 'Common'
+    Get-Verb -Group $group | Select-Object Verb
+}
+elseif ($false) {
+    Get-Verb -Group Filter
+}
+else {
+    Get-Verb -Group Filter
+}
+""";
+        AotExecutionResult selectedBranch = AotExecutionKernel.Compile(selectedBranchSource, "if-selected.ps1")
+            .Execute(new AotExecutionContext());
+        if (selectedBranch.Outputs.SingleOrDefault() is not { Columns: var selectedColumns, Rows: var selectedRows }
+            || !selectedColumns.SequenceEqual(["Verb"])
+            || !selectedRows.OfType<AotPipelineRecord>().Any(row => row.TextFor("Verb") == "Add"))
+        {
+            throw new InvalidOperationException("The selected if branch did not execute through the normal pipeline plan.");
+        }
+
+        AotExecutionResult elseifBranch = AotExecutionKernel.Compile(
+                "if ($false) { Get-Verb -Group Filter } elseif ($true) { Get-Verb -Group Common } else { Get-Verb -Group Filter }",
+                "elseif.ps1")
+            .Execute(new AotExecutionContext());
+        if (elseifBranch.Outputs.Count != 1
+            || !elseifBranch.Outputs[0].Rows.Any(row => row.TextFor("Verb") == "Add"))
+        {
+            throw new InvalidOperationException("Elseif conditions did not evaluate lazily in source order.");
+        }
+
+        AotScope ifScope = new();
+        AotExecutionResult persistentAssignment = AotExecutionKernel.Compile(
+                "$enabled = $true; if ($enabled) { $group = 'Common' }; Get-Verb -Group $group",
+                "if-scope.ps1")
+            .Execute(new AotExecutionContext(), ifScope);
+        if (persistentAssignment.Outputs.Count != 1 || !ifScope.TryGet("GROUP", out AotValue group) || !group.TryGetString(out string? groupName) || groupName != "Common")
+        {
+            throw new InvalidOperationException("A selected if branch did not retain PowerShell's surrounding-scope assignment behavior.");
+        }
+
+        AotScope caseScope = new();
+        _ = AotExecutionKernel.Compile(
+                "if ('Common' -ceq 'common') { $case = 'wrong' } else { $case = 'right' }",
+                "if-case.ps1")
+            .Execute(new AotExecutionContext(), caseScope);
+        if (!caseScope.TryGet("case", out AotValue caseValue) || !caseValue.TryGetString(out string? caseResult) || caseResult != "right")
+        {
+            throw new InvalidOperationException("Case-sensitive conditional comparison did not preserve the closed comparison policy.");
+        }
+
+        AotExecutionResult skippedBranch = AotExecutionKernel.Compile(
+                "if ($true) { Get-Verb -Group Common } else { Get-Verb -Group $missing }",
+                "if-skipped.ps1")
+            .Execute(new AotExecutionContext());
+        if (skippedBranch.Outputs.Count != 1)
+        {
+            throw new InvalidOperationException("A skipped if branch was evaluated or did not emit its selected output.");
+        }
+
+        AotExecutionResult segmentedBranch = AotExecutionKernel.Compile(
+                "if ($true) { Get-Verb -Group Common | Select-Object Verb; Get-Date | Select-Object DateTime }",
+                "if-segments.ps1")
+            .Execute(new AotExecutionContext());
+        if (segmentedBranch.Outputs.Count != 2
+            || !segmentedBranch.Outputs[0].Columns.SequenceEqual(["Verb"])
+            || !segmentedBranch.Outputs[1].Columns.SequenceEqual(["DateTime"]))
+        {
+            throw new InvalidOperationException("Nested branch pipelines did not retain ordered output segments.");
+        }
+
+        const string branchOutputBeforeFailure = "if ($true) { Get-Verb -Group Common | Select-Object Verb; Get-Verb -Group $missing }";
+        StringWriter branchOutput = new(CultureInfo.InvariantCulture);
+        StringWriter branchError = new(CultureInfo.InvariantCulture);
+        TextWriter originalOutput = Console.Out;
+        TextWriter originalError = Console.Error;
+        try
+        {
+            Console.SetOut(branchOutput);
+            Console.SetError(branchError);
+            if (ScriptRunner.Execute(branchOutputBeforeFailure) != 2)
+            {
+                throw new InvalidOperationException("A terminating branch statement did not return the host diagnostic exit code.");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+        }
+
+        if (!branchOutput.ToString().Contains("Verb", StringComparison.Ordinal)
+            || !branchError.ToString().Contains("error[AOT5001]", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A completed branch pipeline was not streamed before a later branch statement failed.");
+        }
+
+        const string nonBooleanSource = "$bad = 'x'; if ($bad) { Get-Verb -Group Common }";
+        try
+        {
+            _ = AotExecutionKernel.Compile(nonBooleanSource, "if-condition.ps1").Execute(new AotExecutionContext());
+            throw new InvalidOperationException("A non-Boolean if condition was accepted.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5005", Span: { DocumentName: "if-condition.ps1", StartColumn: 17 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                nonBooleanSource,
+                """
+error[AOT5005]: If requires a Boolean condition in the Native AOT subset.
+  --> if-condition.ps1:1:17
+   |
+1 | $bad = 'x'; if ($bad) { Get-Verb -Group Common }
+   |                 ^^^^ non-Boolean condition
+   = help: Use $true/$false or compare two supported closed values with -eq, -ne, -gt, -ge, -lt, or -le.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("$left = 'one'; $right = 1; if ($left -gt $right) { Get-Verb -Group Common }", "if-comparison.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("An incompatible conditional comparison was accepted.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT5005")
+        {
+            // Closed-value comparison intentionally has no dynamic coercion.
+        }
+
+        foreach (string unsupported in new[]
+        {
+            "if ($true -and $false) { Get-Verb -Group Common }",
+            "if (Get-Date) { Get-Verb -Group Common }",
+            "if (($true)) { Get-Verb -Group Common }",
+            "if ($true) { while ($false) { Get-Verb -Group Common } }",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(unsupported, "if-unsupported.ps1");
+                throw new InvalidOperationException($"The kernel accepted deferred conditional syntax '{unsupported}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+                // Valid upstream syntax remains fail-closed until it receives
+                // a separately reviewed expression/control-flow plan.
+            }
+        }
+
+        const string redirectedConditional = "if ($true) { Get-Verb -Group Common } > out.txt";
+        try
+        {
+            _ = AotExecutionKernel.Compile(redirectedConditional, "if-redirection.ps1");
+            throw new InvalidOperationException("A redirection following a conditional reached the command binder.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT1001", Span: { DocumentName: "if-redirection.ps1", StartColumn: 39 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                redirectedConditional,
+                """
+error[AOT1001]: Redirections are parsed but not executable by the Native AOT structural subset.
+  --> if-redirection.ps1:1:39
+   |
+1 | if ($true) { Get-Verb -Group Common } > out.txt
+   |                                       ^ unsupported redirection
+   = help: Remove the redirection or use the host's explicit output contract.
+""");
+        }
+
+        foreach (string redirection in new[]
+        {
+            "if ($true) { Get-Verb -Group Common } >> out.txt",
+            "if ($true) { Get-Verb -Group Common } 2>&1",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(redirection, "if-redirection-shape.ps1");
+                throw new InvalidOperationException($"A redirection pseudo-command was accepted: '{redirection}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+                // Different upstream AST shapes still receive one lowerer
+                // policy rather than being mislabeled as unknown commands.
+            }
+        }
+    }
+
+    private static void AssertTerminalPresentation()
+    {
+        if (!AotTerminalColorPolicy.Resolve(AotColorMode.Auto, new(false, "xterm-256color", null, false, false, 120))
+            || AotTerminalColorPolicy.Resolve(AotColorMode.Auto, new(true, "xterm-256color", null, false, false, null))
+            || AotTerminalColorPolicy.Resolve(AotColorMode.Auto, new(false, "dumb", null, false, false, 120))
+            || AotTerminalColorPolicy.Resolve(AotColorMode.Auto, new(false, "xterm", "1", false, false, 120))
+            || AotTerminalColorPolicy.Resolve(AotColorMode.Auto, new(false, "xterm", null, true, false, 120))
+            || !AotTerminalColorPolicy.Resolve(AotColorMode.Auto, new(false, "xterm", null, true, true, 120))
+            || !AotTerminalColorPolicy.Resolve(AotColorMode.Always, new(true, null, "1", true, false, null))
+            || AotTerminalColorPolicy.Resolve(AotColorMode.Never, new(false, "xterm", null, false, false, 120)))
+        {
+            throw new InvalidOperationException("Terminal color policy regression.");
+        }
+
+        StringWriter output = new(CultureInfo.InvariantCulture);
+        StringWriter error = new(CultureInfo.InvariantCulture);
+        TextWriter originalOutput = Console.Out;
+        TextWriter originalError = Console.Error;
+        try
+        {
+            Console.SetOut(output);
+            Console.SetError(error);
+            if (ScriptRunner.Execute("Get-Verb -Group $missing", colorMode: AotColorMode.Always) != 2)
+            {
+                throw new InvalidOperationException("Forced ANSI diagnostic execution returned the wrong exit code.");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+        }
+
+        if (output.GetStringBuilder().Length != 0
+            || !error.ToString().Contains("\u001b[31merror[AOT5001]", StringComparison.Ordinal)
+            || !error.ToString().Contains("\u001b[0m", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Forced ANSI diagnostics did not retain the typed terminal contract.");
+        }
+
+        AotDiagnostic hostile = AotDiagnostics.Runtime("AOT3999", "Bad\u001b[31m heading", new AotSourceSpan("bad\u001bname.ps1", 0, 4, 1, 1, 1, 5), "bad\u001b label", "bad\u001b help");
+        string sanitized = AotDiagnosticRenderer.Render(hostile, "bad\u001b", options: new AotDiagnosticRenderOptions(UseAnsi: true));
+        if (!sanitized.Contains("\\u001B", StringComparison.Ordinal)
+            || sanitized.Count(character => character == '\u001b') != 2)
+        {
+            throw new InvalidOperationException("Diagnostic rendering allowed source-derived terminal control characters.");
         }
     }
 

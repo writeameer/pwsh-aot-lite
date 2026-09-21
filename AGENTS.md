@@ -36,6 +36,8 @@ The runner must remain Native-AOT safe:
    diagnostics, renderer, and negative-test requirements.
 9. `docs/architecture/language-compatibility-core.md` — the current reviewed
    block-plan, lexical-scope, expression, and delayed-binder boundary.
+10. `docs/architecture/terminal-presentation.md` — ANSI policy, sanitization,
+    and the shared-parser boundary for future interactive highlighting.
 
 ## Mandatory independent review process
 

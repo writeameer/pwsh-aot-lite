@@ -22,6 +22,36 @@ internal sealed class AotScope(AotScope? parent = null)
         _values.TryGetValue(name, out value) || (Parent?.TryGet(name, out value) ?? false);
 }
 
+// The AOT scope intentionally has no PowerShell SessionState. Names that
+// PowerShell reserves for automatic, AllScope, preference, or host/runtime
+// state must therefore never become ordinary lexical variables. This is a
+// versioned transcription of every name in pinned upstream
+// engine/SpecialVariables.cs, augmented only with the event-action and
+// profile automatic variables created outside that catalog. It is shared by
+// variable read and assignment lowering.
+internal static class AotScopeVariablePolicy
+{
+    private static readonly HashSet<string> ReservedPowerShellNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Complete SpecialVariables.cs catalog (pinned upstream checkout).
+        "MaximumHistoryCount", "MyInvocation", "OFS", "PSStyle", "OutputEncoding", "PSApplicationOutputEncoding", "VerboseHelpErrors",
+        "LogEngineHealthEvent", "LogEngineLifecycleEvent", "LogCommandHealthEvent", "LogCommandLifecycleEvent",
+        "LogProviderHealthEvent", "LogProviderLifecycleEvent", "LogSettingsEvent", "PSLogUserData",
+        "NestedPromptLevel", "CurrentlyExecutingCommand", "PSBoundParameters", "Matches", "LASTEXITCODE", "PSDebugContext", "StackTrace",
+        "^", "$", "PSItem", "_", "?", "args", "this", "input", "PSCmdlet", "Error", "env:PATHEXT", "PSEmailServer", "PSDefaultParameterValues",
+        "PSScriptRoot", "PSCommandPath", "PSSenderInfo", "foreach", "switch", "PWD", "null", "true", "false", "PSModuleAutoLoadingPreference",
+        "IsLinux", "IsMacOS", "IsWindows", "IsCoreCLR",
+        "DebugPreference", "ErrorActionPreference", "ProgressPreference", "VerbosePreference", "WarningPreference", "WhatIfPreference", "ConfirmPreference", "InformationPreference",
+        "PSNativeCommandUseErrorActionPreference", "PSNativeCommandArgumentPassing", "ErrorView", "PSSessionConfigurationName", "PSSessionApplicationName",
+        "ExecutionContext", "HOME", "Host", "PID", "PSCulture", "PSHOME", "PSUICulture", "PSVersionTable", "PSEdition", "ShellId", "EnabledExperimentalFeatures",
+
+        // EventManager.cs event-action scope and the host-created $PROFILE.
+        "EventSubscriber", "Event", "Sender", "EventArgs", "PROFILE",
+    };
+
+    internal static bool IsReservedPowerShellName(string name) => ReservedPowerShellNames.Contains(name);
+}
+
 // Block output is segmented because successive commands may legitimately have
 // different table shapes.  Flattening them under one column list would invent
 // a formatting contract that PowerShell itself does not have.
@@ -45,30 +75,36 @@ internal sealed class AotBlockPlan(IReadOnlyList<AotStatementPlan> statements)
         Action<AotExecutionOutput>? onOutput = null)
     {
         List<AotExecutionOutput> outputs = [];
-        foreach (AotStatementPlan statement in Statements)
+        ExecuteInto(context, scope, output =>
         {
-            if (statement.Execute(context, scope) is { } output)
-            {
-                outputs.Add(output);
-                onOutput?.Invoke(output);
-            }
-        }
+            outputs.Add(output);
+            onOutput?.Invoke(output);
+        });
 
         return new AotExecutionResult(outputs);
+    }
+
+    // Nested statement blocks use their caller's sink so branch output keeps
+    // its original order and table shape. A branch is not a synthetic pipeline.
+    internal void ExecuteInto(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    {
+        foreach (AotStatementPlan statement in Statements)
+        {
+            statement.Execute(context, scope, emit);
+        }
     }
 }
 
 internal abstract class AotStatementPlan
 {
-    internal abstract AotExecutionOutput? Execute(AotExecutionContext context, AotScope scope);
+    internal abstract void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit);
 }
 
 internal sealed class AotAssignmentPlan(string name, AotExpressionPlan value) : AotStatementPlan
 {
-    internal override AotExecutionOutput? Execute(AotExecutionContext context, AotScope scope)
+    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         scope.Set(name, value.Evaluate(scope));
-        return null;
     }
 }
 
@@ -79,10 +115,10 @@ internal sealed class AotPipelineStatementPlan(
     bool projected,
     AotSourceSpan? projectionSpan) : AotStatementPlan
 {
-    internal override AotExecutionOutput Execute(AotExecutionContext context, AotScope scope)
+    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         PipelinePlan pipeline = BindPipeline(scope);
-        return new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns);
+        emit(new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns));
     }
 
     internal PipelinePlan BindPipeline(AotScope scope)
@@ -91,6 +127,120 @@ internal sealed class AotPipelineStatementPlan(
         Filter? resolvedFilter = filter?.Resolve(scope);
         return new PipelinePlan(cmdlet, invocation, null, null, resolvedFilter, columns ?? cmdlet.DefaultColumns, projected, projectionSpan);
     }
+}
+
+internal sealed class AotIfStatementPlan(
+    IReadOnlyList<AotIfClausePlan> clauses,
+    AotBlockPlan? elseBlock) : AotStatementPlan
+{
+    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    {
+        foreach (AotIfClausePlan clause in clauses)
+        {
+            if (clause.Condition.Evaluate(scope))
+            {
+                // Unlike invoked scriptblocks/functions, PowerShell's if
+                // braces do not form a scope. A selected branch can update
+                // variables used by following top-level statements.
+                clause.Body.ExecuteInto(context, scope, emit);
+                return;
+            }
+        }
+
+        elseBlock?.ExecuteInto(context, scope, emit);
+    }
+}
+
+internal sealed record AotIfClausePlan(AotConditionPlan Condition, AotBlockPlan Body);
+
+// Conditions are their own deliberately closed plan family. They reuse value
+// expressions and AotValueComparison but do not add general PowerShell
+// truthiness, coercion, or operator evaluation.
+internal abstract class AotConditionPlan(AotSourceSpan span)
+{
+    internal AotSourceSpan Span { get; } = span;
+    internal abstract bool Evaluate(AotScope scope);
+}
+
+internal sealed class AotBooleanConditionPlan(AotExpressionPlan expression) : AotConditionPlan(expression.Span)
+{
+    internal override bool Evaluate(AotScope scope)
+    {
+        AotValue value = expression.Evaluate(scope);
+        if (value.TryGetBoolean(out bool boolean))
+        {
+            return boolean;
+        }
+
+        throw AotConditionDiagnostics.Unsupported(
+            "If requires a Boolean condition in the Native AOT subset.",
+            expression.Span,
+            "non-Boolean condition",
+            "Use $true/$false or compare two supported closed values with -eq, -ne, -gt, -ge, -lt, or -le.");
+    }
+}
+
+internal sealed class AotComparisonConditionPlan(
+    AotExpressionPlan left,
+    AotExpressionPlan right,
+    Comparison comparison,
+    StringComparison stringComparison,
+    AotSourceSpan operatorSpan) : AotConditionPlan(operatorSpan)
+{
+    internal override bool Evaluate(AotScope scope)
+    {
+        AotValue leftValue = left.Evaluate(scope);
+        AotValue rightValue = right.Evaluate(scope);
+        if (!SupportsComparison(leftValue, rightValue, comparison)
+            || !AotValueComparison.TryCompare(leftValue, rightValue, stringComparison, out int result))
+        {
+            throw AotConditionDiagnostics.Unsupported(
+                "If comparison operands are not supported by the Native AOT subset.",
+                Span,
+                "unsupported conditional comparison",
+                "Compare two numbers, or use -eq/-ne with values of the same supported closed kind.");
+        }
+
+        return comparison switch
+        {
+            Comparison.GreaterThan => result > 0,
+            Comparison.GreaterThanOrEqual => result >= 0,
+            Comparison.LessThan => result < 0,
+            Comparison.LessThanOrEqual => result <= 0,
+            Comparison.Equal => result == 0,
+            Comparison.NotEqual => result != 0,
+            _ => throw new InvalidOperationException($"Unknown comparison '{comparison}'."),
+        };
+    }
+
+    private static bool SupportsComparison(AotValue left, AotValue right, Comparison comparison)
+    {
+        bool leftNumber = left.Kind is AotValueKind.Integer or AotValueKind.Decimal or AotValueKind.FloatingPoint;
+        bool rightNumber = right.Kind is AotValueKind.Integer or AotValueKind.Decimal or AotValueKind.FloatingPoint;
+        if (leftNumber && rightNumber)
+        {
+            return true;
+        }
+
+        if (comparison is not (Comparison.Equal or Comparison.NotEqual))
+        {
+            return false;
+        }
+
+        return left.Kind switch
+        {
+            AotValueKind.Null => right.Kind == AotValueKind.Null,
+            AotValueKind.Boolean => right.Kind == AotValueKind.Boolean,
+            AotValueKind.String => right.Kind == AotValueKind.String,
+            _ => false,
+        };
+    }
+}
+
+internal static class AotConditionDiagnostics
+{
+    internal static ScriptException Unsupported(string message, AotSourceSpan span, string label, string help) =>
+        new(AotDiagnostics.Scope("AOT5005", message, span, label, help));
 }
 
 // Expressions are intentionally closed and AST-derived.  Adding a new node is

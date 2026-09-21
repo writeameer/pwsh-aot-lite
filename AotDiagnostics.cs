@@ -123,23 +123,24 @@ internal static class AotDiagnosticRenderer
     {
         AotDiagnosticRenderOptions renderOptions = options ?? new AotDiagnosticRenderOptions();
         string severity = diagnostic.Severity.ToString().ToLowerInvariant();
-        string heading = $"{severity}[{diagnostic.Id}]: {diagnostic.PrimaryMessage}";
+        string heading = $"{severity}[{SanitizeInline(diagnostic.Id)}]: {SanitizeInline(diagnostic.PrimaryMessage)}";
         StringBuilder output = new(renderOptions.UseAnsi ? "\u001b[31m" + heading + "\u001b[0m" : heading);
 
         if (diagnostic.Span is { } span && !string.IsNullOrEmpty(source))
         {
-            string documentName = span.DocumentName ?? fallbackDocumentName ?? "<input>";
+            string documentName = SanitizeInline(span.DocumentName ?? fallbackDocumentName ?? "<input>");
             string[] lines = source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
             int lineIndex = span.StartLine - 1;
             if (lineIndex >= 0 && lineIndex < lines.Length)
             {
-                string line = lines[lineIndex].Replace("\t", "    ", StringComparison.Ordinal);
-                int caretStart = Math.Clamp(span.StartColumn - 1, 0, line.Length);
-                int caretLength = span.StartLine == span.EndLine
+                string rawLine = lines[lineIndex].Replace("\t", "    ", StringComparison.Ordinal);
+                int rawCaretStart = Math.Clamp(span.StartColumn - 1, 0, rawLine.Length);
+                int rawCaretLength = span.StartLine == span.EndLine
                     ? Math.Max(1, span.EndColumn - span.StartColumn)
-                    : Math.Max(1, line.Length - caretStart);
-                caretLength = Math.Min(caretLength, Math.Max(1, line.Length - caretStart));
-                string label = diagnostic.Label ?? diagnostic.Category.ToString().ToLowerInvariant();
+                    : Math.Max(1, rawLine.Length - rawCaretStart);
+                rawCaretLength = Math.Min(rawCaretLength, Math.Max(1, rawLine.Length - rawCaretStart));
+                string line = SanitizeSourceLine(rawLine, rawCaretStart, rawCaretLength, out int caretStart, out int caretLength);
+                string label = SanitizeInline(diagnostic.Label ?? diagnostic.Category.ToString().ToLowerInvariant());
 
                 if (renderOptions.ValidatedWidth is int width && line.Length > width)
                 {
@@ -165,9 +166,69 @@ internal static class AotDiagnosticRenderer
         if (!string.IsNullOrWhiteSpace(diagnostic.Help))
         {
             output.AppendLine();
-            output.Append("   = help: ").Append(diagnostic.Help);
+            output.Append("   = help: ").Append(SanitizeInline(diagnostic.Help));
         }
 
         return output.ToString();
+    }
+
+    // Source and some messages can contain user-controlled text. Never allow
+    // that text to manufacture terminal control sequences; only this renderer
+    // emits ANSI CSI codes when the caller selected ANSI presentation.
+    private static string SanitizeInline(string value)
+    {
+        StringBuilder safe = new();
+        foreach (char character in value)
+        {
+            AppendSafeCharacter(safe, character);
+        }
+
+        return safe.ToString();
+    }
+
+    private static string SanitizeSourceLine(string value, int rawCaretStart, int rawCaretLength, out int caretStart, out int caretLength)
+    {
+        StringBuilder safe = new();
+        int rawCaretEnd = rawCaretStart + rawCaretLength;
+        int safeStart = 0;
+        int safeEnd = 0;
+        for (int index = 0; index < value.Length; index++)
+        {
+            if (index == rawCaretStart)
+            {
+                safeStart = safe.Length;
+            }
+
+            AppendSafeCharacter(safe, value[index]);
+            if (index + 1 == rawCaretEnd)
+            {
+                safeEnd = safe.Length;
+            }
+        }
+
+        if (rawCaretStart >= value.Length)
+        {
+            safeStart = safe.Length;
+        }
+
+        if (rawCaretEnd >= value.Length)
+        {
+            safeEnd = safe.Length;
+        }
+
+        caretStart = safeStart;
+        caretLength = Math.Max(1, safeEnd - safeStart);
+        return safe.ToString();
+    }
+
+    private static void AppendSafeCharacter(StringBuilder output, char character)
+    {
+        if (!char.IsControl(character))
+        {
+            output.Append(character);
+            return;
+        }
+
+        output.Append("\\u").Append(((int)character).ToString("X4", System.Globalization.CultureInfo.InvariantCulture));
     }
 }

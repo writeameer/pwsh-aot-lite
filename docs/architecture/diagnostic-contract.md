@@ -78,8 +78,11 @@ supported.
    plain/ANSI/width-constrained terminal rendering, and snapshot fixtures for
    successful, malformed, unsupported, binding, and runtime cases.
 2. **Language Compatibility Core:** `AotScope`, closed expression plans,
-   explicit value-to-binder conversion, and `AOT5001`–`AOT5004` are now in
-   place. Nested labels and causal notes remain future work.
+   explicit value-to-binder conversion, closed conditional diagnostics through
+   `AOT5005`, and an ANSI-safe terminal host policy are now in place. The host
+   exposes `--color auto|always|never`; see
+   [terminal presentation](terminal-presentation.md). Nested labels and causal
+   notes remain future work.
 3. **Engine Runtime Core:** model PowerShell-compatible terminating versus
    non-terminating pipeline errors, invocation context, streams, and
    REPL-friendly presentation.

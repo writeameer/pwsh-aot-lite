@@ -16,15 +16,16 @@ source document
 ```
 
 The first `AotExecutionPlan` established the AST-to-plan boundary. It now owns
-an ordered top-level block of assignment and structural-pipeline plans; scope
-and delayed variable binding are documented in the
-[Language Compatibility Core](language-compatibility-core.md). Control flow
-and functions are still deliberately absent.
+an ordered block of assignment, conditional, and structural-pipeline plans;
+scope, delayed variable binding, and closed conditional selection are documented
+in the [Language Compatibility Core](language-compatibility-core.md). Control
+flow loops and functions are still deliberately absent.
 
 ## Current supported execution shape
 
-An unnamed top-level upstream-parsed block with ordered assignments and command
-pipelines. Each executable pipeline has:
+An unnamed upstream-parsed block with ordered assignments, reviewed
+`if`/`elseif`/`else` statements, and command pipelines. Each executable
+pipeline has:
 
 - one native-AOT source command;
 - optionally one direct-property finite-numeric `Where-Object` predicate; and
@@ -65,7 +66,7 @@ generic pipeline boundary only through the existing explicit `AotValue`/
 | `AOT2005` | Positional argument is not supported |
 | `AOT3001`–`AOT3004` | `Get-Process` validation failures with command source context |
 | `AOT4001`–`AOT4008` | `Where-Object` / `Select-Object` structural-stage validation failures |
-| `AOT5001`–`AOT5004` | Lexical scope, value-to-binder conversion, and variable predicate failures |
+| `AOT5001`–`AOT5005` | Lexical scope, value-to-binder conversion, variable predicate, and closed conditional failures |
 | `AOT3000` | Transitional typed wrapper around an untouched legacy runtime error; it still inherits the active command span |
 | `AOT9000` | Unexpected host failure, with implementation detail withheld from normal output |
 
@@ -94,6 +95,6 @@ pwsh -NoProfile -File tools/Export-PwshParserBaseline.ps1 -Verify
 
 ## Next increments
 
-1. Add direct `if`, `foreach`, and then named local functions on child scopes.
+1. Add `foreach`, then named local functions with independently proven scope semantics.
 2. Migrate all existing port/runtime failures to typed origin diagnostics and
    add fixture-based snapshot coverage.
