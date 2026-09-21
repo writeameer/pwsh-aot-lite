@@ -5,7 +5,7 @@ runner. It is **not** `frontend-spike/`, and does not share source with it.
 
 ## Pinned source
 
-- Repository: `/Users/ameerdeen/progs/PowerShell`
+- Repository: `https://github.com/PowerShell/PowerShell.git`
 - Commit: `1e53f6bbab4b8791eae782474d21889f9e5d6038`
 - License: MIT; the Microsoft copyright/license headers in copied files are
   retained verbatim.

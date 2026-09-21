@@ -1,0 +1,39 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore pinned PowerShell source
+        shell: pwsh
+        run: ./eng/Restore-Upstream.ps1
+      - name: Build
+        run: dotnet build -c Release
+      - name: Managed self-test
+        run: dotnet run -c Release -- --self-test
+      - name: Parser reuse guard
+        shell: pwsh
+        run: ./tools/Test-ParserReuseGuard.ps1
+      - name: Parser differential baselines
+        shell: pwsh
+        run: ./tools/Export-PwshParserBaseline.ps1 -Verify
+      - name: Native AOT publish and smoke
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev
+          dotnet publish -c Release -r linux-x64 --self-contained true -o artifacts/linux-x64
+          ./artifacts/linux-x64/PwshAotLite --self-test
+          ./artifacts/linux-x64/PwshAotLite -Command 'Get-TimeZone -Id UTC | Where-Object baseutcoffsetminutes -ge 0 | Select-Object id, baseutcoffsetminutes'

@@ -54,6 +54,20 @@ internal sealed class SystemActivationVolumeVerifier : IActivationVolumeVerifier
 
     private static ulong LinuxDeviceId(string path)
     {
+        // glibc's struct stat has a different member order on AArch64: mode
+        // follows inode, before link count.  Do not read the x64 layout on an
+        // ARM64 container or regular files will be misclassified and same
+        // volume checks will compare a mode value as though it were a device.
+        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            if (LinuxArm64Stat(path, out LinuxArm64StatBuffer arm64Result) != 0)
+            {
+                throw new IOException("stat failed for staging-volume verification.");
+            }
+
+            return arm64Result.Device;
+        }
+
         if (LinuxStat(path, out LinuxStatBuffer result) != 0)
         {
             throw new IOException("stat failed for staging-volume verification.");
@@ -80,11 +94,23 @@ internal sealed class SystemActivationVolumeVerifier : IActivationVolumeVerifier
         public uint Mode;
     }
 
+    // Linux AArch64: st_dev, st_ino, st_mode, st_nlink, ...
+    [StructLayout(LayoutKind.Sequential, Size = 256)]
+    private struct LinuxArm64StatBuffer
+    {
+        public ulong Device;
+        public ulong Inode;
+        public uint Mode;
+    }
+
     [DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "stat", CharSet = CharSet.Ansi)]
     private static extern int DarwinStat(string path, out DarwinStatBuffer buffer);
 
     [DllImport("libc.so.6", EntryPoint = "stat", CharSet = CharSet.Ansi)]
     private static extern int LinuxStat(string path, out LinuxStatBuffer buffer);
+
+    [DllImport("libc.so.6", EntryPoint = "stat", CharSet = CharSet.Ansi)]
+    private static extern int LinuxArm64Stat(string path, out LinuxArm64StatBuffer buffer);
 }
 
 // A file pathname is not automatically a regular file on Unix. Do not hash or
@@ -131,6 +157,16 @@ internal static class NativeFileObjectPolicy
 
     private static uint LinuxMode(string path)
     {
+        if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+        {
+            if (LinuxArm64Stat(path, out LinuxArm64StatBuffer arm64Result) != 0)
+            {
+                throw new IOException("stat failed for package object.");
+            }
+
+            return arm64Result.Mode;
+        }
+
         if (LinuxStat(path, out LinuxStatBuffer result) != 0)
         {
             throw new IOException("stat failed for package object.");
@@ -155,9 +191,21 @@ internal static class NativeFileObjectPolicy
         public uint Mode;
     }
 
+    // Linux AArch64: st_dev, st_ino, st_mode, st_nlink, ...
+    [StructLayout(LayoutKind.Sequential, Size = 256)]
+    private struct LinuxArm64StatBuffer
+    {
+        public ulong Device;
+        public ulong Inode;
+        public uint Mode;
+    }
+
     [DllImport("/usr/lib/libSystem.B.dylib", EntryPoint = "stat", CharSet = CharSet.Ansi)]
     private static extern int DarwinStat(string path, out DarwinStatBuffer buffer);
 
     [DllImport("libc.so.6", EntryPoint = "stat", CharSet = CharSet.Ansi)]
     private static extern int LinuxStat(string path, out LinuxStatBuffer buffer);
+
+    [DllImport("libc.so.6", EntryPoint = "stat", CharSet = CharSet.Ansi)]
+    private static extern int LinuxArm64Stat(string path, out LinuxArm64StatBuffer buffer);
 }

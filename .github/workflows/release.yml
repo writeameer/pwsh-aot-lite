@@ -1,0 +1,33 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore pinned PowerShell source
+        shell: pwsh
+        run: ./eng/Restore-Upstream.ps1
+      - name: Publish Native AOT release asset
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev
+          dotnet publish -c Release -r linux-x64 --self-contained true -o artifacts/linux-x64
+          ./artifacts/linux-x64/PwshAotLite --self-test
+          tar -C artifacts/linux-x64 -czf pwsh-aot-lite-linux-x64.tar.gz .
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: pwsh-aot-lite-linux-x64.tar.gz

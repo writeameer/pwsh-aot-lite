@@ -1,4 +1,5 @@
-bin/
-obj/
-artifacts/
+**/bin/
+**/obj/
+**/artifacts/
 .git/
+.upstream/

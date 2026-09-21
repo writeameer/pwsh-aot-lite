@@ -48,28 +48,37 @@ The repeatable mapping for the next cmdlet is in [PORTING.md](PORTING.md).
 
 ## Development prerequisites
 
-This spike intentionally reads the upstream PowerShell source at build time to
-extract static cmdlet contracts; it does not reference the PowerShell SDK at
-runtime. Clone the PowerShell repository and place this project alongside the
-port generator so the existing relative build inputs resolve:
+This spike intentionally reads a pinned upstream PowerShell source tree at
+build time to extract static cmdlet contracts; it does not reference the
+PowerShell SDK at runtime. A fresh clone restores the exact source commit into
+the ignored `.upstream/` directory:
 
 ```text
-<work-root>/
-├── PowerShell/                  # pinned upstream source checkout
-└── pwsh-spikes/
-    ├── PwshAotPortGenerator/    # compile-time contract generator
-    └── pwsh-aot-lite/           # this repository
+pwsh-aot-lite/
+├── tools/PwshAotPortGenerator/  # checked-in compile-time contract generator
+└── .upstream/PowerShell/         # restored, ignored pinned source checkout
 ```
 
-The project targets .NET 10. `PwshAotLite.csproj` records the exact upstream
-parser extraction commit. A future standalone-distribution design may replace
-these development-time source inputs, but must retain the provenance and
-parser-reuse gates in [PARSER-REUSE-GUARD.md](PARSER-REUSE-GUARD.md).
+The project targets .NET 10. Bootstrap and verify a clean clone with:
+
+```powershell
+pwsh -NoProfile -File eng/Restore-Upstream.ps1
+dotnet build -c Release
+dotnet run -c Release -- --self-test
+pwsh -NoProfile -File tools/Test-ParserReuseGuard.ps1
+pwsh -NoProfile -File tools/Export-PwshParserBaseline.ps1 -Verify
+```
+
+To reuse an existing PowerShell checkout instead, pass
+`-p:PowerShellSourceRoot=/absolute/path/to/PowerShell/src` to `dotnet`.
+The pinned source specification, provenance, and parser-reuse gates remain in
+[PARSER-REUSE-GUARD.md](PARSER-REUSE-GUARD.md).
 
 ## Generated cmdlet metadata
 
-`../PwshAotPortGenerator` is an incremental C# source generator. At build time
-it scans every C# source file in `../../PowerShell/src`, including declarations
+`tools/PwshAotPortGenerator` is an incremental C# source generator. At build
+time it scans every C# source file in the restored upstream PowerShell source,
+including declarations
 inside platform-specific branches, and generates static metadata for the 290
 semantic cmdlet declarations currently discovered. The generated output is
 available under `obj/Generated/`.

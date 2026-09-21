@@ -2,7 +2,8 @@
 
 This repository is a Native-AOT PowerShell migration spike. It is deliberately
 separate from the original PowerShell source tree. Do not edit
-`../../PowerShell`; treat it as the reference implementation.
+`.upstream/PowerShell`; it is the pinned reference checkout restored by
+`eng/Restore-Upstream.ps1` and is ignored by Git.
 
 ## Goal and boundary
 
@@ -23,7 +24,7 @@ The runner must remain Native-AOT safe:
 1. `ARCHITECTURE.md` — architecture, guardrails, and non-negotiable port rules.
 2. `PORTING.md` — source-to-target mapping.
 3. `port-variances.json` — durable evidence of every intentional difference.
-4. `../PwshAotPortGenerator/PortManifestGenerator.cs` — compile-time source
+4. `tools/PwshAotPortGenerator/PortManifestGenerator.cs` — compile-time source
    contract extractor.
 5. `PARSER-REUSE-GUARD.md` — mandatory language-fidelity and AOT-boundary
    gates.  PowerShell grammar is upstream source, not a new grammar to grow.
@@ -74,7 +75,8 @@ note.
 
 ## Port workflow
 
-1. Find the original `[Cmdlet]` implementation under `../../PowerShell/src`.
+1. Run `eng/Restore-Upstream.ps1`, then find the original `[Cmdlet]`
+   implementation under `.upstream/PowerShell/src`.
 2. Build this project once. Inspect the generated contract beneath
    `obj/Generated/.../GeneratedCmdletPorts.g.cs`; it preserves command metadata,
    parameter-set bindings, aliases, lifecycle, base types, outputs, validation,

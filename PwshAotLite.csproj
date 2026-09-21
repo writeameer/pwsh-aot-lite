@@ -10,11 +10,18 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+    <!-- Override with -p:PowerShellSourceRoot=/path/to/PowerShell/src when
+         using an existing checkout. The bootstrap script restores this pinned
+         source tree for a fresh clone. -->
+    <PowerShellSourceRoot Condition="'$(PowerShellSourceRoot)' == ''">$(MSBuildProjectDirectory)/.upstream/PowerShell/src</PowerShellSourceRoot>
   </PropertyGroup>
   <ItemGroup>
     <!-- The parser proof is a separate executable project.  SDK default globbing
          would otherwise compile its Program.cs into the host executable. -->
     <Compile Remove="frontend-spike/**/*.cs" />
+    <!-- The vendored generator is compiled only through its analyzer project
+         reference below; it is not runner source. -->
+    <Compile Remove="tools/PwshAotPortGenerator/**/*.cs" />
     <!-- The upstream-derived language extraction is a separately compiled,
          reviewed dependency. Its engine compatibility hooks remain fail-closed
          and may not become runner execution services. -->
@@ -23,12 +30,16 @@
          Parser/AST types through the narrow lowerer; it does not compile the
          extraction sources or reference a PowerShell SDK. -->
     <ProjectReference Include="language/PwshAotLite.Language.csproj" />
-    <ProjectReference Include="../PwshAotPortGenerator/PwshAotPortGenerator.csproj"
+    <ProjectReference Include="tools/PwshAotPortGenerator/PwshAotPortGenerator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
-    <AdditionalFiles Include="../../PowerShell/src/**/*.cs"
+    <AdditionalFiles Include="$(PowerShellSourceRoot)/**/*.cs"
                      Link="PowerShellSource/%(RecursiveDir)%(Filename)%(Extension)" />
-    <AdditionalFiles Include="../../PowerShell/src/System.Management.Automation/resources/VerbDescriptionStrings.resx"
+    <AdditionalFiles Include="$(PowerShellSourceRoot)/System.Management.Automation/resources/VerbDescriptionStrings.resx"
                      Link="PowerShellSource/System.Management.Automation/resources/VerbDescriptionStrings.resx" />
   </ItemGroup>
+  <Target Name="EnsurePowerShellSource" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('$(PowerShellSourceRoot)')"
+           Text="PowerShell source was not found at '$(PowerShellSourceRoot)'. Run 'pwsh -NoProfile -File eng/Restore-Upstream.ps1' or set -p:PowerShellSourceRoot=/path/to/PowerShell/src." />
+  </Target>
 </Project>
