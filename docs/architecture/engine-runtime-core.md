@@ -2,8 +2,10 @@
 
 ## Status
 
-In progress. The first integrated slice is an ordered, typed runtime event
-bridge. It is deliberately narrower than PowerShell's full stream model.
+In progress. Ordered runtime events and one typed-input stage are integrated.
+The cooperative cancellation/lifecycle slice is implemented on its dedicated
+branch and awaits independent review. The Runtime Core remains deliberately
+narrower than PowerShell's full stream model.
 
 ## Runtime event contract
 
@@ -36,12 +38,37 @@ table host formats it. Therefore a source command that raises a non-terminating
 error while forming its rows can emit `Error` before the segment's `Success`.
 That ordering is intentional, testable, and honest.
 
+## Cooperative cancellation and lifecycle
+
+`AotExecutionContext` accepts an optional, host-owned `CancellationToken`.
+`AotBlockPlan`, closed foreach execution, pipeline materialization, and
+`AotCmdletBase` check that token cooperatively. This is a control-flow signal:
+it does not create an error event, append to `Errors`, or render a diagnostic.
+
+A context already cancelled before a cmdlet starts invokes no lifecycle hook.
+Once a command lifecycle has started, observed cancellation invokes that
+command's `StopProcessing` exactly once, skips `EndProcessing`, and rethrows
+the cancellation. A stop-hook exception is suppressed so it cannot replace the
+original stop result, matching the relevant upstream `PipelineProcessor.Stop`
+rule. Completed event segments remain in the transcript; the in-progress,
+buffered segment is not emitted.
+
+`ScriptRunner` maps a context cancellation to exit code `130`; its existing
+success, user-error, and unexpected-failure results remain `0`, `2`, and `1`.
+The runner does not attach a console signal handler in this slice: a later host
+projection may supply a command-scoped token source without leaking terminal
+policy into the engine.
+
 ## Explicit exclusions
 
 This slice does not support or imply `ErrorRecord`/`$Error`, preference
 variables such as `ErrorActionPreference`, stream redirection or merging,
 warning/verbose/debug/information/progress streams, record-by-record
-streaming, remoting, background jobs, concurrency, or cancellation.
+streaming, remoting, background jobs, concurrency, async/preemptive
+interruption, cancellation while parsing, cancellation of native/external
+processes, or a `Console.CancelKeyPress` policy. An arbitrary blocking port
+must be explicitly migrated to use the token; this contract does not interrupt
+it from another thread.
 
 ## Planned finite slices
 
@@ -53,8 +80,10 @@ streaming, remoting, background jobs, concurrency, or cancellation.
    property-name binding fallback. `Get-Process → Get-Process` is the proof
    adapter. Direct `-InputObject` remains rejected because text cannot honestly
    represent a static process record.
-3. **Cancellation and lifecycle** — propagate cancellation, give
-   `StopProcessing` exactly-once semantics, and return a stable host result.
+3. **Cancellation and lifecycle** — implemented on
+   `codex/phase3-cancellation-lifecycle`, pending independent review:
+   cooperative token propagation, exactly-once `StopProcessing`, and host
+   exit code `130`.
 4. **Host/REPL projection** — build multiline input and presentation batching
    over these events; syntax tooling remains a projection of the upstream
    parser, never a second lexer.
@@ -63,3 +92,5 @@ The independent evidence for slice one is in the
 [runtime stream-contract review](../reviews/2026-09-22-runtime-stream-contract.md).
 The typed-stage composition evidence is in the
 [typed-stage review](../reviews/2026-09-22-typed-stage-composition.md).
+The cancellation evidence is being recorded in the
+[cancellation/lifecycle review draft](../reviews/2026-09-22-cancellation-lifecycle.md).

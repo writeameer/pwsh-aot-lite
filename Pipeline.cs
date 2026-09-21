@@ -145,7 +145,7 @@ internal sealed class CommandError(AotDiagnostic diagnostic)
     internal string Message => Diagnostic.PrimaryMessage;
 }
 
-internal sealed class AotExecutionContext
+internal sealed class AotExecutionContext(CancellationToken cancellationToken = default)
 {
     private readonly List<CommandError> _errors = [];
     private readonly List<AotRuntimeEvent> _events = [];
@@ -155,6 +155,14 @@ internal sealed class AotExecutionContext
 
     internal IReadOnlyList<CommandError> Errors => _errors;
     internal IReadOnlyList<AotRuntimeEvent> Events => _events;
+
+    // The engine accepts a host-owned token instead of owning a mutable
+    // cancellation source. This keeps embedding deterministic and gives ports
+    // one AOT-safe cooperative stop signal.
+    internal CancellationToken StopToken { get; } = cancellationToken;
+    internal bool IsStopping => StopToken.IsCancellationRequested;
+
+    internal void ThrowIfCancellationRequested() => StopToken.ThrowIfCancellationRequested();
 
     // Hosts and programmatic callers observe the same ordered transcript.
     // A subscription is scoped so a nested execution cannot leak a host sink.
@@ -454,11 +462,36 @@ internal abstract class AotCmdletBase : IAotCmdlet
     {
         using IDisposable scope = context.EnterInvocation(invocation, pipelinePosition, pipelineLength);
         List<IPipelineRecord> output = [];
+        // A pre-cancelled context never starts the command. Once lifecycle
+        // work starts, an observed cancellation calls StopProcessing once.
+        context.ThrowIfCancellationRequested();
+        bool lifecycleStarted = true;
+        bool stopCalled = false;
+
+        void StopOnce()
+        {
+            if (stopCalled)
+            {
+                return;
+            }
+
+            stopCalled = true;
+            try
+            {
+                StopProcessing(context);
+            }
+            catch (Exception)
+            {
+                // Upstream PipelineProcessor.Stop ignores failures from a
+                // stop hook: cancellation is the result that must propagate.
+            }
+        }
+
         try
         {
-            output.AddRange(BeginProcessing(context));
-            output.AddRange(process());
-            output.AddRange(EndProcessing(context));
+            AppendOutput(output, BeginProcessing(context), context);
+            AppendOutput(output, process(), context);
+            AppendOutput(output, EndProcessing(context), context);
             return output;
         }
         catch (ScriptException error) when (error.Diagnostic.Span is null && invocation.SourceSpan is not null)
@@ -467,11 +500,26 @@ internal abstract class AotCmdletBase : IAotCmdlet
             // discard a known command location while that work proceeds.
             throw error.WithSpan(invocation.SourceSpan);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (lifecycleStarted && context.IsStopping)
         {
-            StopProcessing(context);
+            StopOnce();
             throw;
         }
+    }
+
+    private static void AppendOutput(
+        List<IPipelineRecord> output,
+        IEnumerable<IPipelineRecord> records,
+        AotExecutionContext context)
+    {
+        context.ThrowIfCancellationRequested();
+        foreach (IPipelineRecord record in records)
+        {
+            context.ThrowIfCancellationRequested();
+            output.Add(record);
+        }
+
+        context.ThrowIfCancellationRequested();
     }
 
     protected virtual IEnumerable<IPipelineRecord> BeginProcessing(AotExecutionContext context) => [];
@@ -1724,22 +1772,28 @@ internal sealed class PipelinePlan(
 
     internal IReadOnlyList<IPipelineRecord> Execute(AotExecutionContext context)
     {
-        IReadOnlyList<IPipelineRecord> rows = source.Invoke(invocation, context, pipelinePosition: 0, pipelineLength).ToArray();
+        context.ThrowIfCancellationRequested();
+        IReadOnlyList<IPipelineRecord> rows = Materialize(
+            context,
+            source.Invoke(invocation, context, pipelinePosition: 0, pipelineLength));
         if (inputStage is not null)
         {
-            rows = inputStage.Cmdlet.InvokeWithPipelineInput(
-                inputStage.Invocation,
-                rows,
+            context.ThrowIfCancellationRequested();
+            rows = Materialize(
                 context,
-                pipelinePosition: 1,
-                pipelineLength).ToArray();
+                inputStage.Cmdlet.InvokeWithPipelineInput(
+                    inputStage.Invocation,
+                    rows,
+                    context,
+                    pipelinePosition: 1,
+                    pipelineLength));
         }
         // Ports retain their strongly typed output records.  The first generic
         // stage is the explicit, closed crossing into AotValue/AotRecord; no
         // reflection or CLR-member adaptation is available after this point.
         if (filter is null && !projected)
         {
-            return rows.ToArray();
+            return Materialize(context, rows);
         }
 
         IEnumerable<AotValue> values = rows.Select(PipelineValueAdapter.ToValue);
@@ -1756,7 +1810,22 @@ internal sealed class PipelinePlan(
         // Individual command ports own their source ordering. Get-Process
         // retains its original sort in ProcessSelector; this stage only filters
         // and projects the corresponding immutable AOT values.
-        return values.Select(ToCompatibilityRecord).Cast<IPipelineRecord>().ToArray();
+        return Materialize(context, values.Select(ToCompatibilityRecord).Cast<IPipelineRecord>());
+    }
+
+    private static IReadOnlyList<IPipelineRecord> Materialize(
+        AotExecutionContext context,
+        IEnumerable<IPipelineRecord> records)
+    {
+        List<IPipelineRecord> materialized = [];
+        foreach (IPipelineRecord record in records)
+        {
+            context.ThrowIfCancellationRequested();
+            materialized.Add(record);
+        }
+
+        context.ThrowIfCancellationRequested();
+        return materialized;
     }
 
     private static AotValue Project(AotValue value, IReadOnlyList<string> columns, AotSourceSpan? projectionSpan)
@@ -1974,6 +2043,7 @@ internal static class SelfTest
         AssertExecutionKernelAndDiagnostics();
         AssertRuntimeEventContract();
         AssertTypedStageComposition();
+        AssertCancellationLifecycle();
         AssertLanguageCompatibilityCore();
         AssertControlFlowCore();
         AssertForEachCore();
@@ -2957,6 +3027,110 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         {
             throw new InvalidOperationException("The special-case input cmdlet did not retain its own invocation frame.");
         }
+    }
+
+    private static void AssertCancellationLifecycle()
+    {
+        CommandInvocation invocation = new(
+            LifecycleFixtureCmdlet.DescriptorContract,
+            new Dictionary<string, string[]>(),
+            new AotSourceSpan("cancellation.ps1", 0, 18, 1, 1, 1, 19));
+
+        using CancellationTokenSource preCancelledSource = new();
+        preCancelledSource.Cancel();
+        LifecycleFixtureCmdlet preCancelled = new();
+        AotExecutionContext preCancelledContext = new(preCancelledSource.Token);
+        AssertCancellation(() => preCancelled.Invoke(invocation, preCancelledContext).ToArray());
+        if (preCancelled.BeginCalls != 0
+            || preCancelled.ProcessCalls != 0
+            || preCancelled.EndCalls != 0
+            || preCancelled.StopCalls != 0
+            || preCancelledContext.Events.Count != 0
+            || preCancelledContext.Errors.Count != 0)
+        {
+            throw new InvalidOperationException("A pre-cancelled execution context started a cmdlet lifecycle or emitted a runtime record.");
+        }
+
+        LifecycleFixtureCmdlet completed = new();
+        IReadOnlyList<IPipelineRecord> completedRows = completed.Invoke(invocation, new AotExecutionContext()).ToArray();
+        if (completedRows.Count != 1
+            || completed.BeginCalls != 1
+            || completed.ProcessCalls != 1
+            || completed.EndCalls != 1
+            || completed.StopCalls != 0)
+        {
+            throw new InvalidOperationException("The normal AOT cmdlet lifecycle regressed while adding cancellation.");
+        }
+
+        using CancellationTokenSource processCancellation = new();
+        LifecycleFixtureCmdlet cancelledDuringProcess = new(processCancellation, cancelDuringProcess: true);
+        AotExecutionContext processContext = new(processCancellation.Token);
+        // This represents a previously completed output segment. Cancellation
+        // does not erase transcript history or synthesize an error record.
+        processContext.WriteOutput(new AotExecutionOutput([], ["Value"]));
+        AssertCancellation(() => cancelledDuringProcess.Invoke(invocation, processContext).ToArray());
+        if (cancelledDuringProcess.BeginCalls != 1
+            || cancelledDuringProcess.ProcessCalls != 1
+            || cancelledDuringProcess.EndCalls != 0
+            || cancelledDuringProcess.StopCalls != 1
+            || processContext.Errors.Count != 0
+            || processContext.Events.Count != 1
+            || processContext.Events.Single().Kind != AotRuntimeEventKind.Success)
+        {
+            throw new InvalidOperationException("Cancellation did not stop one active cmdlet exactly once while preserving prior runtime events.");
+        }
+
+        using CancellationTokenSource stopFailureCancellation = new();
+        LifecycleFixtureCmdlet stopFailure = new(stopFailureCancellation, cancelDuringProcess: true, stopThrows: true);
+        AssertCancellation(() => stopFailure.Invoke(invocation, new AotExecutionContext(stopFailureCancellation.Token)).ToArray());
+        if (stopFailure.StopCalls != 1)
+        {
+            throw new InvalidOperationException("A StopProcessing failure replaced or repeated the cancellation path.");
+        }
+
+        using CancellationTokenSource inputCancellation = new();
+        LifecycleFixtureInputCmdlet inputStage = new(inputCancellation);
+        CommandInvocation inputInvocation = new(
+            inputStage.Descriptor,
+            new Dictionary<string, string[]>(),
+            new AotSourceSpan("typed-cancellation.ps1", 14, 33, 1, 15, 1, 34));
+        AotExecutionContext inputContext = new(inputCancellation.Token);
+        AssertCancellation(() => ((IAotPipelineInputCmdlet)inputStage).InvokeWithPipelineInput(
+            inputInvocation,
+            [new TextRecord("input")],
+            inputContext,
+            pipelinePosition: 1,
+            pipelineLength: 2).ToArray());
+        if (inputStage.BeginCalls != 1
+            || inputStage.ProcessCalls != 1
+            || inputStage.EndCalls != 0
+            || inputStage.StopCalls != 1
+            || inputContext.Errors.Count != 0
+            || inputContext.Events.Count != 0)
+        {
+            throw new InvalidOperationException("Typed input-stage cancellation did not retain the shared lifecycle contract.");
+        }
+
+        using CancellationTokenSource hostCancellation = new();
+        hostCancellation.Cancel();
+        if (ScriptRunner.Execute("Get-Verb", cancellationToken: hostCancellation.Token) != ScriptRunner.CancellationExitCode)
+        {
+            throw new InvalidOperationException("The script host did not return the stable cancellation exit code.");
+        }
+    }
+
+    private static void AssertCancellation(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException("Expected cooperative cancellation to stop execution.");
     }
 
     private static void AssertTypedStageComposition()
@@ -4584,6 +4758,94 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
 
     [DllImport("libc.so.6", EntryPoint = "mkfifo", CharSet = CharSet.Ansi)]
     private static extern int LinuxMkfifo(string path, uint mode);
+
+    private sealed class LifecycleFixtureCmdlet(
+        CancellationTokenSource? cancellationSource = null,
+        bool cancelDuringProcess = false,
+        bool stopThrows = false) : AotCmdletBase
+    {
+        internal static CmdletDescriptor DescriptorContract { get; } = new("Test-Lifecycle", []);
+
+        public override CmdletDescriptor Descriptor => DescriptorContract;
+        public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+        internal int BeginCalls { get; private set; }
+        internal int ProcessCalls { get; private set; }
+        internal int EndCalls { get; private set; }
+        internal int StopCalls { get; private set; }
+
+        protected override IEnumerable<IPipelineRecord> BeginProcessing(AotExecutionContext context)
+        {
+            BeginCalls++;
+            return [];
+        }
+
+        protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+        {
+            ProcessCalls++;
+            return Process();
+        }
+
+        private IEnumerable<IPipelineRecord> Process()
+        {
+            yield return new TextRecord("first");
+            if (cancelDuringProcess)
+            {
+                cancellationSource!.Cancel();
+                yield return new TextRecord("unreachable-after-cancellation");
+            }
+        }
+
+        protected override IEnumerable<IPipelineRecord> EndProcessing(AotExecutionContext context)
+        {
+            EndCalls++;
+            return [];
+        }
+
+        protected override void StopProcessing(AotExecutionContext context)
+        {
+            StopCalls++;
+            if (stopThrows)
+            {
+                throw new InvalidOperationException("fixture stop failure");
+            }
+        }
+    }
+
+    private sealed class LifecycleFixtureInputCmdlet(CancellationTokenSource cancellationSource) : AotPipelineInputCmdletBase<TextRecord>
+    {
+        public override CmdletDescriptor Descriptor { get; } = new("Test-InputLifecycle", []);
+        public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+        internal int BeginCalls { get; private set; }
+        internal int ProcessCalls { get; private set; }
+        internal int EndCalls { get; private set; }
+        internal int StopCalls { get; private set; }
+
+        protected override IEnumerable<IPipelineRecord> BeginProcessing(AotExecutionContext context)
+        {
+            BeginCalls++;
+            return [];
+        }
+
+        protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context) => [];
+
+        protected override IEnumerable<IPipelineRecord> ProcessPipelineInput(
+            CommandInvocation invocation,
+            IReadOnlyList<TextRecord> input,
+            AotExecutionContext context)
+        {
+            ProcessCalls++;
+            cancellationSource.Cancel();
+            return input;
+        }
+
+        protected override IEnumerable<IPipelineRecord> EndProcessing(AotExecutionContext context)
+        {
+            EndCalls++;
+            return [];
+        }
+
+        protected override void StopProcessing(AotExecutionContext context) => StopCalls++;
+    }
 
     private sealed class FixtureProcessCatalog(IReadOnlyList<ProcessRecord> processes, bool emitUserError = false) : IProcessCatalog
     {

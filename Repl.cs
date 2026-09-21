@@ -2,13 +2,20 @@ namespace PwshAotLite;
 
 internal static class ScriptRunner
 {
-    internal static int Execute(string script, AotScope? scope = null, AotColorMode colorMode = AotColorMode.Auto)
+    internal const int CancellationExitCode = 130;
+
+    internal static int Execute(
+        string script,
+        AotScope? scope = null,
+        AotColorMode colorMode = AotColorMode.Auto,
+        CancellationToken cancellationToken = default)
     {
         AotDiagnosticRenderOptions renderOptions = AotTerminalColorPolicy.RendererOptions(colorMode);
+        AotExecutionContext context = new(cancellationToken);
         try
         {
+            context.ThrowIfCancellationRequested();
             AotExecutionPlan plan = AotExecutionKernel.Compile(script, "<command>");
-            AotExecutionContext context = new();
             using IDisposable hostSubscription = context.Subscribe(runtimeEvent =>
             {
                 if (runtimeEvent is { Kind: AotRuntimeEventKind.Success, Output: { } output })
@@ -23,6 +30,12 @@ internal static class ScriptRunner
             _ = plan.Execute(context, scope);
 
             return 0;
+        }
+        catch (OperationCanceledException) when (context.IsStopping)
+        {
+            // Pipeline stopping is host control flow, not an AOT diagnostic or
+            // a non-terminating error record.
+            return CancellationExitCode;
         }
         catch (AotDiagnosticException error)
         {
