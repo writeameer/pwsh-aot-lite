@@ -1,0 +1,34 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/help/v1",
+  "schemaVersion": 1,
+  "module": {
+    "name": "Microsoft.PowerShell.Archive",
+    "version": "1.2.6"
+  },
+  "commands": [
+    {
+      "name": "Compress-Archive",
+      "synopsis": "\nCompress-Archive [-Path] <string[]> [-DestinationPath] <string> [-CompressionLevel <string>] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n\nCompress-Archive [-Path] <string[]> [-DestinationPath] <string> -Update [-CompressionLevel <string>] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n\nCompress-Archive [-Path] <string[]> [-DestinationPath] <string> -Force [-CompressionLevel <string>] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n\nCompress-Archive [-DestinationPath] <string> -LiteralPath <string[]> -Update [-CompressionLevel <string>] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n\nCompress-Archive [-DestinationPath] <string> -LiteralPath <string[]> -Force [-CompressionLevel <string>] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n\nCompress-Archive [-DestinationPath] <string> -LiteralPath <string[]> [-CompressionLevel <string>] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n",
+      "description": "",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [
+        "https://go.microsoft.com/fwlink/?linkid=2096473"
+      ],
+      "helpUri": "https://go.microsoft.com/fwlink/?linkid=2096473",
+      "sourceKind": "Function"
+    },
+    {
+      "name": "Expand-Archive",
+      "synopsis": "\nExpand-Archive [-Path] <string> [[-DestinationPath] <string>] [-Force] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n\nExpand-Archive [[-DestinationPath] <string>] -LiteralPath <string> [-Force] [-PassThru] [-WhatIf] [-Confirm] [<CommonParameters>]\n",
+      "description": "",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [
+        "https://go.microsoft.com/fwlink/?linkid=2096769"
+      ],
+      "helpUri": "https://go.microsoft.com/fwlink/?linkid=2096769",
+      "sourceKind": "Function"
+    }
+  ]
+}

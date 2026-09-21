@@ -1,0 +1,1190 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/extension/v1",
+  "schemaVersion": 1,
+  "extension": {
+    "id": "legacy-pwsh/Microsoft.PowerShell.Archive",
+    "displayName": "Microsoft.PowerShell.Archive",
+    "version": "1.2.6",
+    "execution": {
+      "kind": "legacy-pwsh-sidecar",
+      "status": "registered-not-invoked",
+      "reason": "Contract/help registration only. Execution bridge is intentionally not implemented by this proof."
+    }
+  },
+  "commands": [
+    {
+      "name": "Compress-Archive",
+      "commandType": "Function",
+      "defaultParameterSet": "Path",
+      "parameters": [
+        {
+          "name": "CompressionLevel",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [
+              "Optimal",
+              "NoCompression",
+              "Fastest"
+            ],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Confirm",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "cf"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Debug",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "db"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "DestinationPath",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": 1,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ErrorAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "ea"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ErrorVariable",
+          "type": "System.String",
+          "aliases": [
+            "ev"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Force",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "LiteralPathWithForce",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "PathWithForce",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InformationAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "infa"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InformationVariable",
+          "type": "System.String",
+          "aliases": [
+            "iv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "LiteralPath",
+          "type": "System.String[]",
+          "aliases": [
+            "PSPath"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "LiteralPathWithUpdate",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "LiteralPathWithForce",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "LiteralPath",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "OutBuffer",
+          "type": "System.Int32",
+          "aliases": [
+            "ob"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "OutVariable",
+          "type": "System.String",
+          "aliases": [
+            "ov"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "PassThru",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Path",
+          "type": "System.String[]",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "PathWithUpdate",
+              "position": 0,
+              "mandatory": true,
+              "valueFromPipeline": true,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "PathWithForce",
+              "position": 0,
+              "mandatory": true,
+              "valueFromPipeline": true,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "Path",
+              "position": 0,
+              "mandatory": true,
+              "valueFromPipeline": true,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "PipelineVariable",
+          "type": "System.String",
+          "aliases": [
+            "pv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ProgressAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "proga"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Update",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "LiteralPathWithUpdate",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "PathWithUpdate",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Verbose",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "vb"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WarningAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "wa"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WarningVariable",
+          "type": "System.String",
+          "aliases": [
+            "wv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WhatIf",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "wi"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        }
+      ],
+      "parameterSets": [
+        {
+          "name": "LiteralPath",
+          "isDefault": false,
+          "parameters": [
+            "CompressionLevel",
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "InformationAction",
+            "InformationVariable",
+            "LiteralPath",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "PipelineVariable",
+            "ProgressAction",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        },
+        {
+          "name": "LiteralPathWithForce",
+          "isDefault": false,
+          "parameters": [
+            "CompressionLevel",
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "Force",
+            "InformationAction",
+            "InformationVariable",
+            "LiteralPath",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "PipelineVariable",
+            "ProgressAction",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        },
+        {
+          "name": "LiteralPathWithUpdate",
+          "isDefault": false,
+          "parameters": [
+            "CompressionLevel",
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "InformationAction",
+            "InformationVariable",
+            "LiteralPath",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "PipelineVariable",
+            "ProgressAction",
+            "Update",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        },
+        {
+          "name": "Path",
+          "isDefault": true,
+          "parameters": [
+            "CompressionLevel",
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "InformationAction",
+            "InformationVariable",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "Path",
+            "PipelineVariable",
+            "ProgressAction",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        },
+        {
+          "name": "PathWithForce",
+          "isDefault": false,
+          "parameters": [
+            "CompressionLevel",
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "Force",
+            "InformationAction",
+            "InformationVariable",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "Path",
+            "PipelineVariable",
+            "ProgressAction",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        },
+        {
+          "name": "PathWithUpdate",
+          "isDefault": false,
+          "parameters": [
+            "CompressionLevel",
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "InformationAction",
+            "InformationVariable",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "Path",
+            "PipelineVariable",
+            "ProgressAction",
+            "Update",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        }
+      ],
+      "outputTypes": [
+        "System.IO.File"
+      ],
+      "helpUri": "https://go.microsoft.com/fwlink/?linkid=2096473"
+    },
+    {
+      "name": "Expand-Archive",
+      "commandType": "Function",
+      "defaultParameterSet": "Path",
+      "parameters": [
+        {
+          "name": "Confirm",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "cf"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Debug",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "db"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "DestinationPath",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": 1,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ErrorAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "ea"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ErrorVariable",
+          "type": "System.String",
+          "aliases": [
+            "ev"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Force",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InformationAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "infa"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InformationVariable",
+          "type": "System.String",
+          "aliases": [
+            "iv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "LiteralPath",
+          "type": "System.String",
+          "aliases": [
+            "PSPath"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "LiteralPath",
+              "position": -2147483648,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "OutBuffer",
+          "type": "System.Int32",
+          "aliases": [
+            "ob"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "OutVariable",
+          "type": "System.String",
+          "aliases": [
+            "ov"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "PassThru",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Path",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "Path",
+              "position": 0,
+              "mandatory": true,
+              "valueFromPipeline": true,
+              "valueFromPipelineByPropertyName": true,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "PipelineVariable",
+          "type": "System.String",
+          "aliases": [
+            "pv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ProgressAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "proga"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Verbose",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "vb"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WarningAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "wa"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WarningVariable",
+          "type": "System.String",
+          "aliases": [
+            "wv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WhatIf",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "wi"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        }
+      ],
+      "parameterSets": [
+        {
+          "name": "LiteralPath",
+          "isDefault": false,
+          "parameters": [
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "Force",
+            "InformationAction",
+            "InformationVariable",
+            "LiteralPath",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "PipelineVariable",
+            "ProgressAction",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        },
+        {
+          "name": "Path",
+          "isDefault": true,
+          "parameters": [
+            "Confirm",
+            "Debug",
+            "DestinationPath",
+            "ErrorAction",
+            "ErrorVariable",
+            "Force",
+            "InformationAction",
+            "InformationVariable",
+            "OutBuffer",
+            "OutVariable",
+            "PassThru",
+            "Path",
+            "PipelineVariable",
+            "ProgressAction",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable",
+            "WhatIf"
+          ]
+        }
+      ],
+      "outputTypes": [
+        "System.IO.FileSystemInfo"
+      ],
+      "helpUri": "https://go.microsoft.com/fwlink/?linkid=2096769"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/help/v1",
+  "schemaVersion": 1,
+  "module": {
+    "name": "Microsoft.PowerShell.ThreadJob",
+    "version": "2.2.0"
+  },
+  "commands": [
+    {
+      "name": "Start-ThreadJob",
+      "synopsis": "Starts a PowerShell job in a separate thread",
+      "description": "This command starts a PowerShell job running in a separate thread. It is similar to the 'Start-Job' command, except that it runs the job in a different thread instead of a child process. Consequently, it uses fewer resources for each job.",
+      "notes": "",
+      "examples": [
+        {
+          "title": "-------------------------- Example 1 --------------------------",
+          "code": "PS C:\\> $job = Start-ThreadJob -ScriptBlock { 1..5 | foreach { \"Output: $_\"; sleep 1 }}\nPS C:\\> $job\n\nId     Name            PSJobTypeName   State         HasMoreData     Location             Command\n--     ----            -------------   -----         -----------     --------             -------\n1      Job1            ThreadJob       Running       False           PowerShell            1..5 | foreach {\n\n$job | Wait-Job | Receive-Job\nOutput: 1\nOutput: 2\nOutput: 3\nOutput: 4\nOutput: 5\n\nPS C:\\> $job\n\nId     Name            PSJobTypeName   State         HasMoreData     Location             Command\n--     ----            -------------   -----         -----------     --------             -------\n1      Job1            ThreadJob       Completed     False           PowerShell            1..5 | foreach {",
+          "remarks": "This example starts a simple job script running in a separate thread. It then uses the 'Wait-Job' and 'Receive-Job' commands to wait for the job to complete and then return output."
+        },
+        {
+          "title": "-------------------------- Example 2 --------------------------",
+          "code": "PS C:\\> $jobs = 1..5 | foreach { Start-ThreadJob -ScriptBlock { 1..10 | foreach { sleep 1; \"Job Done\" } } -ThrottleLimit 3 }\nPS C:\\> $jobs\n\nId     Name            PSJobTypeName   State         HasMoreData     Location             Command\n--     ----            -------------   -----         -----------     --------             -------\n1      Job19           ThreadJob       Running       True            PowerShell            1..10 | foreach { sleep…\n2      Job20           ThreadJob       Running       True            PowerShell            1..10 | foreach { sleep…\n3      Job21           ThreadJob       Running       True            PowerShell            1..10 | foreach { sleep…\n4      Job22           ThreadJob       NotStarted    False           PowerShell            1..10 | foreach { sleep…\n5      Job23           ThreadJob       NotStarted    False           PowerShell            1..10 | foreach { sleep…",
+          "remarks": "This example runs 'Start-ThreadJob' five times to start five job instances, but with a throttle limit value of 3. Consequently, only three of the five jobs are initially running and the other two are not started but queued to run after one or more of the currently running jobs complete."
+        }
+      ],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "Cmdlet"
+    }
+  ]
+}

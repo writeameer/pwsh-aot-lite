@@ -1,0 +1,49 @@
+# Independent reviewer personas and review ledger
+
+These are recurring **read-only subagent roles**. They are intentionally
+separate from the implementing agent: the reviewer supplies an evidence-backed
+`PASS` or `BLOCK`; it does not repair its own findings. A `BLOCK` prevents
+merging work into the `PwshAotLite` executable path or claiming feature support.
+An experiment may continue only when it is visibly labelled non-production.
+
+## Required roles
+
+| Persona | Trigger | Must inspect | Required evidence | Blocks when |
+| --- | --- | --- | --- | --- |
+| **Upstream Grammar Steward** | Any lexer, parser, AST, lowerer, or newly accepted syntax change | Diff; pinned upstream commit; exact upstream source locations; parser corpus | Provenance/delta record; differential `pwsh` token text/kind/extents, AST shape, and diagnostic-ID results; explicit unsupported-node result | New handwritten grammar is introduced where upstream behavior exists; syntax is reinterpreted as words; or parity evidence is missing. |
+| **Native AOT Boundary Sentinel** | Project/package/reference change; parser extraction; value-plane work; extension bridge | Diff; project files; dependency graph; publish output | Forbidden-API scan; no reachability to SMA, `PSObject`, `Runspace`, `PowerShell`, expression compilation, Reflection.Emit, runtime assembly loading, or code generation; Native AOT publish and run | A dynamic runtime dependency crosses into the AOT executable path. |
+| **Static Data-Plane & Binder Guardian** | `AotValue`; pipeline adapters; generic verbs; cmdlet/metadata/binding work | Diff; generated metadata; source command contract; variance entry | Value invariant and pipeline tests; explicit typed adapter; proof aliases and parameter sets remain from generated metadata | A second binder emerges; `object`/reflection fallback appears; typed semantics are flattened; or an unsupported semantic is hidden. |
+| **Compatibility Proof Adversary** | Before a command, syntax, pipeline stage, or milestone is described as supported | Feature inventory; native artifact; test matrix; variance documentation | Positive, negative, malformed-input, and unsupported-feature tests; native executable evidence; declared variances | Unsupported behavior is presented as support, negative cases are absent, or compatibility has not been verified. |
+
+## Dispatch matrix
+
+| Change | Mandatory independent reviewers |
+| --- | --- |
+| Parser, AST, or lowerer | Upstream Grammar Steward + Native AOT Boundary Sentinel |
+| Pipeline, `AotValue`, generic data cmdlet, or binder | Native AOT Boundary Sentinel + Static Data-Plane & Binder Guardian |
+| New port or cross-cutting control-plane feature | Static Data-Plane & Binder Guardian; add Native AOT Boundary Sentinel whenever dependencies/execution change |
+| Any "supported" or milestone claim | All three guardians + Compatibility Proof Adversary |
+
+The owner may resolve a `BLOCK` only by changing the implementation, narrowing
+the claim, or recording an explicit accepted variance. A reviewer cannot be
+silently bypassed.
+
+## Reviewer prompt contract
+
+Every dispatched reviewer receives:
+
+1. the scoped change and the claim being evaluated;
+2. relevant source/reference locations and the pinned upstream commit, when
+   language behavior is involved;
+3. the applicable guard documents;
+4. exact build, test, differential-test, and Native AOT evidence; and
+5. the instruction to report `PASS` or `BLOCK`, findings with file/line
+   evidence, and the smallest corrective action.
+
+## Review ledger
+
+Create one entry beneath `docs/reviews/` for every gated change, using
+[TEMPLATE.md](../reviews/TEMPLATE.md). Link the entry from the affected port or
+architecture note. The ledger is deliberately short: it preserves the decision,
+evidence, blockers, and accepted variances without duplicating implementation
+documentation.

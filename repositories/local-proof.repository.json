@@ -1,0 +1,34 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/repository/v1",
+  "schemaVersion": 1,
+  "repository": {
+    "name": "LocalProof",
+    "uri": "https://example.invalid/pwsh-aot-lite/local-proof/"
+  },
+  "modules": [
+    {
+      "name": "Contoso.Aot.Diagnostics",
+      "version": "1.1.0",
+      "description": "A declarative fixture package used to prove safe AOT repository discovery.",
+      "packageUri": "https://example.invalid/pwsh-aot-lite/local-proof/Contoso.Aot.Diagnostics.1.1.0.nupkg",
+      "compatibility": "legacy-pwsh-sidecar",
+      "registrationMode": "isolated-sidecar-import"
+    },
+    {
+      "name": "Contoso.Aot.Diagnostics",
+      "version": "1.0.0",
+      "description": "An earlier fixture version used to prove version inventory results.",
+      "packageUri": "https://example.invalid/pwsh-aot-lite/local-proof/Contoso.Aot.Diagnostics.1.0.0.nupkg",
+      "compatibility": "legacy-pwsh-sidecar",
+      "registrationMode": "isolated-sidecar-import"
+    },
+    {
+      "name": "Fabrikam.Aot.NativeTools",
+      "version": "0.3.0",
+      "description": "A hypothetical native extension package; repository discovery does not fetch it.",
+      "packageUri": "https://example.invalid/pwsh-aot-lite/local-proof/Fabrikam.Aot.NativeTools.0.3.0.nupkg",
+      "compatibility": "native-aot-extension",
+      "registrationMode": "native-extension-package"
+    }
+  ]
+}

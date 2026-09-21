@@ -1,0 +1,22 @@
+# Language extraction compiler-error catalog
+
+Status: resolved for the structural parser slice on 2026-09-21.
+
+`dotnet build -c Release` completes with 0 errors. The historical errors were
+closed as follows:
+
+- Numeric token helpers: copied the narrow `BigInteger` conversion and binary
+  literal helpers used by `tokenizer.cs`.
+- Expression compiler/binder/remoting APIs: retained source signatures or
+  excluded compiler-only AST members, all fail-closed via
+  `AotExecutionBoundary`.
+- DSC configuration/dynamic keywords/Import-DscResource: excluded through
+  `PWSH_AOT_LANGUAGE_EXCLUDE_DSC`; Parser emits stable
+  `AotConfigurationExcluded` and returns an ErrorStatementAst.
+- Class lockdown-policy and debug resource references: minimal fail-closed
+  compatibility markers only.
+
+This file is a compiler status record, not a claim of full PowerShell
+compatibility. Remaining work includes differential AST/diagnostic tests,
+non-placeholder semantic analysis, and additional AOT safety gates for
+type-name APIs. See UPSTREAM.md for the complete delta ledger.

@@ -1,0 +1,371 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/extension/v1",
+  "schemaVersion": 1,
+  "extension": {
+    "id": "legacy-pwsh/Microsoft.PowerShell.KubeCtl",
+    "displayName": "Microsoft.PowerShell.KubeCtl",
+    "version": "0.0.3",
+    "execution": {
+      "kind": "declaration-only",
+      "status": "blocked-not-imported",
+      "reason": "Declaration-only static registration. The module was not imported, no exported function was invoked, and this package has no invocation bridge."
+    }
+  },
+  "commands": [
+    {
+      "name": "Get-DefaultPSSession",
+      "commandType": "Function",
+      "defaultParameterSet": "__AllParameterSets",
+      "parameters": [],
+      "parameterSets": [
+        {
+          "name": "__AllParameterSets",
+          "isDefault": true,
+          "parameters": []
+        }
+      ],
+      "outputTypes": [],
+      "helpUri": null
+    },
+    {
+      "name": "Get-KubeRequireSudo",
+      "commandType": "Function",
+      "defaultParameterSet": "__AllParameterSets",
+      "parameters": [],
+      "parameterSets": [
+        {
+          "name": "__AllParameterSets",
+          "isDefault": true,
+          "parameters": []
+        }
+      ],
+      "outputTypes": [],
+      "helpUri": null
+    },
+    {
+      "name": "Get-KubeResource",
+      "commandType": "Function",
+      "defaultParameterSet": "__AllParameterSets",
+      "parameters": [
+        {
+          "name": "name",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Force",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        }
+      ],
+      "parameterSets": [
+        {
+          "name": "__AllParameterSets",
+          "isDefault": true,
+          "parameters": [
+            "name",
+            "Force"
+          ]
+        }
+      ],
+      "outputTypes": [],
+      "helpUri": null
+    },
+    {
+      "name": "Initialize-ProxyFunction",
+      "commandType": "Function",
+      "defaultParameterSet": "__AllParameterSets",
+      "parameters": [],
+      "parameterSets": [
+        {
+          "name": "__AllParameterSets",
+          "isDefault": true,
+          "parameters": []
+        }
+      ],
+      "outputTypes": [],
+      "helpUri": null
+    },
+    {
+      "name": "Invoke-KubeCtl",
+      "commandType": "Function",
+      "defaultParameterSet": "__AllParameterSets",
+      "parameters": [
+        {
+          "name": "requireSudo",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "session",
+          "type": "System.Management.Automation.Runspaces.PSSession",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "verb",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "resource",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "noJson",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "noAllNamespace",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "arguments",
+          "type": "System.String[]",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        }
+      ],
+      "parameterSets": [
+        {
+          "name": "__AllParameterSets",
+          "isDefault": true,
+          "parameters": [
+            "requireSudo",
+            "session",
+            "verb",
+            "resource",
+            "noJson",
+            "noAllNamespace",
+            "arguments"
+          ]
+        }
+      ],
+      "outputTypes": [],
+      "helpUri": null
+    },
+    {
+      "name": "Set-DefaultPSSession",
+      "commandType": "Function",
+      "defaultParameterSet": "__AllParameterSets",
+      "parameters": [
+        {
+          "name": "Session",
+          "type": "System.Management.Automation.Runspaces.PSSession",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        }
+      ],
+      "parameterSets": [
+        {
+          "name": "__AllParameterSets",
+          "isDefault": true,
+          "parameters": [
+            "Session"
+          ]
+        }
+      ],
+      "outputTypes": [],
+      "helpUri": null
+    },
+    {
+      "name": "Set-KubeRequireSudo",
+      "commandType": "Function",
+      "defaultParameterSet": "__AllParameterSets",
+      "parameters": [
+        {
+          "name": "RequireSudo",
+          "type": "System.Boolean",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": null,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        }
+      ],
+      "parameterSets": [
+        {
+          "name": "__AllParameterSets",
+          "isDefault": true,
+          "parameters": [
+            "RequireSudo"
+          ]
+        }
+      ],
+      "outputTypes": [],
+      "helpUri": null
+    }
+  ]
+}

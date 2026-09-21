@@ -1,0 +1,571 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/extension/v1",
+  "schemaVersion": 1,
+  "extension": {
+    "id": "legacy-pwsh/Microsoft.PowerShell.ThreadJob",
+    "displayName": "Microsoft.PowerShell.ThreadJob",
+    "version": "2.2.0",
+    "execution": {
+      "kind": "legacy-pwsh-sidecar",
+      "status": "registered-not-invoked",
+      "reason": "Contract/help registration only. Execution bridge is intentionally not implemented by this proof."
+    }
+  },
+  "commands": [
+    {
+      "name": "Start-ThreadJob",
+      "commandType": "Cmdlet",
+      "defaultParameterSet": null,
+      "parameters": [
+        {
+          "name": "ArgumentList",
+          "type": "System.Object[]",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "ScriptBlock",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "FilePath",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Debug",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "db"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ErrorAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "ea"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ErrorVariable",
+          "type": "System.String",
+          "aliases": [
+            "ev"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "FilePath",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "FilePath",
+              "position": 0,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InformationAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "infa"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InformationVariable",
+          "type": "System.String",
+          "aliases": [
+            "iv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InitializationScript",
+          "type": "System.Management.Automation.ScriptBlock",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "ScriptBlock",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "FilePath",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "InputObject",
+          "type": "System.Management.Automation.PSObject",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "ScriptBlock",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": true,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "FilePath",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": true,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Name",
+          "type": "System.String",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "ScriptBlock",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "FilePath",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "OutBuffer",
+          "type": "System.Int32",
+          "aliases": [
+            "ob"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "OutVariable",
+          "type": "System.String",
+          "aliases": [
+            "ov"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "PipelineVariable",
+          "type": "System.String",
+          "aliases": [
+            "pv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ProgressAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "proga"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ScriptBlock",
+          "type": "System.Management.Automation.ScriptBlock",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "ScriptBlock",
+              "position": 0,
+              "mandatory": true,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "StreamingHost",
+          "type": "System.Management.Automation.Host.PSHost",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "ScriptBlock",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "FilePath",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "ThrottleLimit",
+          "type": "System.Int32",
+          "aliases": [],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "ScriptBlock",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            },
+            {
+              "name": "FilePath",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "Verbose",
+          "type": "System.Management.Automation.SwitchParameter",
+          "aliases": [
+            "vb"
+          ],
+          "isSwitch": true,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WarningAction",
+          "type": "System.Management.Automation.ActionPreference",
+          "aliases": [
+            "wa"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        },
+        {
+          "name": "WarningVariable",
+          "type": "System.String",
+          "aliases": [
+            "wv"
+          ],
+          "isSwitch": false,
+          "isDynamic": false,
+          "parameterSets": [
+            {
+              "name": "__AllParameterSets",
+              "position": -2147483648,
+              "mandatory": false,
+              "valueFromPipeline": false,
+              "valueFromPipelineByPropertyName": false,
+              "valueFromRemainingArguments": false
+            }
+          ],
+          "validation": {
+            "validateSet": [],
+            "validatePattern": []
+          }
+        }
+      ],
+      "parameterSets": [
+        {
+          "name": "FilePath",
+          "isDefault": false,
+          "parameters": [
+            "ArgumentList",
+            "Debug",
+            "ErrorAction",
+            "ErrorVariable",
+            "FilePath",
+            "InformationAction",
+            "InformationVariable",
+            "InitializationScript",
+            "InputObject",
+            "Name",
+            "OutBuffer",
+            "OutVariable",
+            "PipelineVariable",
+            "ProgressAction",
+            "StreamingHost",
+            "ThrottleLimit",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable"
+          ]
+        },
+        {
+          "name": "ScriptBlock",
+          "isDefault": false,
+          "parameters": [
+            "ArgumentList",
+            "Debug",
+            "ErrorAction",
+            "ErrorVariable",
+            "InformationAction",
+            "InformationVariable",
+            "InitializationScript",
+            "InputObject",
+            "Name",
+            "OutBuffer",
+            "OutVariable",
+            "PipelineVariable",
+            "ProgressAction",
+            "ScriptBlock",
+            "StreamingHost",
+            "ThrottleLimit",
+            "Verbose",
+            "WarningAction",
+            "WarningVariable"
+          ]
+        }
+      ],
+      "outputTypes": [
+        "Microsoft.PowerShell.ThreadJob.ThreadJob"
+      ],
+      "helpUri": null
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/provenance/v1",
+  "schemaVersion": 1,
+  "registration": {
+    "registeredAtUtc": "2026-09-21T15:52:23.9170730Z",
+    "registrar": "Register-PwshAotModule.ps1",
+    "inspector": "/opt/homebrew/bin/pwsh",
+    "inspectorVersion": "7.6.6",
+    "moduleWasImportedInIsolatedSidecar": true,
+    "exportedCmdletsWereInvoked": false
+  },
+  "sourceModule": {
+    "name": "Microsoft.PowerShell.Archive",
+    "version": "1.2.6",
+    "moduleType": "Manifest",
+    "path": "/opt/homebrew/Cellar/powershell/7.6.6_1/libexec/Modules/Microsoft.PowerShell.Archive/Microsoft.PowerShell.Archive.psd1",
+    "rootModule": "",
+    "guid": "eb74e8da-9ae2-482a-a648-e96550fb8733",
+    "author": "Microsoft Corporation",
+    "companyName": "Microsoft Corporation",
+    "description": "PowerShell module for working with ZIP archives.",
+    "requiredModules": []
+  }
+}

@@ -1,0 +1,539 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Migration evidence. Each AOT cmdlet port records every intentional behavior or architecture difference from its PowerShell source.",
+  "statuses": ["preserved", "shared-runtime-replacement", "deliberate-subset", "deferred", "blocked", "unknown"],
+  "ports": [
+    {
+      "command": "Get-Process",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs",
+      "state": "partial-port",
+      "variances": [
+        {
+          "id": "cmdlet-runtime",
+          "sourceFeature": "Cmdlet/ProcessBaseCommand lifecycle and WriteObject/WriteError contract",
+          "targetDecision": "AotCmdletBase plus AotExecutionContext and IPipelineRecord",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "parameter-binding",
+          "sourceFeature": "Name, Id, InputObject, IncludeUserName, Module, FileVersionInfo and parameter sets",
+          "targetDecision": "Generated metadata drives Name, Id, InputObject, IncludeUserName, Module, and FileVersionInfo. InputObject has a typed internal adapter only; the source runner rejects general command-to-command pipeline binding.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "wildcards",
+          "sourceFeature": "PowerShell WildcardPattern",
+          "targetDecision": "AOT adapter currently supports case-insensitive * and ? only",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "output-shape",
+          "sourceFeature": "System.Diagnostics.Process and PSObject extended type data",
+          "targetDecision": "Typed AOT process, module, and file-version records expose the command data without PSObject extended type data",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        },
+        {
+          "id": "advanced-process-options",
+          "sourceFeature": "Module, FileVersionInfo, IncludeUserName, pipeline InputObject",
+          "targetDecision": "Module, FileVersionInfo, and IncludeUserName use IProcessCatalog. InputObject is a typed internal adapter; source-level command-to-command binding is deferred.",
+          "status": "deliberate-subset",
+          "automationCandidate": "partial"
+        },
+        {
+          "id": "resource-errors",
+          "sourceFeature": "localized ProcessResources and ErrorRecord categories",
+          "targetDecision": "stable error IDs and plain messages in AotExecutionContext",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Get-Uptime",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetUptime.cs",
+      "state": "complete-current-target",
+      "variances": [
+        {
+          "id": "scalar-output",
+          "sourceFeature": "TimeSpan/DateTime objects formatted by the PowerShell formatting system",
+          "targetDecision": "typed UptimeRecord with cmdlet-declared default Value column",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "uptime-error",
+          "sourceFeature": "InternalTestHooks plus terminating ErrorRecord when stopwatch timing is unavailable",
+          "targetDecision": "production Stopwatch.IsHighResolution check and ScriptException; the internal test hook is not carried over",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
+      "command": "Get-UICulture",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetUICultureCommand.cs",
+      "state": "complete-current-target",
+      "variances": [
+        {
+          "id": "host-culture",
+          "sourceFeature": "PSHost.CurrentUICulture",
+          "targetDecision": "injectable IHostCulture whose local implementation reads CultureInfo.CurrentUICulture",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "culture-output-shape",
+          "sourceFeature": "full CultureInfo object and PowerShell formatter",
+          "targetDecision": "typed CultureRecord exposes Name, DisplayName, EnglishName, and LCID",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "globalization-data",
+          "sourceFeature": "culture lookup beyond invariant culture",
+          "targetDecision": "InvariantGlobalization=false; use platform ICU/globalization data while retaining Native AOT",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
+      "command": "Get-Culture",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetCultureCommand.cs",
+      "state": "partial-port",
+      "variances": [
+        {
+          "id": "culture-host-and-catalog",
+          "sourceFeature": "PSHost.CurrentCulture and CultureInfo static APIs in cmdlet body",
+          "targetDecision": "injectable IHostCulture and ICultureCatalog services",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "culture-pipeline-binding",
+          "sourceFeature": "Name ValueFromPipeline binding",
+          "targetDecision": "direct Name arguments only until the generic typed pipeline binder exists",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "culture-error-and-shape",
+          "sourceFeature": "ErrorRecord/localized messages and full CultureInfo object",
+          "targetDecision": "stable ItemNotFoundException error ID and typed CultureRecord columns",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Get-Verb",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetVerbCommand.cs",
+      "state": "complete-current-target",
+      "variances": [
+        {
+          "id": "verb-catalogue-generation",
+          "sourceFeature": "Verbs.FilterByVerbsAndGroups reflects over verb constants and VerbDescriptions loads .resx values through ResourceManager",
+          "targetDecision": "PwshAotPortGenerator reads Verbs.cs and VerbDescriptionStrings.resx at build time and emits 100 immutable GeneratedVerbInfo entries",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "verb-output-shape",
+          "sourceFeature": "System.Management.Automation.VerbInfo object and PowerShell formatter",
+          "targetDecision": "typed VerbRecord exposes Verb, AliasPrefix, Group, and Description columns",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "verb-wildcards",
+          "sourceFeature": "PowerShell WildcardPattern supports character classes, ranges, and escaping",
+          "targetDecision": "shared SimpleWildcard applies case-insensitive * and ? only",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "verb-pipeline-binding",
+          "sourceFeature": "Verb and Group have ValueFromPipeline and ValueFromPipelineByPropertyName",
+          "targetDecision": "direct arguments are implemented; generic cross-command pipeline binding remains deferred",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Get-TimeZone",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/TimeZoneCommands.cs",
+      "state": "complete-current-target",
+      "variances": [
+        {
+          "id": "timezone-catalog",
+          "sourceFeature": "TimeZoneInfo cache, local zone, system catalogue, and ID lookup in ProcessRecord",
+          "targetDecision": "injectable ITimeZoneCatalog wraps TimeZoneInfo.ClearCachedData, Local, GetSystemTimeZones, and FindSystemTimeZoneById",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "timezone-name-wildcards",
+          "sourceFeature": "TimeZoneHelper uses PowerShell WildcardPattern over StandardName and DaylightName",
+          "targetDecision": "same two source fields and case-insensitive matching, using shared SimpleWildcard with * and ? only",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "timezone-pipeline-binding",
+          "sourceFeature": "Name has ValueFromPipeline=true",
+          "targetDecision": "direct Name arguments are implemented; generic scalar/record pipeline binding is deferred",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "timezone-output-shape",
+          "sourceFeature": "full TimeZoneInfo object plus PowerShell ETS formatting",
+          "targetDecision": "typed TimeZoneRecord projects Id, names, UTC offset, and daylight-saving capability",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "timezone-platform-identifiers",
+          "sourceFeature": "PowerShell host exposes operating-system time-zone identifiers",
+          "targetDecision": "delegate identifier availability to TimeZoneInfo; no hard-coded IANA/Windows mapping is claimed",
+          "status": "preserved",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
+      "command": "Get-FileHash",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetHash.cs",
+      "state": "complete-direct-physical-file-target",
+      "variances": [
+        {
+          "id": "filehash-physical-paths",
+          "sourceFeature": "SessionState.Path resolves PowerShell provider paths, provider wildcards, and literal paths",
+          "targetDecision": "IPhysicalFileResolver accepts direct physical files; Path supports deterministic terminal-name * and ? expansion and LiteralPath remains literal",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "filehash-stream-binding",
+          "sourceFeature": "InputStream parameter set and ProcessRecord/EndProcessing stream hashing",
+          "targetDecision": "InputStream is absent from the AOT descriptor until a typed stream and generic pipeline binding service exists",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "filehash-output-shape",
+          "sourceFeature": "FileHashInfo output with PowerShell ETS formatting",
+          "targetDecision": "typed FileHashRecord projects Algorithm, Hash, and Path without PSObject or format-data dependencies",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "filehash-errors",
+          "sourceFeature": "localized ErrorRecord construction for missing, unauthorized, and I/O file failures",
+          "targetDecision": "AotExecutionContext writes stable source-aligned IDs FileNotFound, UnauthorizedAccessError, and FileReadError with plain host messages",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Get-Date",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetDateCommand.cs",
+      "state": "complete-direct-modes-pipeline-deferred",
+      "variances": [
+        {
+          "id": "date-display-hint-record",
+          "sourceFeature": "PSObject wrapping DateTime with ETS DisplayHint note property and PowerShell format data",
+          "targetDecision": "typed DateRecord carries DateTime plus Date/Time/DateTime display policy; the compact renderer uses round-trip value display",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "date-formatting",
+          "sourceFeature": "StringUtil composite formatting in fixed UFormat switch",
+          "targetDecision": "direct static BCL formatting and source-equivalent UFormat token mapping; FileDate aliases are explicit static mappings",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "date-pipeline-binding",
+          "sourceFeature": "Date ValueFromPipeline and ValueFromPipelineByPropertyName binding",
+          "targetDecision": "direct Date arguments are implemented; generic typed record/scalar pipeline binder is deferred and no input stage is silently accepted",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "date-invalid-uformat",
+          "sourceFeature": "empty or trailing-percent UFormat reaches source indexing failure",
+          "targetDecision": "stable ScriptException identifies the malformed format before evaluation",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Get-Help",
+      "source": "src/System.Management.Automation/help/HelpCommands.cs",
+      "state": "static-catalog-and-extension-discovery-complete",
+      "variances": [
+        {
+          "id": "help-static-catalog",
+          "sourceFeature": "HelpSystem dynamically composes Alias, ScriptCommand, Command, Provider, Class, HelpFile, and DefaultHelp providers using session/module state",
+          "targetDecision": "Generate an immutable full-source HelpCatalog for every discovered cmdlet; it is independent from the smaller executable AOT command registry",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "help-contract-coverage",
+          "sourceFeature": "MAML/HelpInfo topics, source command metadata, and runtime command discovery",
+          "targetDecision": "Every catalogued source cmdlet receives generated contract help and explicit AOT status, including commands without an AOT adapter",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "help-extension-discovery",
+          "sourceFeature": "Module-path discovery imports/loads module code and delegates help to the runtime HelpSystem",
+          "targetDecision": "Scan declarative extensions/<module>/<version>/extension.json at query time with Native-AOT JSON source generation; metadata/help discovery never requires command registry membership or module assembly loading. help.json is an optional authored overlay rather than a discovery prerequisite.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "help-authored-content",
+          "sourceFeature": "runtime help-file/MAML lookup and updatable help content",
+          "targetDecision": "Optional extension help.json overlays manifest contracts. Missing, unreadable, malformed, or identity-invalid authored help falls back visibly to generated extension.json contract help; a malformed manifest or invalid provenance identity still rejects the package.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "help-localization",
+          "sourceFeature": "runtime culture-specific help-file discovery",
+          "targetDecision": "Generate selected cultures with exact-to-parent-to-en-US-to-contract fallback; begin with en-US rather than claim all installed PowerShell help cultures",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "help-online-and-ui",
+          "sourceFeature": "-Online launches a browser and -ShowWindow uses the graphical host",
+          "targetDecision": "Core AOT help presents validated HTTP(S) HelpUri; browser/window behavior requires an explicit host policy and is not part of the headless core",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "help-dynamic-categories",
+          "sourceFeature": "provider, script, alias, class, DSC, external-script, and current-session help categories",
+          "targetDecision": "Initial scope supports generated Cmdlet category only; dynamic/provider/session categories are deferred behind a future explicit extension model",
+          "status": "deferred",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
+      "command": "Get-Command",
+      "source": "src/System.Management.Automation/engine/GetCommandCommand.cs",
+      "state": "complete-static-catalog-discovery-target",
+      "variances": [
+        {
+          "id": "command-static-catalog",
+          "sourceFeature": "SessionState.InvokeCommand discovers live CommandInfo objects from imported modules, aliases, applications, functions, scripts, providers, and current-session state",
+          "targetDecision": "CompositeHelpCatalog merges the build-generated 290-cmdlet source catalog with declarative extension JSON; discovery never loads an extension module or consults only the executable adapter registry",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "command-supported-query",
+          "sourceFeature": "Name, Module/PSSnapin, and CommandType query modes",
+          "targetDecision": "Support positional/-Name with case-insensitive SimpleWildcard, -Module including PSSnapin alias, and Cmdlet/Function CommandType filtering over typed CommandInfoRecord data",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "command-output-shape",
+          "sourceFeature": "AliasInfo, ApplicationInfo, FunctionInfo, CmdletInfo, ExternalScriptInfo, FilterInfo, and PSObject outputs formatted by ETS",
+          "targetDecision": "Typed CommandInfoRecord exposes Name, CommandType, ModuleName, Version, Source, Availability, Status, and generated Syntax without PSObject or formatting data; Availability is a default column so discovery is not mistaken for executability",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "command-live-session-modes",
+          "sourceFeature": "All, ArgumentList, ExcludeModule, FullyQualifiedModule, ListImported, Noun, ParameterName, ParameterType, ShowCommandInfo, Syntax, TotalCount, abbreviation/fuzzy matching, Verb, and non-Cmdlet/Function types",
+          "targetDecision": "Reject unsupported options/types at parse time; defer them until an explicit session and extension execution model exists",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "command-builtin-module-identity",
+          "sourceFeature": "live ModuleInfo assembly/module identity",
+          "targetDecision": "Generated built-in contracts report PowerShell.BuiltIn; preserving original per-assembly module identity requires a source-generator path/assembly mapping input",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Get-Module",
+      "source": "src/System.Management.Automation/engine/GetModuleCommand.cs",
+      "state": "complete-static-built-in-and-registered-extension-inventory-target",
+      "variances": [
+        {
+          "id": "module-static-inventory",
+          "sourceFeature": "PSModuleInfo, current-session loaded-module state, and $PSModulePath discovery",
+          "targetDecision": "CompositeModuleCatalog reports one logical generated PowerShell.BuiltIn module plus declarative extension.json packages, without importing a module, loading an assembly, or invoking a command",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "module-supported-query",
+          "sourceFeature": "Name query over loaded, available, remote, CIM, and fully qualified module modes",
+          "targetDecision": "Support only positional/-Name using the shared case-insensitive * and ? matcher; reject All, ListAvailable, Refresh, FullyQualifiedName, PSSession, CimSession, PSEdition, and SkipEditionCheck until their safe source of truth exists",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "module-output-shape",
+          "sourceFeature": "live PSModuleInfo objects with module implementation details and ETS formatting",
+          "targetDecision": "Typed ModuleInfoRecord exposes Name, Version, Origin, Availability, Status, Path, Trust, and Provenance sourced only from generated contracts and declarative package metadata",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "module-trust-boundary",
+          "sourceFeature": "PowerShellGet/repository policy is separate from Get-Module and legacy import can execute arbitrary module initialization",
+          "targetDecision": "Show provenance but label every external package trust state unverified until a signed repository, hash, dependency, and install policy is designed; Get-Module itself never imports modules",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "module-package-validation-and-versioning",
+          "sourceFeature": "PowerShell module discovery has version selection, manifest identity, and error behavior tied to module paths and loaded session state",
+          "targetDecision": "One data-only ExtensionPackageCatalog validates extension schema v1, duplicate names, manifest/help/provenance identity correlation, and selects the highest dotted version (then lexical/path tie-breakers) for Get-Help/Get-Command while Get-Module inventories every valid installed version",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Find-Module",
+      "source": "PowerShellGet/PSResourceGet package discovery; explicit PwshAotLite host control-plane contract rather than a generated src cmdlet",
+      "state": "complete-read-only-local-repository-index-target",
+      "variances": [
+        {
+          "id": "findmodule-repository-catalog",
+          "sourceFeature": "PowerShell repository search is coupled to PowerShellGet/PSResourceGet repository protocol and package-management state",
+          "targetDecision": "Separate IRepositoryCatalog/RepositoryCatalog reads versioned declarative local repository-index JSON and projects typed advertised module data without joining installed extension discovery",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "findmodule-no-network-or-install",
+          "sourceFeature": "Find-Module can query configured remote repositories and participates in a package-management workflow",
+          "targetDecision": "Find-Module itself has no HTTP client, credential lookup, package download, install, module import, DLL load, or script execution; a separate Install-Module local-file proof may consume a declared file URI only after explicit staging policy",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "findmodule-trust-and-protocol",
+          "sourceFeature": "Repository identity, package hashes/signatures, dependency resolution, prerelease policy, paging, and PSGallery/PSResourceGet protocol semantics",
+          "targetDecision": "Defer live repository transport and package-manager installation until an opt-in staged trust policy validates repository identity, signatures, dependencies, activation, and credentials outside read-only discovery; current local-file activation is intentionally narrower",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "findmodule-untrusted-index-bounds",
+          "sourceFeature": "PowerShell package manager handles remote response parsing and repository policy",
+          "targetDecision": "Bound local index reads to 1 MiB/16 JSON levels and reject invalid schema, duplicate identities, controls, unsafe URI schemes/user-info, and unknown registration modes before materializing typed entries",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "MetadataCompletion",
+      "source": "PowerShell completion, ArgumentCompleter, and Register-ArgumentCompleter subsystems",
+      "state": "complete-static-catalog-discovery-target",
+      "variances": [
+        {
+          "id": "completion-catalog-projection",
+          "sourceFeature": "Tab completion resolves live SessionState commands, modules, parameters, aliases, help, providers, and extensibility hooks",
+          "targetDecision": "CompletionService projects CompositeHelpCatalog and CompositeModuleCatalog through explicit --complete and REPL complete endpoints; command/help suggestions visibly retain catalog availability",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "completion-validation-metadata",
+          "sourceFeature": "ValidateSet completion evaluates source cmdlet metadata and may use custom validation generators",
+          "targetDecision": "HelpParameter carries generated or manifest validation metadata; only direct literal ValidateSet values are suggested and source expressions/constants are never evaluated",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "completion-dynamic-execution",
+          "sourceFeature": "ArgumentCompleter attributes, Register-ArgumentCompleter, script blocks, and module-defined completion can execute arbitrary code during discovery",
+          "targetDecision": "Do not import modules, load extension assemblies, invoke completers, or run script during completion; dynamic completion is deferred pending an explicit extension trust/execution policy",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "completion-path-and-terminal-host",
+          "sourceFeature": "Provider/filesystem/value completion and PSReadLine terminal TAB integration",
+          "targetDecision": "Path/provider/value completion and terminal key handling are deferred; CompletionInput only lexes an incomplete line while UpstreamAstPipelineLowerer remains executable syntax authority",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "completion-version-and-name-resolution",
+          "sourceFeature": "PowerShell module/session command precedence and command resolution can choose an active command from a live runspace",
+          "targetDecision": "Get-Module retains all package versions, while module completion uses the same deterministic active package winner as help/command lookup; same-name active command contracts are never silently resolved: Get-Help/Get-Command retain every candidate and completion reports ambiguity without parameter completion",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "completion-tsv-untrusted-metadata",
+          "sourceFeature": "PowerShell completion objects remain structured inside the host rather than a line-oriented external protocol",
+          "targetDecision": "The explicit completion endpoint uses TSV and escapes backslashes, tabs, line breaks, and other control characters from extension metadata before writing output",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Install-Module",
+      "source": "PowerShellGet/PSResourceGet package installation; explicit PwshAotLite host control-plane contract rather than a generated src cmdlet",
+      "state": "complete-local-file-package-staging-target",
+      "variances": [
+        {
+          "id": "installmodule-explicit-mutation-boundary",
+          "sourceFeature": "PowerShell package tooling integrates repository selection, transport, package extraction, dependency handling, module paths, and installation state",
+          "targetDecision": "Separate IModuleInstaller consumes IRepositoryCatalog records and is the sole current write boundary; Find-Module and all discovery catalogs stay read-only",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "installmodule-local-file-only",
+          "sourceFeature": "Install-Module supports remote repositories and package-manager transports",
+          "targetDecision": "Accept only hostless credential-free file URIs whose directory is physically contained by explicit PWSH_AOT_PACKAGE_ROOTS, physically canonicalize configured roots so platform aliases remain valid, require an explicit PWSH_AOT_EXTENSIONS_ROOT write target, and reject symlinks below resolved trusted roots",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "installmodule-integrity-and-activation",
+          "sourceFeature": "Package tooling owns archive/package integrity and installation transactions",
+          "targetDecision": "Bound a local directory package by file count/size/path/link/regular-file policy, compare a declared SHA-256, stage in a fixed hidden same-volume directory that ExtensionPackageCatalog globally excludes from every configured recursive discovery root, rehash source and staged copies with fixed-time comparisons, verify the activation volume, validate staged manifest/help/provenance through ExtensionPackageCatalog, then atomically rename into activation; unequal existing content is a conflict and equal content is idempotent",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "installmodule-trust-and-ecosystem",
+          "sourceFeature": "Repository signatures, certificate/trust policy, credentials, dependencies, version ranges, uninstall/rollback, PSGallery/PSResourceGet transport, and legacy module execution",
+          "targetDecision": "Defer all remote transport and trust/package-manager semantics. Installation never imports a module, loads an assembly, runs script, or makes a registered legacy command executable",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        }
+      ]
+    }
+  ]
+}

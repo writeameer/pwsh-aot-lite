@@ -1,0 +1,24 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/provenance/v1",
+  "schemaVersion": 1,
+  "registration": {
+    "registeredAtUtc": "2026-09-21T15:52:22.7953480Z",
+    "registrar": "Register-PwshAotModule.ps1",
+    "inspector": "/opt/homebrew/bin/pwsh",
+    "inspectorVersion": "7.6.6",
+    "moduleWasImportedInIsolatedSidecar": true,
+    "exportedCmdletsWereInvoked": false
+  },
+  "sourceModule": {
+    "name": "Microsoft.PowerShell.ThreadJob",
+    "version": "2.2.0",
+    "moduleType": "Binary",
+    "path": "/opt/homebrew/Cellar/powershell/7.6.6_1/libexec/Modules/Microsoft.PowerShell.ThreadJob/Microsoft.PowerShell.ThreadJob.dll",
+    "rootModule": ".\\Microsoft.PowerShell.ThreadJob.dll",
+    "guid": "a84b375d-c1d6-4a1c-bcb7-8059bc28cd98",
+    "author": "Microsoft Corporation",
+    "companyName": "Microsoft Corporation",
+    "description": "\r\nPowerShell's built-in BackgroundJob jobs (Start-Job) are run in separate processes on the local machine.\r\nThey provide excellent isolation but are resource heavy.  Running hundreds of BackgroundJob jobs can quickly\r\nabsorb system resources.\r\n\r\nThis module extends the existing PowerShell BackgroundJob to include a new thread based ThreadJob job.  This is a \r\nlighter weight solution for running concurrent PowerShell scripts that works within the existing PowerShell job \r\ninfrastructure.\r\n\r\nThreadJob jobs will tend to run quicker because there is lower overhead and they do not use the remoting serialization \r\nsystem.  And they will use up fewer system resources.  In addition output objects returned from the job will be\r\n'live' since they are not re-hydrated from the serialization system.  However, there is less isolation.  If one\r\nThreadJob job crashes the process then all ThreadJob jobs running in that process will be terminated.\r\n\r\nThis module exports a single cmdlet, Start-ThreadJob, which works similarly to the existing Start-Job cmdlet.\r\nThe main difference is that the jobs which are created run in separate threads within the local process.\r\n\r\nOne difference is that ThreadJob jobs support a ThrottleLimit parameter to limit the number of running jobs,\r\nand thus active threads, at a time.  If more jobs are started then they go into a queue and wait until the current\r\nnumber of jobs drops below the throttle limit.\r\n",
+    "requiredModules": []
+  }
+}

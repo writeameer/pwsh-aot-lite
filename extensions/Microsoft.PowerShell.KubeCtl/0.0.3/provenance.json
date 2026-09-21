@@ -1,0 +1,40 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/provenance/v1",
+  "registration": {
+    "registeredAtUtc": "2026-09-21T16:13:12.0268150Z",
+    "registrar": "Register-PwshAotModule.ps1",
+    "method": "declaration-only-static-ast",
+    "moduleWasImportedInIsolatedSidecar": false,
+    "exportedCmdletsWereInvoked": false,
+    "import": {
+      "state": "previous-attempt-failed; not-retried",
+      "failure": "Full contract sidecar attempt (2026-09-21): Get-KubeResource failed while parsing kubectl api-resources output: length (-37) must be non-negative."
+    }
+  },
+  "sourceModule": {
+    "name": "Microsoft.PowerShell.KubeCtl",
+    "version": "0.0.3",
+    "moduleType": "Script",
+    "path": "/Users/ameerdeen/.local/share/powershell/Modules/Microsoft.PowerShell.KubeCtl/0.0.3/Microsoft.PowerShell.KubeCtl.psd1",
+    "rootModule": "Microsoft.PowerShell.KubeCtl.psm1",
+    "guid": "c7793210-3490-4a99-8e3f-ca92dcf3f762",
+    "author": "PowerShellTeam",
+    "companyName": "Microsoft",
+    "description": "This is a simple wrapper for the kubectl executable to retrieve Kubernetes API-Resources",
+    "requiredModules": null
+  },
+  "staticAnalysis": [
+    {
+      "kind": "external-executable",
+      "detail": "Source statically references kubectl via the module executable variable."
+    },
+    {
+      "kind": "runtime-code-generation",
+      "detail": "Source constructs script blocks at runtime."
+    },
+    {
+      "kind": "format-data-side-effect",
+      "detail": "Source generates or updates PowerShell format data during import."
+    }
+  ]
+}

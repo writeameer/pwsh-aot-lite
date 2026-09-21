@@ -1,0 +1,84 @@
+namespace PwshAotLite;
+
+internal static class ScriptRunner
+{
+    internal static int Execute(string script)
+    {
+        try
+        {
+            PipelinePlan plan = UpstreamAstPipelineLowerer.Parse(script);
+            AotExecutionContext context = new();
+            IReadOnlyList<IPipelineRecord> rows = plan.Execute(context);
+            TableWriter.Write(rows, plan.Columns);
+            foreach (CommandError error in context.Errors)
+            {
+                Console.Error.WriteLine($"{error.Id}: {error.Message}");
+            }
+
+            return 0;
+        }
+        catch (ScriptException error)
+        {
+            Console.Error.WriteLine($"Script error: {error.Message}");
+            return 2;
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"Runtime error: {error.Message}");
+            return 1;
+        }
+    }
+}
+
+internal static class Repl
+{
+    internal static void Run()
+    {
+        Console.WriteLine("pwsh-aot-lite — AOT command prototype. Type 'help' or 'exit'.");
+
+        while (true)
+        {
+            Console.Write("pwsh-aot> ");
+            string? line = Console.ReadLine();
+            if (line is null || line.Equals("exit", StringComparison.OrdinalIgnoreCase) || line.Equals("quit", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine();
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            if (line.Equals("help", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("Get-Process [-Name <pattern>] [-Id <id>] [-IncludeUserName] [-Module] [-FileVersionInfo]");
+                Console.WriteLine("Get-Process -Name pwsh* | Where-Object CPU -ge 0 | Select-Object Name, Id");
+                Console.WriteLine("Get-Process | Where-Object CPU -gt 10 | Select-Object Name, Id, CPU");
+                Console.WriteLine("Get-Uptime [-Since] | Select-Object Value, Since");
+                Console.WriteLine("Get-UICulture | Select-Object Name, DisplayName, LCID");
+                Console.WriteLine("Get-Culture [-Name en-US] [-NoUserOverrides] [-ListAvailable]");
+                Console.WriteLine("Get-Verb [-Verb Get*] [-Group Common] | Select-Object Verb, AliasPrefix, Group");
+                Console.WriteLine("Get-TimeZone [-Id <id>] [-Name <standard-or-daylight-pattern>] [-ListAvailable]");
+                Console.WriteLine("Get-FileHash [-Path <physical-pattern>|-LiteralPath <physical-path>] [-Algorithm SHA1|SHA256|SHA384|SHA512|MD5]");
+                Console.WriteLine("Get-Help [<name>|-Name <name>] — source catalog plus dynamically discovered extension help");
+                Console.WriteLine("Get-Command [<name>|-Name <name>] [-Module <pattern>] [-CommandType Cmdlet|Function] — same catalog, no module import");
+                Console.WriteLine("Get-Module [<name>|-Name <name>] — built-in and registered extension inventory only; no module import");
+                Console.WriteLine("Find-Module [<name>|-Name <name>] [-Repository <pattern>] — read-only local repository index query; no network/download/import");
+                Console.WriteLine("Install-Module <exact-name> [-Repository <name>] — hash-verified local file package proof; requires explicit package and extension roots");
+                Console.WriteLine("complete <incomplete line> — metadata-only command, parameter, ValidateSet, module, and help-topic suggestions");
+                Console.WriteLine("Wildcard support: * and ?. Type exit to leave.");
+                continue;
+            }
+
+            if (line.StartsWith("complete ", StringComparison.OrdinalIgnoreCase))
+            {
+                CompletionWriter.Write(CompletionService.Instance.Suggest(line[9..]));
+                continue;
+            }
+
+            _ = ScriptRunner.Execute(line);
+        }
+    }
+}

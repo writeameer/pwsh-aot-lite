@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "fixture": "04-malformed-pipe.ps1",
+  "sourceSha256": "71d4397914213fdd2e462d7084717ab69da17e1bc3c367d29a528d816de30f01",
+  "tokens": [
+    {
+      "kind": "Generic",
+      "text": "Get-Process",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 0,
+        "endOffset": 11,
+        "startLine": 1,
+        "startColumn": 1,
+        "endLine": 1,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Pipe",
+      "text": "|",
+      "flags": "SpecialOperator, ParseModeInvariant",
+      "extent": {
+        "startOffset": 12,
+        "endOffset": 13,
+        "startLine": 1,
+        "startColumn": 13,
+        "endLine": 1,
+        "endColumn": 14
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 13,
+        "endOffset": 14,
+        "startLine": 1,
+        "startColumn": 14,
+        "endLine": 2,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "EndOfInput",
+      "text": "",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 15,
+        "endOffset": 15,
+        "startLine": 2,
+        "startColumn": 2,
+        "endLine": 2,
+        "endColumn": 2
+      }
+    }
+  ],
+  "ast": {
+    "type": "ScriptBlockAst",
+    "extent": {
+      "startOffset": 0,
+      "endOffset": 14,
+      "startLine": 1,
+      "startColumn": 1,
+      "endLine": 2,
+      "endColumn": 1
+    },
+    "children": [
+      {
+        "type": "NamedBlockAst",
+        "extent": {
+          "startOffset": 0,
+          "endOffset": 11,
+          "startLine": 1,
+          "startColumn": 1,
+          "endLine": 1,
+          "endColumn": 12
+        },
+        "children": [
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 0,
+              "endOffset": 11,
+              "startLine": 1,
+              "startColumn": 1,
+              "endLine": 1,
+              "endColumn": 12
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 0,
+                  "endOffset": 11,
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 12
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 0,
+                      "endOffset": 11,
+                      "startLine": 1,
+                      "startColumn": 1,
+                      "endLine": 1,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "EmptyPipeElement",
+      "extent": {
+        "startOffset": 13,
+        "endOffset": 13,
+        "startLine": 1,
+        "startColumn": 14,
+        "endLine": 1,
+        "endColumn": 14
+      }
+    }
+  ]
+}

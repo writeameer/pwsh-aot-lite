@@ -1,0 +1,80 @@
+{
+  "schema": "https://pwsh-aot-lite.dev/schemas/help/v1",
+  "schemaVersion": 1,
+  "module": {
+    "name": "Microsoft.PowerShell.KubeCtl",
+    "version": "0.0.3"
+  },
+  "commands": [
+    {
+      "name": "Get-DefaultPSSession",
+      "synopsis": "Get the session for executing kubectl\n",
+      "description": "Do not use, untested\n\n",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "comment-based-static-ast"
+    },
+    {
+      "name": "Get-KubeRequireSudo",
+      "synopsis": "Get whether invoking kubectl requries sudo\n",
+      "description": "Do not use, it is not cross platform yet\n\n",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "comment-based-static-ast"
+    },
+    {
+      "name": "Get-KubeResource",
+      "synopsis": "Retrieve the available api-resources\n",
+      "description": "This converts the table output of kubectl api-resources to\na set of objects which will then be used to create the proxy functions\n\n",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "comment-based-static-ast"
+    },
+    {
+      "name": "Initialize-ProxyFunction",
+      "synopsis": "Create the proxy functions for the module\n",
+      "description": "This discovers the available resources and creates a proxy function that you can call\nIt essentially converts 'kubectl get pod' to 'Get-KubePod'\n\n",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "comment-based-static-ast"
+    },
+    {
+      "name": "Invoke-KubeCtl",
+      "synopsis": "Invoke kubectl with arguments\n",
+      "description": "Invoke kubectl with arguments\n\n",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "comment-based-static-ast"
+    },
+    {
+      "name": "Set-DefaultPSSession",
+      "synopsis": "Set the session for executing kubectl\n",
+      "description": "Do not use, untested\n\n",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "comment-based-static-ast"
+    },
+    {
+      "name": "Set-KubeRequireSudo",
+      "synopsis": "Set whether invoking kubectl requries sudo\n",
+      "description": "Do not use, it is not cross platform yet\n\n",
+      "notes": "",
+      "examples": [],
+      "relatedLinks": [],
+      "helpUri": null,
+      "sourceKind": "comment-based-static-ast"
+    }
+  ]
+}
