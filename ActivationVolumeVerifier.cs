@@ -17,6 +17,16 @@ internal sealed class SystemActivationVolumeVerifier : IActivationVolumeVerifier
     {
         try
         {
+            if (OperatingSystem.IsWindows())
+            {
+                if (!WindowsVolumeName(stagingRoot).Equals(WindowsVolumeName(extensionRoot), StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ScriptException("InstallCrossVolumeStaging: Staging and extension roots are on different filesystems; atomic activation is not available.");
+                }
+
+                return;
+            }
+
             ulong stagingDevice = OperatingSystem.IsMacOS()
                 ? DarwinDeviceId(stagingRoot)
                 : OperatingSystem.IsLinux()
@@ -76,6 +86,22 @@ internal sealed class SystemActivationVolumeVerifier : IActivationVolumeVerifier
         return result.Device;
     }
 
+    // Resolve a mounted volume's root and then its unique volume-GUID path.
+    // Drive letters and format serials are not sufficient identity proofs for
+    // the Directory.Move atomic-activation boundary on Windows.
+    private static string WindowsVolumeName(string path)
+    {
+        System.Text.StringBuilder volumePath = new(32768);
+        System.Text.StringBuilder volumeName = new(32768);
+        if (!GetVolumePathName(path, volumePath, checked((uint)volumePath.Capacity))
+            || !GetVolumeNameForVolumeMountPoint(volumePath.ToString(), volumeName, checked((uint)volumeName.Capacity)))
+        {
+            throw new IOException("Windows volume identity lookup failed.");
+        }
+
+        return volumeName.ToString();
+    }
+
     // Darwin dev_t is a 32-bit signed value at the beginning of struct stat.
     [StructLayout(LayoutKind.Sequential, Size = 256)]
     private struct DarwinStatBuffer
@@ -111,6 +137,14 @@ internal sealed class SystemActivationVolumeVerifier : IActivationVolumeVerifier
 
     [DllImport("libc.so.6", EntryPoint = "stat", CharSet = CharSet.Ansi)]
     private static extern int LinuxArm64Stat(string path, out LinuxArm64StatBuffer buffer);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetVolumePathName(string path, System.Text.StringBuilder volumePath, uint bufferLength);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetVolumeNameForVolumeMountPoint(string volumeMountPoint, System.Text.StringBuilder volumeName, uint bufferLength);
 }
 
 // A file pathname is not automatically a regular file on Unix. Do not hash or
@@ -125,6 +159,12 @@ internal static class NativeFileObjectPolicy
     {
         try
         {
+            if (OperatingSystem.IsWindows())
+            {
+                EnsureWindowsRegularFile(path);
+                return;
+            }
+
             uint mode = OperatingSystem.IsMacOS()
                 ? DarwinMode(path)
                 : OperatingSystem.IsLinux()
@@ -142,6 +182,21 @@ internal static class NativeFileObjectPolicy
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or EntryPointNotFoundException or DllNotFoundException)
         {
             throw new ScriptException("InstallPackageObjectUnreadable: Package file type could not be classified safely.");
+        }
+    }
+
+    private static void EnsureWindowsRegularFile(string path)
+    {
+        // NTFS/ReFS do not expose Unix FIFOs or device nodes as package-tree
+        // entries. Reparse points are the equivalent path-redirection boundary
+        // and must be rejected before the file is hashed or copied. Directories
+        // and device objects are rejected as well; normal metadata bits such as
+        // Archive and ReadOnly remain valid regular files.
+        FileAttributes attributes = File.GetAttributes(path);
+        const FileAttributes disallowed = FileAttributes.Directory | FileAttributes.Device | FileAttributes.ReparsePoint;
+        if ((attributes & disallowed) != 0)
+        {
+            throw new ScriptException("InstallPackageObjectNotRegular: Packages may contain regular files only; reparse, device, and directory objects are rejected.");
         }
     }
 
