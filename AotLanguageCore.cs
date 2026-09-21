@@ -74,6 +74,7 @@ internal sealed class AotBlockPlan(IReadOnlyList<AotStatementPlan> statements)
         AotScope scope,
         Action<AotExecutionOutput>? onOutput = null)
     {
+        context.ThrowIfCancellationRequested();
         List<AotExecutionOutput> outputs = [];
         using IDisposable collector = context.Subscribe(runtimeEvent =>
         {
@@ -94,6 +95,7 @@ internal sealed class AotBlockPlan(IReadOnlyList<AotStatementPlan> statements)
     {
         foreach (AotStatementPlan statement in Statements)
         {
+            context.ThrowIfCancellationRequested();
             statement.Execute(context, scope, emit);
         }
     }
@@ -123,7 +125,9 @@ internal sealed class AotPipelineStatementPlan(
 {
     internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
+        context.ThrowIfCancellationRequested();
         PipelinePlan pipeline = BindPipeline(scope);
+        context.ThrowIfCancellationRequested();
         emit(new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns));
     }
 
@@ -205,6 +209,7 @@ internal sealed class AotForEachStatementPlan(
 
         foreach (AotValue item in items!)
         {
+            context.ThrowIfCancellationRequested();
             scope.Set(variableName, item);
             body.ExecuteInto(context, scope, emit);
         }
