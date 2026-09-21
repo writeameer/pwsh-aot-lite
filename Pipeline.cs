@@ -1984,7 +1984,12 @@ internal static class SelfTest
         {
             string alphaPath = Path.Combine(hashFixtureDirectory, "alpha.txt");
             string betaPath = Path.Combine(hashFixtureDirectory, "beta.txt");
-            string literalStarPath = Path.Combine(hashFixtureDirectory, "literal*.txt");
+            // Windows forbids '*' in file names. The literal-path command and
+            // its aliases are still exercised there with an ordinary physical
+            // name; Unix additionally proves that a literal wildcard glyph is
+            // not expanded by the provider-free resolver.
+            string literalFileName = OperatingSystem.IsWindows() ? "literal.txt" : "literal*.txt";
+            string literalStarPath = Path.Combine(hashFixtureDirectory, literalFileName);
             UTF8Encoding utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
             File.WriteAllText(alphaPath, "abc", utf8WithoutBom);
             File.WriteAllText(betaPath, "PowerShell", utf8WithoutBom);
