@@ -79,6 +79,12 @@ records the actual AST-to-plan implementation slice, its stable diagnostics,
 and the next language increments. It must be updated before widening an
 execution-support claim.
 
+The [Engine Runtime Core](architecture/engine-runtime-core.md) records the
+ordered output/error event boundary, its deliberately narrow stream claim, and
+the finite runtime slices that follow. Its
+[stream-contract review ledger](reviews/2026-09-22-runtime-stream-contract.md)
+must be updated before widening stream or host behavior.
+
 The [Language Compatibility Core](architecture/language-compatibility-core.md)
 records the executable statement/variable/conditional/closed-list-foreach slice,
 its scope and binder boundaries, and the syntax intentionally deferred before

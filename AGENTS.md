@@ -64,6 +64,15 @@ the smallest corrective action. Create a ledger entry under `docs/reviews/`
 from `docs/reviews/TEMPLATE.md`, and link it from the affected port or design
 note.
 
+## Slice branch and integration rule
+
+Every implementation slice uses its own `codex/<slice-name>` branch. A
+branch/release steward creates the branch, and after the required independent
+reviews and verification pass, merges it into `main` and pushes both the merge
+and source branch history. A failed review is not merged: narrow, repair, or
+defer the slice first. Keep one slice focused enough that its review ledger
+names a single support claim.
+
 ## Parser and evaluator rule
 
 - Never extend `frontend-spike/`; it is an archived proof and must not be
