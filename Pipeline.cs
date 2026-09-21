@@ -2583,7 +2583,7 @@ internal static class SelfTest
                 {
                     Name: "Fixture.Safe", Version: "1.0.0", Status: "installed", Path: var activatedPath,
                 }
-                || !activatedPath.EndsWith("Fixture.Safe/1.0.0", StringComparison.Ordinal)
+                || !activatedPath.EndsWith(Path.Combine("Fixture.Safe", "1.0.0"), StringComparison.OrdinalIgnoreCase)
                 || !File.Exists(Path.Combine(activatedPath, "extension.json"))
                 || CompositeModuleCatalog.Instance.Find("Fixture.Safe").SingleOrDefault() is not { Version: "1.0.0" }
                 || CompositeHelpCatalog.Instance.Find("Get-FixtureSafe").SingleOrDefault() is not { Synopsis: "safe installer fixture" }
