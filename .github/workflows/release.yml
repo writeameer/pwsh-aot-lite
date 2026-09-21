@@ -5,29 +5,93 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  publish-linux-x64:
-    runs-on: ubuntu-latest
+  build-release-assets:
+    name: ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rid: linux-x64
+            executable: PwshAotLite
+            archive: pwsh-aot-lite-linux-x64.tar.gz
+            archive-kind: tar
+          - runner: macos-14
+            rid: osx-arm64
+            executable: PwshAotLite
+            archive: pwsh-aot-lite-osx-arm64.tar.gz
+            archive-kind: tar
+          - runner: windows-latest
+            rid: win-x64
+            executable: PwshAotLite.exe
+            archive: pwsh-aot-lite-win-x64.zip
+            archive-kind: zip
+    runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
       - name: Restore pinned PowerShell source
         shell: pwsh
         run: ./eng/Restore-Upstream.ps1
-      - name: Publish Native AOT release asset
+      - name: Install Linux Native AOT prerequisites
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y clang zlib1g-dev
-          dotnet publish -c Release -r linux-x64 --self-contained true -o artifacts/linux-x64
-          ./artifacts/linux-x64/PwshAotLite --self-test
-          tar -C artifacts/linux-x64 -czf pwsh-aot-lite-linux-x64.tar.gz .
+      - name: Install macOS Native AOT prerequisites
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          test "$(uname -m)" = arm64
+          brew install openssl@3 brotli
+          echo "LIBRARY_PATH=$(brew --prefix openssl@3)/lib:$(brew --prefix brotli)/lib" >> "$GITHUB_ENV"
+      - name: Publish and test Native AOT asset
+        shell: pwsh
+        run: |
+          $publishDirectory = 'artifacts/${{ matrix.rid }}'
+          dotnet publish -c Release -r '${{ matrix.rid }}' --self-contained true -o $publishDirectory
+          & (Join-Path $publishDirectory '${{ matrix.executable }}') --self-test
+          ./eng/Stage-Release.ps1 -PublishDirectory $publishDirectory -StagingDirectory 'release/${{ matrix.rid }}'
+      - name: Archive Unix release candidate
+        if: matrix.archive-kind == 'tar'
+        shell: bash
+        run: tar -C release -czf '${{ matrix.archive }}' '${{ matrix.rid }}'
+      - name: Archive Windows release candidate
+        if: matrix.archive-kind == 'zip'
+        shell: pwsh
+        run: Compress-Archive -Path 'release/${{ matrix.rid }}' -DestinationPath '${{ matrix.archive }}' -CompressionLevel Optimal
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+  create-release:
+    needs: build-release-assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true
-          files: pwsh-aot-lite-linux-x64.tar.gz
+          body: |
+            Native AOT assets for macOS ARM64, Windows x64, and Linux x64.
+
+            This is a deliberately limited PowerShell migration spike. See the README for the implemented command surface and runtime constraints.
+          files: release-assets/*
