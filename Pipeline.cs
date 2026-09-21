@@ -2550,7 +2550,11 @@ internal static class SelfTest
             string volumePackage = Path.Combine(sourceRoot, "Fixture.Volume", "1.0.0");
             string sourceChangedPackage = Path.Combine(sourceRoot, "Fixture.SourceChanged", "1.0.0");
             string specialObjectPackage = Path.Combine(sourceRoot, "Fixture.SpecialObject", "1.0.0");
-            CreateFifo(Path.Combine(specialObjectPackage, "named-pipe"));
+            bool supportsFifoFixture = OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
+            if (supportsFifoFixture)
+            {
+                CreateFifo(Path.Combine(specialObjectPackage, "named-pipe"));
+            }
             string destinationLinkPackage = Path.Combine(sourceRoot, "Fixture.DestinationLink", "1.0.0");
             string conflictPackage = Path.Combine(sourceRoot, "Fixture.Conflict", "1.0.0");
             WriteInstallRepositoryIndex(
@@ -2667,12 +2671,18 @@ internal static class SelfTest
             AssertInstallRejected("Fixture.Outside", "InstallSourceOutsideRoot");
             AssertInstallRejected("Fixture.InvalidSchema", "InstallPackageInvalid");
             AssertInstallRejected("Fixture.TooManyFiles", "InstallPackageTooLarge");
-            AssertInstallerRejected(
-                new LocalPackageModuleInstaller(new StaticRepositoryCatalog(new RepositoryModuleEntry(
-                    "Fixture.SpecialObject", "1.0.0", "special object", "FixtureRepo", "https://example.invalid/fixture/", new Uri(specialObjectPackage).AbsoluteUri,
-                    new string('0', 64), "legacy-pwsh-sidecar", "isolated-sidecar-import"))),
-                "Fixture.SpecialObject",
-                "InstallPackageObjectNotRegular");
+            // A FIFO is the reviewed Unix special-file fixture. Windows builds
+            // still exercise the installer suite, but must not pretend this
+            // Unix-only object test ran on a different filesystem model.
+            if (supportsFifoFixture)
+            {
+                AssertInstallerRejected(
+                    new LocalPackageModuleInstaller(new StaticRepositoryCatalog(new RepositoryModuleEntry(
+                        "Fixture.SpecialObject", "1.0.0", "special object", "FixtureRepo", "https://example.invalid/fixture/", new Uri(specialObjectPackage).AbsoluteUri,
+                        new string('0', 64), "legacy-pwsh-sidecar", "isolated-sidecar-import"))),
+                    "Fixture.SpecialObject",
+                    "InstallPackageObjectNotRegular");
+            }
             if (Directory.Exists(Path.Combine(destinationRoot, "Fixture.HashMismatch"))
                 || Directory.Exists(Path.Combine(destinationRoot, "Fixture.Outside"))
                 || Directory.Exists(Path.Combine(destinationRoot, "Fixture.InvalidSchema"))
