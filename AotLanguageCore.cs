@@ -75,11 +75,15 @@ internal sealed class AotBlockPlan(IReadOnlyList<AotStatementPlan> statements)
         Action<AotExecutionOutput>? onOutput = null)
     {
         List<AotExecutionOutput> outputs = [];
-        ExecuteInto(context, scope, output =>
+        using IDisposable collector = context.Subscribe(runtimeEvent =>
         {
-            outputs.Add(output);
-            onOutput?.Invoke(output);
+            if (runtimeEvent is { Kind: AotRuntimeEventKind.Success, Output: { } output })
+            {
+                outputs.Add(output);
+                onOutput?.Invoke(output);
+            }
         });
+        ExecuteInto(context, scope, context.WriteOutput);
 
         return new AotExecutionResult(outputs);
     }

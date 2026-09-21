@@ -9,11 +9,18 @@ internal static class ScriptRunner
         {
             AotExecutionPlan plan = AotExecutionKernel.Compile(script, "<command>");
             AotExecutionContext context = new();
-            _ = plan.Execute(context, scope, static output => TableWriter.Write(output.Rows, output.Columns));
-            foreach (CommandError error in context.Errors)
+            using IDisposable hostSubscription = context.Subscribe(runtimeEvent =>
             {
-                Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", renderOptions));
-            }
+                if (runtimeEvent is { Kind: AotRuntimeEventKind.Success, Output: { } output })
+                {
+                    TableWriter.Write(output.Rows, output.Columns);
+                }
+                else if (runtimeEvent is { Kind: AotRuntimeEventKind.Error, Diagnostic: { } diagnostic })
+                {
+                    Console.Error.WriteLine(AotDiagnosticRenderer.Render(diagnostic, script, "<command>", renderOptions));
+                }
+            });
+            _ = plan.Execute(context, scope);
 
             return 0;
         }

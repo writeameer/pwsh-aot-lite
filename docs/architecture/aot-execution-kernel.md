@@ -96,6 +96,8 @@ pwsh -NoProfile -File tools/Export-PwshParserBaseline.ps1 -Verify
 
 ## Next increments
 
-1. Add named local functions with independently proven scope semantics.
-2. Migrate all existing port/runtime failures to typed origin diagnostics and
-   add fixture-based snapshot coverage.
+Language support and runtime behavior now progress independently. Named local
+functions remain a Language Compatibility Core slice. Runtime stream, stage,
+lifecycle, and host work are owned by the [Engine Runtime Core](engine-runtime-core.md).
+Every new port must continue to migrate errors to typed origin diagnostics and
+add fixture-based snapshot coverage.

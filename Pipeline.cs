@@ -148,34 +148,77 @@ internal sealed class CommandError(AotDiagnostic diagnostic)
 internal sealed class AotExecutionContext
 {
     private readonly List<CommandError> _errors = [];
-    private AotSourceSpan? _activeCommandSpan;
+    private readonly List<AotRuntimeEvent> _events = [];
+    private readonly List<Action<AotRuntimeEvent>> _observers = [];
+    private AotInvocationFrame? _activeInvocation;
+    private long _nextSequence;
 
     internal IReadOnlyList<CommandError> Errors => _errors;
+    internal IReadOnlyList<AotRuntimeEvent> Events => _events;
+
+    // Hosts and programmatic callers observe the same ordered transcript.
+    // A subscription is scoped so a nested execution cannot leak a host sink.
+    internal IDisposable Subscribe(Action<AotRuntimeEvent> observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        _observers.Add(observer);
+        return new ObserverScope(this, observer);
+    }
+
+    internal void WriteOutput(AotExecutionOutput output) =>
+        Publish(AotRuntimeEvent.Success(NextSequence(), output));
 
     internal void WriteNonTerminatingError(string id, string message) =>
-        _errors.Add(new CommandError(new AotDiagnostic(
-            id,
-            AotDiagnosticSeverity.Error,
-            AotDiagnosticCategory.Runtime,
-            message,
-            _activeCommandSpan,
-            "command reported an error")));
+        WriteNonTerminatingError(AotDiagnostics.Runtime(id, message, _activeInvocation?.SourceSpan, "command reported an error"));
 
-    internal IDisposable EnterInvocation(CommandInvocation invocation) => new InvocationScope(this, invocation.SourceSpan);
+    internal void WriteNonTerminatingError(AotDiagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        AotDiagnostic sourceAwareDiagnostic = diagnostic.Span is null && _activeInvocation?.SourceSpan is not null
+            ? diagnostic with { Span = _activeInvocation.SourceSpan, Label = diagnostic.Label ?? "command reported an error" }
+            : diagnostic;
+        _errors.Add(new CommandError(sourceAwareDiagnostic));
+        Publish(AotRuntimeEvent.Error(NextSequence(), _activeInvocation, sourceAwareDiagnostic));
+    }
+
+    internal IDisposable EnterInvocation(CommandInvocation invocation, int pipelinePosition = 0, int pipelineLength = 1) =>
+        new InvocationScope(this, new AotInvocationFrame(
+            invocation.Descriptor.Name,
+            invocation.SourceSpan,
+            pipelinePosition,
+            pipelineLength,
+            _activeInvocation));
+
+    private long NextSequence() => checked(++_nextSequence);
+
+    private void Publish(AotRuntimeEvent runtimeEvent)
+    {
+        _events.Add(runtimeEvent);
+        // Copy protects the current delivery from an observer unsubscribing.
+        foreach (Action<AotRuntimeEvent> observer in _observers.ToArray())
+        {
+            observer(runtimeEvent);
+        }
+    }
 
     private sealed class InvocationScope : IDisposable
     {
         private readonly AotExecutionContext _context;
-        private readonly AotSourceSpan? _priorSpan;
+        private readonly AotInvocationFrame? _priorInvocation;
 
-        internal InvocationScope(AotExecutionContext context, AotSourceSpan? span)
+        internal InvocationScope(AotExecutionContext context, AotInvocationFrame invocation)
         {
             _context = context;
-            _priorSpan = context._activeCommandSpan;
-            context._activeCommandSpan = span;
+            _priorInvocation = context._activeInvocation;
+            context._activeInvocation = invocation;
         }
 
-        public void Dispose() => _context._activeCommandSpan = _priorSpan;
+        public void Dispose() => _context._activeInvocation = _priorInvocation;
+    }
+
+    private sealed class ObserverScope(AotExecutionContext context, Action<AotRuntimeEvent> observer) : IDisposable
+    {
+        public void Dispose() => context._observers.Remove(observer);
     }
 }
 
@@ -521,13 +564,20 @@ internal sealed class GetProcessCmdlet(IProcessCatalog catalog) : AotCmdletBase
 
     internal IEnumerable<IPipelineRecord> InvokeWithInput(CommandInvocation invocation, IEnumerable<IPipelineRecord> input, AotExecutionContext context)
     {
+        // The closed two-command pipeline is still a real invocation boundary.
+        // Keep its error provenance distinct from the source cmdlet until the
+        // generic typed-stage composition slice replaces this special case.
+        using IDisposable scope = context.EnterInvocation(invocation, pipelinePosition: 1, pipelineLength: 2);
         ProcessRecord[] processes = input.OfType<ProcessRecord>().ToArray();
         if (processes.Length != input.Count())
         {
             throw new ScriptException("Get-Process accepts only process objects from the incoming pipeline.");
         }
 
-        return Execute(invocation, processes, context);
+        // Execute is iterator-based for the ports that use Select/SelectMany.
+        // Materialize while this frame is active so deferred provider errors
+        // cannot lose the second-stage source context after the scope exits.
+        return Execute(invocation, processes, context).ToArray();
     }
 
     private IEnumerable<IPipelineRecord> Execute(CommandInvocation invocation, IReadOnlyList<ProcessRecord>? input, AotExecutionContext context)
@@ -1830,6 +1880,7 @@ internal static class SelfTest
     internal static void Run()
     {
         AssertExecutionKernelAndDiagnostics();
+        AssertRuntimeEventContract();
         AssertLanguageCompatibilityCore();
         AssertControlFlowCore();
         AssertForEachCore();
@@ -2729,6 +2780,70 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         if (!actual.Equals(expected.TrimEnd(), StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Diagnostic renderer snapshot regression.");
+        }
+    }
+
+    private static void AssertRuntimeEventContract()
+    {
+        const string source = "Get-Verb -Verb Add; Get-TimeZone -Id AotRuntimeEventMissingZone; Get-Verb -Verb Get";
+        AotExecutionContext context = new();
+        List<AotRuntimeEvent> observed = [];
+        using IDisposable subscription = context.Subscribe(observed.Add);
+        AotExecutionResult result = AotExecutionKernel.Compile(source, "runtime-events.ps1").Execute(context);
+
+        if (result.Outputs.Count != 3
+            || context.Events.Count != 4
+            || !context.Events.Select(static runtimeEvent => runtimeEvent.Kind).SequenceEqual(
+                [AotRuntimeEventKind.Success, AotRuntimeEventKind.Error, AotRuntimeEventKind.Success, AotRuntimeEventKind.Success])
+            || !observed.SequenceEqual(context.Events)
+            || !context.Events.Select(static runtimeEvent => runtimeEvent.Sequence).SequenceEqual([1L, 2L, 3L, 4L])
+            || context.Events[1] is not
+            {
+                Diagnostic: { Id: "TimeZoneNotFound", Span: { DocumentName: "runtime-events.ps1" } },
+                Invocation: { CommandName: "Get-TimeZone", PipelinePosition: 0, PipelineLength: 1 },
+            }
+            || context.Errors.SingleOrDefault()?.Diagnostic != context.Events[1].Diagnostic)
+        {
+            throw new InvalidOperationException("The Runtime Core event bridge did not preserve one ordered typed output/error transcript.");
+        }
+
+        // A source command can write an error before its completed table
+        // segment is available. The event stream reports that true runtime
+        // ordering rather than inventing per-record streaming semantics.
+        AotExecutionContext mixedContext = new();
+        using IDisposable mixedSubscription = mixedContext.Subscribe(static _ => { });
+        AotExecutionOutput output = new([new VerbRecord("Get", "g", "Common", "fixture")], ["Verb"]);
+        mixedContext.WriteNonTerminatingError(AotDiagnostics.Runtime("FixtureError", "fixture error"));
+        mixedContext.WriteOutput(output);
+        if (!mixedContext.Events.Select(static runtimeEvent => runtimeEvent.Kind).SequenceEqual(
+                [AotRuntimeEventKind.Error, AotRuntimeEventKind.Success])
+            || mixedContext.Events[0].Diagnostic?.Id != "FixtureError"
+            || mixedContext.Events[1].Output != output)
+        {
+            throw new InvalidOperationException("The Runtime Core event contract did not preserve an error before a completed output segment.");
+        }
+
+        AotSourceSpan secondStageSpan = new("input-stage.ps1", 14, 31, 1, 15, 1, 32);
+        GetProcessCmdlet inputStage = new(new FixtureProcessCatalog([new ProcessRecord("present", 7, 0, 0)], emitUserError: true));
+        CommandInvocation inputStageInvocation = new(inputStage.Descriptor, new Dictionary<string, string[]>
+        {
+            ["IncludeUserName"] = ["true"],
+        }, secondStageSpan);
+        AotExecutionContext inputStageContext = new();
+        _ = inputStage.InvokeWithInput(
+            inputStageInvocation,
+            [new ProcessRecord("present", 7, 0, 0)],
+            inputStageContext).ToArray();
+        if (inputStageContext.Events.SingleOrDefault() is not
+            {
+                Kind: AotRuntimeEventKind.Error,
+                Diagnostic: { Id: "FixtureInputUserError", Span: var eventSpan },
+                Invocation: { CommandName: "Get-Process", PipelinePosition: 1, PipelineLength: 2, SourceSpan: var frameSpan },
+            }
+            || eventSpan != secondStageSpan
+            || frameSpan != secondStageSpan)
+        {
+            throw new InvalidOperationException("The special-case input cmdlet did not retain its own invocation frame.");
         }
     }
 
@@ -4304,13 +4419,22 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
     [DllImport("libc.so.6", EntryPoint = "mkfifo", CharSet = CharSet.Ansi)]
     private static extern int LinuxMkfifo(string path, uint mode);
 
-    private sealed class FixtureProcessCatalog(IReadOnlyList<ProcessRecord> processes) : IProcessCatalog
+    private sealed class FixtureProcessCatalog(IReadOnlyList<ProcessRecord> processes, bool emitUserError = false) : IProcessCatalog
     {
         public IEnumerable<ProcessRecord> AllProcesses() => processes;
         public ProcessRecord? GetById(int id) => processes.SingleOrDefault(process => process.Id == id);
         public IEnumerable<ProcessModuleRecord> Modules(int id, bool includeFileVersion, AotExecutionContext context) => [new ProcessModuleRecord(id, "fixture-module", "/fixture", includeFileVersion ? "1.0" : string.Empty)];
         public ProcessFileVersionRecord? MainFileVersion(int id, AotExecutionContext context) => new ProcessFileVersionRecord(id, "/fixture", "1.0", "1.0");
-        public string? UserName(int id, AotExecutionContext context) => "fixture-user";
+        public string? UserName(int id, AotExecutionContext context)
+        {
+            if (emitUserError)
+            {
+                context.WriteNonTerminatingError("FixtureInputUserError", "fixture input-stage user lookup failed");
+                return null;
+            }
+
+            return "fixture-user";
+        }
     }
 
     private sealed class FixtureHostCulture(CultureInfo currentUICulture) : IHostCulture
