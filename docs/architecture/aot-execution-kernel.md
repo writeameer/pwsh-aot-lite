@@ -15,18 +15,24 @@ source document
                  └─ existing reviewed typed command/pipeline executor
 ```
 
-The first `AotExecutionPlan` preserves the existing, reviewed structural
-pipeline slice. Its purpose is to establish the non-negotiable AST-to-plan
-boundary without changing any cmdlet semantics before blocks, scopes, and
-control flow are added.
+The first `AotExecutionPlan` established the AST-to-plan boundary. It now owns
+an ordered top-level block of assignment and structural-pipeline plans; scope
+and delayed variable binding are documented in the
+[Language Compatibility Core](language-compatibility-core.md). Control flow
+and functions are still deliberately absent.
 
 ## Current supported execution shape
 
-One top-level upstream-parsed command pipeline with:
+An unnamed top-level upstream-parsed block with ordered assignments and command
+pipelines. Each executable pipeline has:
 
 - one native-AOT source command;
 - optionally one direct-property finite-numeric `Where-Object` predicate; and
 - optionally one direct-field `Select-Object` projection.
+
+The predicate value and command arguments may resolve through the reviewed
+lexical scope; see the Language Compatibility Core for the exact expression
+subset and exclusions.
 
 The command binder remains `AotCmdletRegistry.BindCommand`; the kernel does not
 introduce a second parameter binder. Typed cmdlet output still crosses the
@@ -59,6 +65,7 @@ generic pipeline boundary only through the existing explicit `AotValue`/
 | `AOT2005` | Positional argument is not supported |
 | `AOT3001`–`AOT3004` | `Get-Process` validation failures with command source context |
 | `AOT4001`–`AOT4008` | `Where-Object` / `Select-Object` structural-stage validation failures |
+| `AOT5001`–`AOT5004` | Lexical scope, value-to-binder conversion, and variable predicate failures |
 | `AOT3000` | Transitional typed wrapper around an untouched legacy runtime error; it still inherits the active command span |
 | `AOT9000` | Unexpected host failure, with implementation detail withheld from normal output |
 
@@ -87,9 +94,6 @@ pwsh -NoProfile -File tools/Export-PwshParserBaseline.ps1 -Verify
 
 ## Next increments
 
-1. Replace the single-pipeline body with an explicit block plan.
-2. Add lexical `AotScope`, `=` assignment, primitives/arrays, and delayed
-   command binding for variable arguments.
-3. Add direct `if`, `foreach`, and then named local functions on that scope.
-4. Migrate all existing port/runtime failures to typed origin diagnostics and
+1. Add direct `if`, `foreach`, and then named local functions on child scopes.
+2. Migrate all existing port/runtime failures to typed origin diagnostics and
    add fixture-based snapshot coverage.

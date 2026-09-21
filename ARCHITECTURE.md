@@ -36,6 +36,9 @@ incomplete-input scanner is permitted only for non-executable metadata
 completion and must remain explicitly non-authoritative, as documented below.
 Detailed consumer boundaries and rollout milestones are in
 [the language-tooling contract](docs/architecture/language-tooling-contract.md).
+The currently executable statement/variable subset and its strict scope/binder
+boundary are recorded in the
+[Language Compatibility Core](docs/architecture/language-compatibility-core.md).
 
 ## Diagnostic experience is part of the execution kernel
 

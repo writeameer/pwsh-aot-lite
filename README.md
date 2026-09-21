@@ -6,16 +6,24 @@ A deliberately focused, Native-AOT-friendly PowerShell-like runner. It proves th
 script text → upstream parser facade → AOT execution plan → precompiled C# execution
 ```
 
-The current plan is deliberately a narrow structural pipeline slice; it is the
-foundation for variables, blocks, control flow, and functions, not a claim of
-general script compatibility. Parse, binding, and unsupported-feature failures
-now use typed source-aware diagnostics. See the
-[AOT Execution Kernel foundation](docs/architecture/aot-execution-kernel.md).
+The current plan is deliberately a narrow structural pipeline and lexical
+variable slice, not a claim of general script compatibility. Parse, binding,
+scope, and unsupported-feature failures use typed source-aware diagnostics.
+See the [AOT Execution Kernel foundation](docs/architecture/aot-execution-kernel.md)
+and [Language Compatibility Core](docs/architecture/language-compatibility-core.md).
 
 Supported pipeline:
 
 ```powershell
 Get-Process | Where-Object CPU -gt 10 | Select-Object Name, Id, CPU
+```
+
+The first multi-statement/variable form is also executable:
+
+```powershell
+$threshold = 10
+$names = 'pwsh', 'dotnet'
+Get-Process -Name $names | Where-Object CPU -gt $threshold | Select-Object Name, Id
 ```
 
 `Get-Process` is now a port through a reusable `IAotCmdlet` boundary, rather than a hard-wired pipeline source. It supports the existing cmdlet's core process selection shapes:

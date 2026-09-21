@@ -37,6 +37,13 @@ The model also supplies only the shared helpers required by the next phase:
 - `AotValueComparison.TryCompare` for finite numeric, Boolean, string, date,
   and null ordering.
 
+The Language Compatibility Core also stores lexical variables as these same
+closed values. That is a distinct language-scope boundary, not a second object
+pipeline: a variable can become a command argument only through the explicit,
+finite conversion policy documented in
+[language-compatibility-core.md](language-compatibility-core.md). Scope never
+exposes `IPipelineRecord`, `PSObject`, or arbitrary CLR values.
+
 These helpers are intentionally explicit. They do **not** claim PowerShell's
 full extended type system or coercion semantics. The AST lowerer/predicate
 implementation must define and test any additional compatibility behavior

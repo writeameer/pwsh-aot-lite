@@ -34,6 +34,8 @@ The runner must remain Native-AOT safe:
    contract for execution, CLI tooling, and eventual editor/LSP consumers.
 8. `docs/architecture/diagnostic-contract.md` — mandatory Phase-1 structured
    diagnostics, renderer, and negative-test requirements.
+9. `docs/architecture/language-compatibility-core.md` — the current reviewed
+   block-plan, lexical-scope, expression, and delayed-binder boundary.
 
 ## Mandatory independent review process
 

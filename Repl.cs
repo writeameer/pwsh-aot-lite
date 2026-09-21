@@ -2,14 +2,13 @@ namespace PwshAotLite;
 
 internal static class ScriptRunner
 {
-    internal static int Execute(string script)
+    internal static int Execute(string script, AotScope? scope = null)
     {
         try
         {
             AotExecutionPlan plan = AotExecutionKernel.Compile(script, "<command>");
             AotExecutionContext context = new();
-            IReadOnlyList<IPipelineRecord> rows = plan.Execute(context);
-            TableWriter.Write(rows, plan.Columns);
+            _ = plan.Execute(context, scope, static output => TableWriter.Write(output.Rows, output.Columns));
             foreach (CommandError error in context.Errors)
             {
                 Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", useAnsi: false));
@@ -39,6 +38,7 @@ internal static class Repl
     internal static void Run()
     {
         Console.WriteLine("pwsh-aot-lite — AOT command prototype. Type 'help' or 'exit'.");
+        AotScope sessionScope = new();
 
         while (true)
         {
@@ -59,6 +59,7 @@ internal static class Repl
             {
                 Console.WriteLine("Get-Process [-Name <pattern>] [-Id <id>] [-IncludeUserName] [-Module] [-FileVersionInfo]");
                 Console.WriteLine("Get-Process -Name pwsh* | Where-Object CPU -ge 0 | Select-Object Name, Id");
+                Console.WriteLine("$threshold = 10; Get-Process | Where-Object CPU -gt $threshold | Select-Object Name, Id");
                 Console.WriteLine("Get-Process | Where-Object CPU -gt 10 | Select-Object Name, Id, CPU");
                 Console.WriteLine("Get-Uptime [-Since] | Select-Object Value, Since");
                 Console.WriteLine("Get-UICulture | Select-Object Name, DisplayName, LCID");
@@ -72,7 +73,7 @@ internal static class Repl
                 Console.WriteLine("Find-Module [<name>|-Name <name>] [-Repository <pattern>] — read-only local repository index query; no network/download/import");
                 Console.WriteLine("Install-Module <exact-name> [-Repository <name>] — hash-verified local file package proof; requires explicit package and extension roots");
                 Console.WriteLine("complete <incomplete line> — metadata-only command, parameter, ValidateSet, module, and help-topic suggestions");
-                Console.WriteLine("Wildcard support: * and ?. Type exit to leave.");
+                Console.WriteLine("Wildcard support: * and ?. The REPL retains supported lexical variables until exit. Type exit to leave.");
                 continue;
             }
 
@@ -82,7 +83,7 @@ internal static class Repl
                 continue;
             }
 
-            _ = ScriptRunner.Execute(line);
+            _ = ScriptRunner.Execute(line, sessionScope);
         }
     }
 }

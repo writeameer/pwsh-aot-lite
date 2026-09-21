@@ -60,6 +60,17 @@ internal static class AotDiagnostics
         string? help = null) =>
         new(id, AotDiagnosticSeverity.Error, AotDiagnosticCategory.Runtime, message, span, label, help);
 
+    // Scope/evaluation diagnostics are runtime diagnostics because a parsed
+    // variable reference is only meaningful against the per-execution scope.
+    // Keeping them here prevents scope code from inventing console strings.
+    internal static AotDiagnostic Scope(
+        string id,
+        string message,
+        AotSourceSpan? span,
+        string? label = null,
+        string? help = null) =>
+        new(id, AotDiagnosticSeverity.Error, AotDiagnosticCategory.Runtime, message, span, label, help);
+
     internal static AotDiagnostic Internal(string message, string? detail = null) =>
         new("AOT9000", AotDiagnosticSeverity.Error, AotDiagnosticCategory.Internal, message, null, null, null, detail);
 

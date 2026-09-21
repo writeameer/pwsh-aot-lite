@@ -1,16 +1,18 @@
 namespace PwshAotLite;
 
-// Explicit AST-to-plan boundary. The first plan delegates to the existing
-// reviewed typed pipeline executor; later plans (blocks, assignments, control
-// flow, and functions) extend this model rather than bypassing it.
-internal sealed class AotExecutionPlan(AotParseResult parseResult, PipelinePlan pipeline)
+// Explicit AST-to-plan boundary. The plan now owns a flat block of reviewed
+// statement plans; later lexical blocks, control flow, and functions extend
+// this model rather than bypassing it.
+internal sealed class AotExecutionPlan(AotParseResult parseResult, AotBlockPlan block)
 {
     internal AotParseResult ParseResult { get; } = parseResult;
-    internal PipelinePlan Pipeline { get; } = pipeline;
+    internal AotBlockPlan Block { get; } = block;
 
-    internal IReadOnlyList<string> Columns => Pipeline.Columns;
-
-    internal IReadOnlyList<IPipelineRecord> Execute(AotExecutionContext context) => Pipeline.Execute(context);
+    internal AotExecutionResult Execute(
+        AotExecutionContext context,
+        AotScope? scope = null,
+        Action<AotExecutionOutput>? onOutput = null) =>
+        Block.Execute(context, scope ?? new AotScope(), onOutput);
 }
 
 internal static class AotExecutionKernel
@@ -23,6 +25,6 @@ internal static class AotExecutionKernel
             throw new ScriptException(parseResult.Diagnostics[0]);
         }
 
-        return new AotExecutionPlan(parseResult, UpstreamAstPipelineLowerer.Lower(parseResult));
+        return new AotExecutionPlan(parseResult, UpstreamAstPipelineLowerer.LowerBlock(parseResult));
     }
 }

@@ -116,12 +116,21 @@ internal sealed record SourceCmdletMetadata(
 internal sealed class CommandInvocation(
     CmdletDescriptor descriptor,
     IReadOnlyDictionary<string, string[]> parameters,
-    AotSourceSpan? sourceSpan = null)
+    AotSourceSpan? sourceSpan = null,
+    IReadOnlyDictionary<string, AotSourceSpan?[]>? valueSpans = null)
 {
     internal CmdletDescriptor Descriptor { get; } = descriptor;
     internal AotSourceSpan? SourceSpan { get; } = sourceSpan;
 
     internal bool TryGetValues(string name, out string[] values) => parameters.TryGetValue(name, out values!);
+
+    internal AotSourceSpan? GetValueSpan(string name, int index) =>
+        valueSpans is not null
+        && valueSpans.TryGetValue(name, out AotSourceSpan?[]? spans)
+        && index >= 0
+        && index < spans.Length
+            ? spans[index]
+            : SourceSpan;
 }
 
 // Parser-independent syntax atoms. The upstream AST lowerer and the legacy
@@ -427,7 +436,7 @@ internal static class AotCmdletRegistry
             throw new ScriptException(AotDiagnostics.Binding("AOT2001", $"Unsupported source command '{commandName}'.", commandSpan));
         }
 
-        Dictionary<string, List<string>> bound = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<CommandSyntaxAtom>> bound = new(StringComparer.OrdinalIgnoreCase);
         ParameterSpec? current = null;
         foreach (CommandSyntaxAtom atom in arguments)
         {
@@ -447,7 +456,7 @@ internal static class AotCmdletRegistry
 
                 if (current.Shape == AotParameterShape.Switch)
                 {
-                    bound[current.Name].Add("true");
+                    bound[current.Name].Add(new CommandSyntaxAtom("true", IsParameter: false, atom.Span));
                     current = null;
                 }
 
@@ -459,16 +468,20 @@ internal static class AotCmdletRegistry
                 : cmdlet.Descriptor.Parameters.SingleOrDefault(parameter => parameter.IsDefault)
                     ?? throw new ScriptException(AotDiagnostics.Binding("AOT2005", $"{cmdlet.Descriptor.Name} does not accept positional arguments.", atom.Span ?? commandSpan));
 
-            if (!bound.TryGetValue(current.Name, out List<string>? values))
+            if (!bound.TryGetValue(current.Name, out List<CommandSyntaxAtom>? values))
             {
                 values = [];
                 bound.Add(current.Name, values);
             }
 
-            values.AddRange(atom.Text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
+            // Arrays arrive as separate AST-derived value atoms. Do not split
+            // a resolved string on commas here: that would turn a variable
+            // value into a hidden second language parser and allow a string to
+            // acquire array semantics after lowering.
+            values.Add(atom);
         }
 
-        foreach ((string name, List<string> values) in bound)
+        foreach ((string name, List<CommandSyntaxAtom> values) in bound)
         {
             if (values.Count == 0)
             {
@@ -477,12 +490,14 @@ internal static class AotCmdletRegistry
         }
 
         Dictionary<string, string[]> frozen = new(StringComparer.OrdinalIgnoreCase);
-        foreach ((string name, List<string> values) in bound)
+        Dictionary<string, AotSourceSpan?[]> spans = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string name, List<CommandSyntaxAtom> values) in bound)
         {
-            frozen.Add(name, [.. values]);
+            frozen.Add(name, values.Select(static atom => atom.Text).ToArray());
+            spans.Add(name, values.Select(static atom => atom.Span).ToArray());
         }
 
-        return (cmdlet, new CommandInvocation(cmdlet.Descriptor, frozen, commandSpan));
+        return (cmdlet, new CommandInvocation(cmdlet.Descriptor, frozen, commandSpan, spans));
     }
 }
 
@@ -555,7 +570,7 @@ internal sealed class GetProcessCmdlet(IProcessCatalog catalog) : AotCmdletBase
         ProcessQuery query = input is not null
             ? ProcessQuery.ByInput(input)
             : hasIds
-            ? ProcessQuery.ById(ids.Select(id => ParseId(id, invocation.SourceSpan)).ToArray())
+            ? ProcessQuery.ById(ids.Select((id, index) => ParseId(id, invocation.GetValueSpan("Id", index))).ToArray())
             : hasNames ? ProcessQuery.ByName(names) : ProcessQuery.All;
         IReadOnlyList<IPipelineRecord> processes = ProcessSelector.Select(catalog, query, context);
         if (wantsModules)
@@ -1723,7 +1738,12 @@ internal static class ScriptParser
         }
 
         string property = tokens[0].TrimStart('$').TrimStart('_').TrimStart('.');
-        Comparison comparison = tokens[1].ToLowerInvariant() switch
+        Comparison comparison = ParseComparison(tokens[1], operatorSpan ?? span);
+
+        return new Filter(property, comparison, AotValue.FromFloatingPoint(value), propertySpan);
+    }
+
+    internal static Comparison ParseComparison(string token, AotSourceSpan? span) => token.ToLowerInvariant() switch
         {
             "-gt" => Comparison.GreaterThan,
             "-ge" => Comparison.GreaterThanOrEqual,
@@ -1733,14 +1753,11 @@ internal static class ScriptParser
             "-ne" => Comparison.NotEqual,
             _ => throw new ScriptException(AotDiagnostics.Runtime(
                 "AOT4003",
-                $"Unsupported comparison '{tokens[1]}'.",
-                operatorSpan ?? span,
+                $"Unsupported comparison '{token}'.",
+                span,
                 "unsupported comparison",
                 "Use -gt, -ge, -lt, -le, -eq, or -ne."))
         };
-
-        return new Filter(property, comparison, AotValue.FromFloatingPoint(value), propertySpan);
-    }
 
     private static string[] ParseColumns(string input) => ParseColumns([input]);
 
@@ -1813,6 +1830,7 @@ internal static class SelfTest
     internal static void Run()
     {
         AssertExecutionKernelAndDiagnostics();
+        AssertLanguageCompatibilityCore();
         AssertClosedValuePlane();
 
         if (GeneratedCmdletPorts.Count != 290)
@@ -2450,7 +2468,8 @@ error[AOT1001]: expression 'ScriptBlockExpressionAst' is parsed but not executab
 
         try
         {
-            _ = AotExecutionKernel.Compile("Get-Process -NotAParameter value", "binding.ps1");
+            _ = AotExecutionKernel.Compile("Get-Process -NotAParameter value", "binding.ps1")
+                .Execute(new AotExecutionContext());
             throw new InvalidOperationException("The execution kernel accepted an unsupported parameter.");
         }
         catch (ScriptException error) when (error.Diagnostic is
@@ -2673,7 +2692,7 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
 
         AotExecutionPlan successPlan = AotExecutionKernel.Compile("Get-Verb -Group Common", "success.ps1");
         AotExecutionContext successContext = new();
-        if (successPlan.Execute(successContext).Count == 0 || successContext.Errors.Count != 0)
+        if (successPlan.Execute(successContext).Outputs.Count == 0 || successContext.Errors.Count != 0)
         {
             throw new InvalidOperationException("Successful execution did not preserve an empty diagnostic stream.");
         }
@@ -2707,6 +2726,221 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         if (!actual.Equals(expected.TrimEnd(), StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Diagnostic renderer snapshot regression.");
+        }
+    }
+
+    private static void AssertLanguageCompatibilityCore()
+    {
+        const string thresholdSource = "$threshold = -1; Get-Process | Where-Object CPU -gt $threshold | Select-Object Name, Id";
+        AotExecutionResult thresholdResult = AotExecutionKernel.Compile(thresholdSource, "variables.ps1")
+            .Execute(new AotExecutionContext());
+        if (thresholdResult.Outputs.Count != 1
+            || thresholdResult.Outputs[0].Rows.Count == 0
+            || !thresholdResult.Outputs[0].Columns.SequenceEqual(["Name", "Id"]))
+        {
+            throw new InvalidOperationException("Block-plan variable predicates did not execute through the reviewed pipeline shape.");
+        }
+
+        AotExecutionResult listResult = AotExecutionKernel.Compile(
+                "$verbs = 'Get', 'Set'; Get-Verb -Verb $verbs | Select-Object Verb",
+                "list-variable.ps1")
+            .Execute(new AotExecutionContext());
+        if (listResult.Outputs.SingleOrDefault() is not { Rows: var verbRows, Columns: var verbColumns }
+            || !verbColumns.SequenceEqual(["Verb"])
+            || !verbRows.OfType<AotPipelineRecord>().Select(row => row.TextFor("Verb")).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(["Get", "Set"]))
+        {
+            throw new InvalidOperationException("A variable list did not expand into values for the existing generated-metadata binder.");
+        }
+
+        AotExecutionResult singleQuotedResult = AotExecutionKernel.Compile(
+                "$literal = '$notInterpolation'; Get-Process -Name $literal",
+                "single-quoted-variable.ps1")
+            .Execute(new AotExecutionContext());
+        if (singleQuotedResult.Outputs.Count != 1)
+        {
+            throw new InvalidOperationException("A single-quoted dollar sequence was treated as an interpolated variable.");
+        }
+
+        AotScope parent = new();
+        parent.Set("Threshold", AotValue.FromInteger(7));
+        AotScope child = new(parent);
+        if (!child.TryGet("threshold", out AotValue inherited) || !inherited.TryGetInteger(out long inheritedValue) || inheritedValue != 7)
+        {
+            throw new InvalidOperationException("AOT lexical scope lookup is not case-insensitive or parent-aware.");
+        }
+
+        AotScope session = new();
+        _ = AotExecutionKernel.Compile("$group = 'Common'", "repl-assignment.ps1").Execute(new AotExecutionContext(), session);
+        if (AotExecutionKernel.Compile("Get-Verb -Group $GROUP", "repl-read.ps1").Execute(new AotExecutionContext(), session).Outputs.Count != 1)
+        {
+            throw new InvalidOperationException("An explicitly owned session scope did not preserve a variable between REPL submissions.");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Verb -Group $group", "fresh-scope.ps1").Execute(new AotExecutionContext());
+            throw new InvalidOperationException("A fresh command execution leaked a prior scope variable.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5001", Span: { DocumentName: "fresh-scope.ps1", StartColumn: 17 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Verb -Group $group",
+                """
+error[AOT5001]: Variable '$group' has not been assigned in this AOT scope.
+  --> fresh-scope.ps1:1:17
+   |
+1 | Get-Verb -Group $group
+   |                 ^^^^^^ undefined variable
+   = help: Assign the variable earlier in this script, or pass a direct literal.
+""");
+        }
+
+        const string completedOutputBeforeFailure = "Get-Verb -Group Common | Select-Object Verb; Get-Verb -Group $missing";
+        StringWriter streamedOutput = new(CultureInfo.InvariantCulture);
+        StringWriter streamedError = new(CultureInfo.InvariantCulture);
+        TextWriter originalOutput = Console.Out;
+        TextWriter originalError = Console.Error;
+        try
+        {
+            Console.SetOut(streamedOutput);
+            Console.SetError(streamedError);
+            if (ScriptRunner.Execute(completedOutputBeforeFailure) != 2)
+            {
+                throw new InvalidOperationException("A terminating later statement did not return the host diagnostic exit code.");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+        }
+
+        if (!streamedOutput.ToString().Contains("Verb", StringComparison.Ordinal)
+            || !streamedError.ToString().Contains("error[AOT5001]", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A completed pipeline output was not streamed before a later statement failed.");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("$global:group = 'Common'", "scoped-variable.ps1");
+            throw new InvalidOperationException("The kernel accepted a scoped variable assignment.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5002", Span: { DocumentName: "scoped-variable.ps1", StartColumn: 1 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "$global:group = 'Common'",
+                """
+error[AOT5002]: assignment target '$global:group' is not supported by the Native AOT lexical scope.
+  --> scoped-variable.ps1:1:1
+   |
+1 | $global:group = 'Common'
+   | ^^^^^^^^^^^^^ unsupported variable form
+   = help: Assign one ordinary unscoped variable at a time.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Verb -Group $PSItem", "automatic-variable.ps1");
+            throw new InvalidOperationException("The kernel accepted an automatic variable.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5002", Span: { DocumentName: "automatic-variable.ps1", StartColumn: 17 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Verb -Group $PSItem",
+                """
+error[AOT5002]: automatic variable '$PSItem' is not supported by the Native AOT lexical scope.
+  --> automatic-variable.ps1:1:17
+   |
+1 | Get-Verb -Group $PSItem
+   |                 ^^^^^^^ unsupported variable form
+   = help: Use a variable explicitly assigned in this AOT script.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("$value = '-Name'; Get-Process -Id $value", "injection.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("A variable value was reclassified as a parameter token.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT3004", Span: { DocumentName: "injection.ps1", StartColumn: 35 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "$value = '-Name'; Get-Process -Id $value",
+                """
+error[AOT3004]: Get-Process -Id expects a non-negative integer, got '-Name'.
+  --> injection.ps1:1:35
+   |
+1 | $value = '-Name'; Get-Process -Id $value
+   |                                   ^^^^^^ invalid process identifier
+   = help: Provide a non-negative integer after -Id.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile(
+                    "$threshold = 'many'; Get-Process | Where-Object CPU -gt $threshold",
+                    "predicate-variable.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("A non-numeric variable predicate was accepted.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5004", Span: { DocumentName: "predicate-variable.ps1", StartColumn: 57 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "$threshold = 'many'; Get-Process | Where-Object CPU -gt $threshold",
+                """
+error[AOT5004]: Where-Object requires a finite numeric predicate value in the AOT subset.
+  --> predicate-variable.ps1:1:57
+   |
+1 | $threshold = 'many'; Get-Process | Where-Object CPU -gt $threshold
+   |                                                         ^^^^^^^^^^ non-numeric predicate variable
+   = help: Assign a finite numeric value before using it in this predicate.
+""");
+        }
+
+        try
+        {
+            AotCommandArgumentConverter.Append(
+                AotValue.FromBytes(new byte[] { 1 }),
+                new AotSourceSpan("conversion.ps1", 0, 6, 1, 1, 1, 7),
+                []);
+            throw new InvalidOperationException("A closed non-scalar value reached the command binder.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5003", Span: { DocumentName: "conversion.ps1" } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "$bytes",
+                """
+error[AOT5003]: Value kind 'Bytes' cannot be passed to a command argument in the AOT subset.
+  --> conversion.ps1:1:1
+   |
+1 | $bytes
+   | ^^^^^^ unsupported command argument value
+   = help: Use a string, Boolean, finite number, null, or a list of those values.
+""");
+        }
+
+        foreach (string unsupported in new[] { "$count += 1", "$a, $b = 1, 2", "$x = @(1, 2)", "Get-Process -Name \"pwsh$x\"" })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(unsupported, "unsupported-variable.ps1");
+                throw new InvalidOperationException($"The kernel accepted deferred variable syntax '{unsupported}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+                // Every accepted parser node remains explicitly fail-closed
+                // until it has a separate scope/evaluation plan.
+            }
         }
     }
 

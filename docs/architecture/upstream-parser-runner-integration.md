@@ -8,27 +8,32 @@ point. The connection is deliberately narrow:
 script text
   -> AotScriptParser (upstream AST, tokens, extents, diagnostics)
   -> AotExecutionKernel / AotExecutionPlan
-  -> PipelineAst / CommandAst lowerer
+  -> ScriptBlockAst / AssignmentStatementAst / PipelineAst lowerer
   -> existing AotCmdletRegistry + generated CmdletDescriptor binder
   -> typed IPipelineRecord cmdlet output
   -> explicit AotValue/AotRecord adapter for generic stages
 ```
 
 `UpstreamAstPipelineLowerer` never executes an AST, creates a script block,
-uses the dynamic compiler/binder, `PSObject`, or a runspace. It accepts only a
-single top-level command pipeline with one native registered source command and
-up to `Where-Object <property> <comparison> <number>` and
-`Select-Object <property>[, <property>...]` stages. The first proof is:
+uses the dynamic compiler/binder, `PSObject`, or a runspace. It accepts an
+unnamed top-level statement block containing direct `=` assignments and command
+pipelines with one native registered source command and up to
+`Where-Object <property> <comparison> <value>` and
+`Select-Object <property>[, <property>...]` stages. The first variable proof is:
 
 ```powershell
-Get-Process | Where-Object CPU -gt 10 | Select-Object Name, Id
+$threshold = 10
+Get-Process | Where-Object CPU -gt $threshold | Select-Object Name, Id
 ```
 
-The lowerer translates only scalar/array command argument AST nodes into
-`CommandSyntaxAtom` values. `AotCmdletRegistry.BindCommand` remains the single
-parameter binder and obtains command names, aliases, parameter shapes, and
-defaults from generated `CmdletDescriptor` metadata. No AST-specific binder
-exists.
+The lowerer creates closed literal/variable/list expression plans and resolves
+them against an explicit `AotScope` at execution. Only then does it translate
+finite scalar/list values into `CommandSyntaxAtom` values.
+`AotCmdletRegistry.BindCommand` remains the single parameter binder and obtains
+command names, aliases, parameter shapes, and defaults from generated
+`CmdletDescriptor` metadata. No AST-specific binder exists. The exact scope,
+conversion, and deferred syntax boundary is in the
+[Language Compatibility Core](language-compatibility-core.md).
 
 Every unsupported or invalid input follows the shared diagnostic contract:
 
@@ -37,6 +42,10 @@ Every unsupported or invalid input follows the shared diagnostic contract:
 - `AOT1001` for syntax that parses but is outside the AOT executable subset,
   including script-block predicates, expressions, redirections, additional
   command stages, DSC, and dynamic keywords.
+
+Variable/scope evaluation uses the `AOT5001`–`AOT5004` family and points at the
+use-site. Scoped variables, automatic variables, splatting, and interpolated
+strings remain explicitly unsupported.
 
 The host renders those typed diagnostics with source labels and actionable help
 where a safe alternative exists. Binding failures use the `AOT200x` family and

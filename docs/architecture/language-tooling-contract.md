@@ -55,8 +55,9 @@ facade and must not acquire executable syntax semantics.
 
 1. **AOT Execution Kernel:** define and test the parser facade's AST/token/
    extent/diagnostic contract. The lowerer consumes it directly.
-2. **Language Compatibility Core:** expand supported lowering and add static
-   symbol analysis for variables, functions, and parameters.
+2. **Language Compatibility Core:** top-level lexical variables and assignment
+   are executable through the shared AST facade. Static symbol analysis,
+   functions, and parameters remain future work.
 3. **Engine Runtime Core:** make the contract useful in the REPL through
    highlighting and catalog-backed completion; add command/module discovery to
    static language analysis.

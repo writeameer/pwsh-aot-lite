@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "fixture": "07-malformed-assignment.ps1",
+  "sourceSha256": "2ed6544beef784222cb49843fb65d5fb0227842c79e64c434b833c09ecf81ec2",
+  "tokens": [
+    {
+      "kind": "Variable",
+      "text": "$value",
+      "flags": "None",
+      "extent": {
+        "startOffset": 0,
+        "endOffset": 6,
+        "startLine": 1,
+        "startColumn": 1,
+        "endLine": 1,
+        "endColumn": 7
+      }
+    },
+    {
+      "kind": "Equals",
+      "text": "=",
+      "flags": "AssignmentOperator",
+      "extent": {
+        "startOffset": 7,
+        "endOffset": 8,
+        "startLine": 1,
+        "startColumn": 8,
+        "endLine": 1,
+        "endColumn": 9
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 8,
+        "endOffset": 9,
+        "startLine": 1,
+        "startColumn": 9,
+        "endLine": 2,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "EndOfInput",
+      "text": "",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 10,
+        "endOffset": 10,
+        "startLine": 2,
+        "startColumn": 2,
+        "endLine": 2,
+        "endColumn": 2
+      }
+    }
+  ],
+  "ast": {
+    "type": "ScriptBlockAst",
+    "extent": {
+      "startOffset": 0,
+      "endOffset": 9,
+      "startLine": 1,
+      "startColumn": 1,
+      "endLine": 2,
+      "endColumn": 1
+    },
+    "children": [
+      {
+        "type": "NamedBlockAst",
+        "extent": {
+          "startOffset": 0,
+          "endOffset": 8,
+          "startLine": 1,
+          "startColumn": 1,
+          "endLine": 1,
+          "endColumn": 9
+        },
+        "children": [
+          {
+            "type": "AssignmentStatementAst",
+            "extent": {
+              "startOffset": 0,
+              "endOffset": 8,
+              "startLine": 1,
+              "startColumn": 1,
+              "endLine": 1,
+              "endColumn": 9
+            },
+            "children": [
+              {
+                "type": "VariableExpressionAst",
+                "extent": {
+                  "startOffset": 0,
+                  "endOffset": 6,
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 7
+                },
+                "children": []
+              },
+              {
+                "type": "ErrorStatementAst",
+                "extent": {
+                  "startOffset": 8,
+                  "endOffset": 8,
+                  "startLine": 1,
+                  "startColumn": 9,
+                  "endLine": 1,
+                  "endColumn": 9
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "ExpectedValueExpression",
+      "extent": {
+        "startOffset": 8,
+        "endOffset": 8,
+        "startLine": 1,
+        "startColumn": 9,
+        "endLine": 1,
+        "endColumn": 9
+      }
+    }
+  ]
+}

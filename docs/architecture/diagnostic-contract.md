@@ -77,8 +77,9 @@ supported.
    upstream parser adaptation, lowerer/binder errors, caller-selected
    plain/ANSI/width-constrained terminal rendering, and snapshot fixtures for
    successful, malformed, unsupported, binding, and runtime cases.
-2. **Language Compatibility Core:** add expression/conversion/scope context,
-   nested labels and causal notes.
+2. **Language Compatibility Core:** `AotScope`, closed expression plans,
+   explicit value-to-binder conversion, and `AOT5001`–`AOT5004` are now in
+   place. Nested labels and causal notes remain future work.
 3. **Engine Runtime Core:** model PowerShell-compatible terminating versus
    non-terminating pipeline errors, invocation context, streams, and
    REPL-friendly presentation.

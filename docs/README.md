@@ -79,6 +79,13 @@ records the actual AST-to-plan implementation slice, its stable diagnostics,
 and the next language increments. It must be updated before widening an
 execution-support claim.
 
+The [Language Compatibility Core](architecture/language-compatibility-core.md)
+records the first executable statement/variable slice, its scope and binder
+boundaries, and the syntax intentionally deferred before control flow. Its
+[independent review ledger](reviews/2026-09-22-language-compatibility-core.md)
+records the parser, AOT, binder, diagnostics, compatibility, and architecture
+gates that admitted this narrow slice.
+
 The closed, reflection-free pipeline data model and its first reviewed, limited
 adapter slice are documented in the [structured value-plane design](architecture/value-plane.md)
 and [first migration note](architecture/value-plane-first-migration.md).
