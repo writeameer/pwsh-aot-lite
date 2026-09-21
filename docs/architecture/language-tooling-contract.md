@@ -59,9 +59,11 @@ facade and must not acquire executable syntax semantics.
    narrow `if`/`elseif`/`else` AST slice are executable through the shared
    facade. The same parser tokens/extents remain ready for highlighting; static
    symbol analysis, functions, and parameters remain future work.
-3. **Engine Runtime Core:** make the contract useful in the REPL through
-   highlighting and catalog-backed completion; add command/module discovery to
-   static language analysis.
+3. **Engine Runtime Core:** the contract now drives multiline REPL
+   continuation from upstream incomplete-input diagnostics, and completion
+   remains catalog-backed. Editable-buffer highlighting is deferred until a
+   raw-key editor can project the same tokens/extents safely; `Console.ReadLine`
+   must not simulate it with a second lexer or source execution.
 4. **Built-in and provider coverage:** improve completion and help as runtime
    contracts mature, without changing the language boundary.
 5. **Ecosystem compatibility:** deliver editor/LSP integration and

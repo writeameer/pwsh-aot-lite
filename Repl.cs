@@ -10,23 +10,33 @@ internal static class ScriptRunner
         AotColorMode colorMode = AotColorMode.Auto,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(script);
+        return Execute(AotScriptParser.Parse(script, "<command>"), scope, colorMode, cancellationToken);
+    }
+
+    // The REPL has already asked the shared parser whether its buffer needs a
+    // continuation line. Execute that exact result, not a host-specific
+    // reparsing of the text.
+    internal static int Execute(
+        AotParseResult parseResult,
+        AotScope? scope = null,
+        AotColorMode colorMode = AotColorMode.Auto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parseResult);
         AotDiagnosticRenderOptions renderOptions = AotTerminalColorPolicy.RendererOptions(colorMode);
+        AotTerminalEventProjector projector = new(
+            parseResult.Source,
+            parseResult.DocumentName ?? "<command>",
+            renderOptions,
+            Console.Out,
+            Console.Error);
         AotExecutionContext context = new(cancellationToken);
         try
         {
             context.ThrowIfCancellationRequested();
-            AotExecutionPlan plan = AotExecutionKernel.Compile(script, "<command>");
-            using IDisposable hostSubscription = context.Subscribe(runtimeEvent =>
-            {
-                if (runtimeEvent is { Kind: AotRuntimeEventKind.Success, Output: { } output })
-                {
-                    TableWriter.Write(output.Rows, output.Columns);
-                }
-                else if (runtimeEvent is { Kind: AotRuntimeEventKind.Error, Diagnostic: { } diagnostic })
-                {
-                    Console.Error.WriteLine(AotDiagnosticRenderer.Render(diagnostic, script, "<command>", renderOptions));
-                }
-            });
+            AotExecutionPlan plan = AotExecutionKernel.Compile(parseResult);
+            using IDisposable hostSubscription = context.Subscribe(projector.Project);
             _ = plan.Execute(context, scope);
 
             return 0;
@@ -39,16 +49,12 @@ internal static class ScriptRunner
         }
         catch (AotDiagnosticException error)
         {
-            Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", renderOptions));
+            projector.WriteDiagnostic(error.Diagnostic);
             return 2;
         }
         catch (Exception)
         {
-            Console.Error.WriteLine(AotDiagnosticRenderer.Render(
-                AotDiagnostics.Internal("The host encountered an unexpected internal failure."),
-                script,
-                "<command>",
-                renderOptions));
+            projector.WriteDiagnostic(AotDiagnostics.Internal("The host encountered an unexpected internal failure."));
             return 1;
         }
     }
@@ -56,27 +62,45 @@ internal static class ScriptRunner
 
 internal static class Repl
 {
+    private const string ReplDocumentName = "<repl>";
+
     internal static void Run(AotColorMode colorMode)
     {
         Console.WriteLine("pwsh-aot-lite — AOT command prototype. Type 'help' or 'exit'.");
         AotScope sessionScope = new();
+        AotReplInputBuffer input = new(ReplDocumentName);
 
         while (true)
         {
-            Console.Write("pwsh-aot> ");
+            Console.Write(input.Prompt);
             string? line = Console.ReadLine();
-            if (line is null || line.Equals("exit", StringComparison.OrdinalIgnoreCase) || line.Equals("quit", StringComparison.OrdinalIgnoreCase))
+            if (line is null)
+            {
+                // EOF closes a partial prompt, but should not discard the
+                // parser's actionable incomplete-input diagnostic.
+                if (input.Drain() is { } unfinished)
+                {
+                    _ = ScriptRunner.Execute(unfinished, sessionScope, colorMode);
+                }
+
+                Console.WriteLine();
+                return;
+            }
+
+            // Host control words are intentionally recognized only at a fresh
+            // primary prompt. Inside a buffered program they remain source.
+            if (!input.HasPending && (line.Equals("exit", StringComparison.OrdinalIgnoreCase) || line.Equals("quit", StringComparison.OrdinalIgnoreCase)))
             {
                 Console.WriteLine();
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(line))
+            if (!input.HasPending && string.IsNullOrWhiteSpace(line))
             {
                 continue;
             }
 
-            if (line.Equals("help", StringComparison.OrdinalIgnoreCase))
+            if (!input.HasPending && line.Equals("help", StringComparison.OrdinalIgnoreCase))
             {
                 Console.WriteLine("Get-Process [-Name <pattern>] [-Id <id>] [-IncludeUserName] [-Module] [-FileVersionInfo]");
                 Console.WriteLine("Get-Process -Name pwsh* | Where-Object CPU -ge 0 | Select-Object Name, Id");
@@ -98,13 +122,54 @@ internal static class Repl
                 continue;
             }
 
-            if (line.StartsWith("complete ", StringComparison.OrdinalIgnoreCase))
+            if (!input.HasPending && line.StartsWith("complete ", StringComparison.OrdinalIgnoreCase))
             {
                 CompletionWriter.Write(CompletionService.Instance.Suggest(line[9..]));
                 continue;
             }
 
-            _ = ScriptRunner.Execute(line, sessionScope, colorMode);
+            AotParseResult submitted = input.Submit(line);
+            if (submitted.RequiresMoreInput)
+            {
+                continue;
+            }
+
+            _ = ScriptRunner.Execute(submitted, sessionScope, colorMode);
         }
+    }
+}
+
+// Console.ReadLine owns line editing, so this class owns only physical-line
+// accumulation and asks the shared upstream parser when a complete program is
+// available. It deliberately has no quote/brace/pipe scanner of its own.
+internal sealed class AotReplInputBuffer(string documentName)
+{
+    private string? _source;
+
+    internal bool HasPending => _source is not null;
+    internal string Prompt => HasPending ? ">> " : "pwsh-aot> ";
+
+    internal AotParseResult Submit(string line)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        _source = _source is null ? line : _source + "\n" + line;
+        AotParseResult parseResult = AotScriptParser.Parse(_source, documentName);
+        if (!parseResult.RequiresMoreInput)
+        {
+            _source = null;
+        }
+
+        return parseResult;
+    }
+
+    internal AotParseResult? Drain()
+    {
+        if (_source is not { } source)
+        {
+            return null;
+        }
+
+        _source = null;
+        return AotScriptParser.Parse(source, documentName);
     }
 }
