@@ -53,6 +53,7 @@ the current lowerer owns explicit supported-feature policy.
 | `AotEngineHookStubs.cs` | Adds the minimal `SystemPolicy`/`SystemEnforcementMode` and debug `ExtendedTypeSystem` type marker used by remaining non-DSC parser references. The policy selects `Enforce`; audit logging fails closed. | Allows the upstream class-policy branch and debug resource-key assertion to compile without implementing ETS, Windows policy, or audit logging. |
 | `GeneratedResourceStubs.cs` | Generates compile-time diagnostic resource keys referenced by the copied parser/AST. | Keeps diagnostic identities visible while real localized resource extraction remains a separate, attributable step. |
 | `AotEngineHookStubs.cs` | Copies the exact `VariablePathExtensions.IsAnyLocal` predicate from upstream `engine/parser/VariableAnalysis.cs`; `upstream/VariablePath.cs` is restored to its verbatim form. | `ast.cs` references the extension while evaluating a safe-variable predicate. This retains upstream semantics (`IsUnscopedVariable || IsLocal || IsPrivate`) without claiming the earlier, incorrect `IsLocal || IsUnqualified` approximation; full variable analysis/binding remains excluded. |
+| `AotEngineHookStubs.cs` | Extracts only `SemanticChecks.VisitForEachStatement` from pinned `engine/parser/SemanticChecks.cs` (lines 493–527) into `SemanticChecks.CheckAst`: it reports `KeywordParameterReservedForFutureUse` for `-parallel`/`-throttlelimit` and `ThrottleLimitRequiresParallelFlag` with the upstream statement extent and ordering. `GeneratedResourceStubs.cs` adds those two parser resource keys. | These are upstream parse-time semantic diagnostics required for token/AST/diagnostic differential parity. The extraction only walks `ForEachStatementAst` and calls `Parser.ReportError`; it does not bind, enumerate, load, compile, or execute source. All other semantic checks remain unavailable until separately attributed. |
 
 ## Current status: integrated structural parser
 
@@ -74,8 +75,10 @@ The root runner references this project and lowers only its reviewed structural
 subset to static command binding; the standalone host remains the differential
 test harness. The remaining error catalog is deliberately retained as
 `error-catalog.txt`. This is still not a usable PowerShell runtime and not full
-syntax or diagnostic parity: `SymbolResolver`,
-`SemanticChecks`, and `TypeResolver` remain structural placeholders, while
-some type-name AST APIs remain structural only; generic and array reflection
+syntax or diagnostic parity: `SymbolResolver` and `TypeResolver` remain
+structural placeholders, while `SemanticChecks` remains structural except for
+the documented diagnostic-only foreach-option extraction; other semantic checks
+remain unavailable until separately attributed. Some type-name AST APIs remain
+structural only; generic and array reflection
 materialization now fail closed, and type execution is unsupported until a
 deliberate static type policy exists. Do not add a handwritten fallback parser.

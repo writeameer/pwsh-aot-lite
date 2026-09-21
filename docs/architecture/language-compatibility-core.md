@@ -1,10 +1,10 @@
-# Language Compatibility Core — variables, statements, and conditionals
+# Language Compatibility Core — variables, statements, conditionals, and closed-list foreach
 
 ## Status
 
-Implemented second slice. This extends the AOT Execution Kernel from one
-pipeline to ordered statements with lexical values and narrowly defined
-`if`/`elseif`/`else` selection. It is not a claim of general PowerShell
+Implemented third slice. This extends the AOT Execution Kernel from one
+pipeline to ordered statements with lexical values, narrowly defined
+`if`/`elseif`/`else` selection, and closed-list `foreach`. It is not a claim of general PowerShell
 expression, session-state, or script compatibility.
 
 ```text
@@ -13,6 +13,7 @@ upstream ScriptBlockAst
        ├─ AotAssignmentPlan(name, closed expression plan)
        └─ AotPipelineStatementPlan(command/stage plans)
        └─ AotIfStatementPlan(closed conditions, nested statement blocks)
+       └─ AotForEachStatementPlan(closed list, nested statement block)
              └─ execute with an explicit AotScope
                     └─ resolved atoms → existing AotCmdletRegistry binder
 ```
@@ -75,17 +76,45 @@ an assignment in the selected body remains visible afterwards. A future
 scope-forming construct such as a local function must define its own scope rule
 instead of inheriting this one accidentally.
 
+The iteration slice accepts unlabeled, synchronous `foreach` only when its
+source is one direct closed expression that evaluates to an `AotValue` list:
+
+```powershell
+$verbs = 'Add', 'Get'
+foreach ($verb in $verbs) {
+    Get-Verb -Verb $verb | Select-Object Verb
+}
+```
+
+The source list is evaluated once before the first loop-variable assignment and
+is never re-evaluated. Each item is assigned to the surrounding scope and the
+body uses the normal output sink, so results retain source order and a later
+iteration failure does not hide an earlier completed pipeline. The loop variable
+and body assignments remain visible afterward; an empty list leaves a previous
+loop-variable value unchanged. A `$null` *item inside a list* is one item.
+
+This is deliberately not general PowerShell enumeration: scalar values and
+scalar `$null` produce `AOT5006`; command/pipeline sources, arbitrary CLR
+`IEnumerable` values, ranges, and `IPipelineRecord` output do not cross into
+the list plane. This boundary avoids reintroducing dynamic enumeration or an
+implicit object adapter.
+
 ## Deliberate exclusions
 
 The following parsed forms remain fail-closed: scoped/drive-qualified and
 automatic variables, splatting, compound assignment, multi-target assignment,
 interpolated strings/subexpressions, `@(...)`, hashtables, casts, member/index
 access, operator expressions, assignment from commands/pipelines, redirection,
-backgrounding, functions, loops, flow-control statements, script blocks, and
+backgrounding, functions, general loops, flow-control statements, script blocks, and
 named PowerShell blocks. Conditional `-and`, `-or`, `-not`, invocation or
 pipeline conditions, and all expressions beyond the direct condition matrix
 above remain excluded. They need a dedicated reviewed plan; they must never
 fall through to the dynamic PowerShell runtime.
+
+Within the admitted foreach shape, labels, `-parallel`, `-throttlelimit`,
+pipeline/range sources, `break`, `continue`, and `return` remain excluded.
+`foreach`'s upstream automatic enumerator variable is not implemented; `$foreach`
+remains reserved by the lexical-scope policy.
 
 The lexical scope additionally reserves every name in the pinned upstream
 `engine/SpecialVariables.cs` catalog plus the upstream event-action automatic
@@ -122,6 +151,7 @@ earlier successful statement remains visible if a later statement terminates.
 | `AOT5003` | A closed value kind cannot become a command argument. |
 | `AOT5004` | A resolved `Where-Object` predicate value is not finite numeric. |
 | `AOT5005` | An `if` condition or comparison uses a value/shape outside the closed condition subset. |
+| `AOT5006` | A `foreach` collection resolves to a non-list closed value. |
 
 Static AST forms outside this slice retain `AOT1001`. Every scope/evaluation
 failure points at the source use-site, not a previous assignment or the whole
@@ -130,19 +160,23 @@ so port validation, such as `Get-Process -Id $value`, underlines `$value`.
 
 ## Evidence and next increment
 
-Grammar fixtures `05`–`10` cover variables, valid conditional ASTs, condition
-boundaries, and malformed assignment/conditional input against stock `pwsh`.
+Grammar fixtures `05`–`13` cover variables, valid conditional/foreach ASTs,
+their boundaries, and malformed assignment/conditional/foreach input against
+stock `pwsh`.
 `SelfTest` covers block ordering, list value expansion, case-insensitive parent
 scope lookup, explicit REPL scope reuse, fresh command isolation,
 parameter-injection resistance, selected/skip/elseif behavior, same-scope
-branch assignment, output segment streaming, and typed diagnostic snapshots.
+branch assignment, closed-list foreach source snapshot/order/nesting/final
+scope behavior, output segment streaming, and typed diagnostic snapshots.
 
-The next language increments are `foreach`, then local functions. They must
-extend `AotBlockPlan` through the parser facade, value plane, and central
-binder; their scope semantics require a separate PowerShell-compatibility
-decision and test proof.
+The next language increment is named local functions. It must extend
+`AotBlockPlan` through the parser facade, value plane, and central binder; its
+scope semantics require a separate PowerShell-compatibility decision and test
+proof.
 
 The original variables-only admission is recorded in the
 [Language Compatibility Core review ledger](../reviews/2026-09-22-language-compatibility-core.md).
 Conditional execution and terminal presentation are admitted separately in the
 [control-flow and terminal-presentation review ledger](../reviews/2026-09-22-if-control-flow-terminal-presentation.md).
+Closed-list foreach is admitted separately in the
+[foreach review ledger](../reviews/2026-09-22-foreach-closed-list.md).

@@ -113,6 +113,7 @@ internal static class UpstreamAstPipelineLowerer
         AssignmentStatementAst assignment => LowerAssignment(assignment),
         PipelineAst pipeline => LowerPipeline(pipeline),
         IfStatementAst conditional => LowerIf(conditional),
+        ForEachStatementAst forEach => LowerForEach(forEach),
         _ => throw Unsupported($"statement '{statement.GetType().Name}'", statement.Extent),
     };
 
@@ -126,6 +127,29 @@ internal static class UpstreamAstPipelineLowerer
 
         AotBlockPlan? elseBlock = conditional.ElseClause is null ? null : LowerStatementBlock(conditional.ElseClause);
         return new AotIfStatementPlan(clauses, elseBlock);
+    }
+
+    private static AotForEachStatementPlan LowerForEach(ForEachStatementAst forEach)
+    {
+        if (!string.IsNullOrEmpty(forEach.Label))
+        {
+            throw Unsupported("labeled foreach statements", forEach.Extent);
+        }
+
+        if (forEach.Flags != ForEachFlags.None || forEach.ThrottleLimit is not null)
+        {
+            throw Unsupported("foreach -parallel or throttle options", forEach.Extent);
+        }
+
+        if (forEach.Condition is not PipelineAst { Background: false, PipelineElements: [CommandExpressionAst command] })
+        {
+            throw Unsupported("foreach collections other than one direct closed expression", forEach.Condition.Extent);
+        }
+
+        return new AotForEachStatementPlan(
+            GetAssignableVariableName(forEach.Variable),
+            LowerExpression(command.Expression),
+            LowerStatementBlock(forEach.Body));
     }
 
     private static AotConditionPlan LowerCondition(PipelineBaseAst condition)

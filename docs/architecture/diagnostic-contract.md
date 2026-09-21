@@ -79,7 +79,7 @@ supported.
    successful, malformed, unsupported, binding, and runtime cases.
 2. **Language Compatibility Core:** `AotScope`, closed expression plans,
    explicit value-to-binder conversion, closed conditional diagnostics through
-   `AOT5005`, and an ANSI-safe terminal host policy are now in place. The host
+   `AOT5005`, closed-list foreach diagnostics through `AOT5006`, and an ANSI-safe terminal host policy are now in place. The host
    exposes `--color auto|always|never`; see
    [terminal presentation](terminal-presentation.md). Nested labels and causal
    notes remain future work.

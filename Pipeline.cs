@@ -1832,6 +1832,7 @@ internal static class SelfTest
         AssertExecutionKernelAndDiagnostics();
         AssertLanguageCompatibilityCore();
         AssertControlFlowCore();
+        AssertForEachCore();
         AssertTerminalPresentation();
         AssertClosedValuePlane();
 
@@ -3200,6 +3201,220 @@ error[AOT1001]: Redirections are parsed but not executable by the Native AOT str
             {
                 // Different upstream AST shapes still receive one lowerer
                 // policy rather than being mislabeled as unknown commands.
+            }
+        }
+    }
+
+    private static void AssertForEachCore()
+    {
+        const string source = """
+$verbs = 'Add', 'Get'
+foreach ($verb in $verbs) {
+    $last = $verb
+    Get-Verb -Verb $verb | Select-Object Verb
+}
+""";
+        AotScope scope = new();
+        AotExecutionResult result = AotExecutionKernel.Compile(source, "foreach-basic.ps1")
+            .Execute(new AotExecutionContext(), scope);
+        if (result.Outputs.Count != 2
+            || !result.Outputs.All(output => output.Columns.SequenceEqual(["Verb"]))
+            || !result.Outputs.SelectMany(output => output.Rows).Select(row => row.TextFor("Verb")).SequenceEqual(["Add", "Get"])
+            || !scope.TryGet("VERB", out AotValue finalVerb)
+            || !finalVerb.TryGetString(out string? finalVerbText)
+            || finalVerbText != "Get"
+            || !scope.TryGet("last", out AotValue finalAssignment)
+            || !finalAssignment.TryGetString(out string? finalAssignmentText)
+            || finalAssignmentText != "Get")
+        {
+            throw new InvalidOperationException("Foreach did not execute each closed-list item in order or retain its final loop variable.");
+        }
+
+        AotScope emptyScope = new();
+        emptyScope.Set("items", AotValue.FromList([]));
+        emptyScope.Set("item", AotValue.FromString("before"));
+        AotExecutionResult emptyResult = AotExecutionKernel.Compile(
+                "foreach ($item in $items) { Get-Verb -Verb $item }",
+                "foreach-empty.ps1")
+            .Execute(new AotExecutionContext(), emptyScope);
+        if (emptyResult.Outputs.Count != 0
+            || !emptyScope.TryGet("item", out AotValue itemAfterEmpty)
+            || !itemAfterEmpty.TryGetString(out string? itemAfterEmptyText)
+            || itemAfterEmptyText != "before")
+        {
+            throw new InvalidOperationException("An empty foreach changed its pre-existing loop variable or emitted output.");
+        }
+
+        AotExecutionResult directListResult = AotExecutionKernel.Compile(
+                "foreach ($verb in 'Add', 'Get') { Get-Verb -Verb $verb | Select-Object Verb }",
+                "foreach-direct-list.ps1")
+            .Execute(new AotExecutionContext());
+        if (!directListResult.Outputs.SelectMany(output => output.Rows).Select(row => row.TextFor("Verb")).SequenceEqual(["Add", "Get"]))
+        {
+            throw new InvalidOperationException("A direct comma-list foreach collection did not preserve source order.");
+        }
+
+        AotScope snapshotScope = new();
+        AotExecutionResult snapshotResult = AotExecutionKernel.Compile(
+                "$values = 'Add', 'Get'; foreach ($verb in $values) { $values = 'Add'; Get-Verb -Verb $verb | Select-Object Verb }",
+                "foreach-snapshot.ps1")
+            .Execute(new AotExecutionContext(), snapshotScope);
+        if (!snapshotResult.Outputs.SelectMany(output => output.Rows).Select(row => row.TextFor("Verb")).SequenceEqual(["Add", "Get"]))
+        {
+            throw new InvalidOperationException("Foreach re-evaluated its source after a body assignment instead of using the initial closed-list snapshot.");
+        }
+
+        AotExecutionResult nestedResult = AotExecutionKernel.Compile(
+                "$outerValues = 'Add', 'Get'; $innerValues = 'Add', 'Get'; foreach ($outer in $outerValues) { foreach ($inner in $innerValues) { Get-Verb -Verb $inner | Select-Object Verb } }",
+                "foreach-nested.ps1")
+            .Execute(new AotExecutionContext());
+        if (nestedResult.Outputs.Count != 4 || !nestedResult.Outputs.All(output => output.Columns.SequenceEqual(["Verb"])))
+        {
+            throw new InvalidOperationException("Nested foreach plans did not preserve each body output segment.");
+        }
+
+        AotScope sameNameScope = new();
+        _ = AotExecutionKernel.Compile(
+                "$outerValues = 'Add', 'Get'; $innerValues = 'Add', 'Add'; foreach ($verb in $outerValues) { foreach ($verb in $innerValues) { $last = $verb } }",
+                "foreach-same-name.ps1")
+            .Execute(new AotExecutionContext(), sameNameScope);
+        if (!sameNameScope.TryGet("verb", out AotValue sameNameValue)
+            || !sameNameValue.TryGetString(out string? sameNameText)
+            || sameNameText != "Add")
+        {
+            throw new InvalidOperationException("A nested foreach restored an outer loop variable instead of preserving PowerShell's shared-scope result.");
+        }
+
+        AotScope nullItemScope = new();
+        AotExecutionResult nullItemResult = AotExecutionKernel.Compile(
+                "$values = $null, $null; foreach ($verb in $values) { Get-Verb -Verb $verb }",
+                "foreach-null-item.ps1")
+            .Execute(new AotExecutionContext(), nullItemScope);
+        if (nullItemResult.Outputs.Count != 2
+            || !nullItemScope.TryGet("verb", out AotValue nullItem)
+            || nullItem.Kind != AotValueKind.Null)
+        {
+            throw new InvalidOperationException("Null entries in a closed foreach list were not retained as iteration items.");
+        }
+
+        const string outputBeforeFailure = """
+$groups = 'Common', 'Communications'
+foreach ($group in $groups) {
+    Get-Verb -Group $group | Select-Object Verb
+    if ($group -eq 'Communications') { Get-Verb -Group $missing }
+}
+""";
+        StringWriter streamedOutput = new(CultureInfo.InvariantCulture);
+        StringWriter streamedError = new(CultureInfo.InvariantCulture);
+        TextWriter originalOutput = Console.Out;
+        TextWriter originalError = Console.Error;
+        try
+        {
+            Console.SetOut(streamedOutput);
+            Console.SetError(streamedError);
+            if (ScriptRunner.Execute(outputBeforeFailure) != 2)
+            {
+                throw new InvalidOperationException("A later foreach iteration failure did not return the host diagnostic exit code.");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+        }
+
+        if (!streamedOutput.ToString().Contains("Verb", StringComparison.Ordinal)
+            || !streamedError.ToString().Contains("error[AOT5001]", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Completed foreach body output was not streamed before a later iteration failed.");
+        }
+
+        const string scalarCollection = "$value = 'Add'; foreach ($verb in $value) { Get-Verb -Verb $verb }";
+        try
+        {
+            _ = AotExecutionKernel.Compile(scalarCollection, "foreach-scalar.ps1").Execute(new AotExecutionContext());
+            throw new InvalidOperationException("Foreach accepted a scalar collection outside the closed list subset.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5006", Span: { DocumentName: "foreach-scalar.ps1", StartColumn: 35 } })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                scalarCollection,
+                """
+error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
+  --> foreach-scalar.ps1:1:35
+   |
+1 | $value = 'Add'; foreach ($verb in $value) { Get-Verb -Verb $verb }
+   |                                   ^^^^^^ unsupported foreach collection
+   = help: Assign a comma-list of supported closed values, then iterate that variable.
+""");
+        }
+
+        const string undefinedCollection = "foreach ($verb in $values) { Get-Verb -Verb $verb }";
+        try
+        {
+            _ = AotExecutionKernel.Compile(undefinedCollection, "foreach-undefined.ps1").Execute(new AotExecutionContext());
+            throw new InvalidOperationException("Foreach accepted an undefined collection variable.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5001", Span: { DocumentName: "foreach-undefined.ps1", StartColumn: 19 } })
+        {
+            // A header expression must retain its use-site diagnostic span.
+        }
+
+        foreach (string invalidTarget in new[]
+        {
+            "foreach ($PID in $verbs) { Get-Verb -Verb $PID }",
+            "foreach ($foreach in $verbs) { Get-Verb -Verb $foreach }",
+            "foreach ($global:verb in $verbs) { Get-Verb -Verb $verb }",
+            "foreach (@verb in $verbs) { Get-Verb -Verb $verb }",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(invalidTarget, "foreach-target.ps1");
+                throw new InvalidOperationException($"The kernel accepted an invalid foreach target '{invalidTarget}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5002", Span: not null })
+            {
+                // Iterator targets share normal assignment validation.
+            }
+        }
+
+        foreach (string unsupported in new[]
+        {
+            "foreach ($verb in Get-Verb) { Get-Verb -Verb $verb }",
+            "foreach ($verb in 1..3) { Get-Verb -Verb $verb }",
+            ":label foreach ($verb in $verbs) { Get-Verb -Verb $verb }",
+            "foreach ($verb in $verbs) { break }",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(unsupported, "foreach-unsupported.ps1");
+                throw new InvalidOperationException($"The kernel accepted deferred foreach syntax '{unsupported}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+                // Upstream parses these forms; the closed foreach plan must
+                // reject them instead of invoking dynamic pipeline semantics.
+            }
+        }
+
+        foreach (string parserRejected in new[]
+        {
+            "foreach -parallel ($verb in $verbs) { Get-Verb -Verb $verb }",
+            "foreach -throttlelimit 2 ($verb in $verbs) { Get-Verb -Verb $verb }",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(parserRejected, "foreach-parser-rejected.ps1");
+                throw new InvalidOperationException($"The parser accepted an upstream-rejected foreach option '{parserRejected}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic is { Id: "KeywordParameterReservedForFutureUse", Span: { DocumentName: "foreach-parser-rejected.ps1" } })
+            {
+                // These upstream semantic diagnostics precede lowering and
+                // therefore must not be relabeled as AOT1001.
             }
         }
     }

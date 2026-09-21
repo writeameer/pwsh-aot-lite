@@ -80,8 +80,9 @@ and the next language increments. It must be updated before widening an
 execution-support claim.
 
 The [Language Compatibility Core](architecture/language-compatibility-core.md)
-records the executable statement/variable/conditional slice, its scope and binder
-boundaries, and the syntax intentionally deferred before loops and functions. Its
+records the executable statement/variable/conditional/closed-list-foreach slice,
+its scope and binder boundaries, and the syntax intentionally deferred before
+general loops and functions. Its
 [independent review ledger](reviews/2026-09-22-language-compatibility-core.md)
 records the parser, AOT, binder, diagnostics, compatibility, and architecture
 gates that admitted this narrow slice.
@@ -93,6 +94,10 @@ a future shared-parser projection rather than a second lexer.
 The [conditional execution and terminal-presentation review ledger](reviews/2026-09-22-if-control-flow-terminal-presentation.md)
 records the independent gates that admitted the closed `if` slice and safe ANSI
 diagnostic policy.
+
+The [closed-list foreach review ledger](reviews/2026-09-22-foreach-closed-list.md)
+records the parser, AOT, data-plane, compatibility, diagnostics, and architecture
+evidence for the synchronous iteration slice.
 
 The closed, reflection-free pipeline data model and its first reviewed, limited
 adapter slice are documented in the [structured value-plane design](architecture/value-plane.md)

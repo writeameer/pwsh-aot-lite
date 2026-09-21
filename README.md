@@ -7,7 +7,7 @@ script text → upstream parser facade → AOT execution plan → precompiled C#
 ```
 
 The current plan is deliberately a narrow structural pipeline, lexical-variable,
-and conditional slice, not a claim of general script compatibility. Parse,
+conditional, and closed-list `foreach` slice, not a claim of general script compatibility. Parse,
 binding, scope, and unsupported-feature failures use typed source-aware diagnostics.
 See the [AOT Execution Kernel foundation](docs/architecture/aot-execution-kernel.md)
 and [Language Compatibility Core](docs/architecture/language-compatibility-core.md).
@@ -38,6 +38,16 @@ elseif ($false) {
 }
 else {
     Get-Verb -Group Common
+}
+```
+
+The first synchronous loop form is also executable. Its collection must be a
+closed comma-list, not command output or an arbitrary .NET enumerable:
+
+```powershell
+$verbs = 'Add', 'Get'
+foreach ($verb in $verbs) {
+    Get-Verb -Verb $verb | Select-Object Verb
 }
 ```
 

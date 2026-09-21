@@ -44,6 +44,7 @@ namespace System.Management.Automation.Language
         internal const string InvalidBracedVariableReference = "InvalidBracedVariableReference";
         internal const string InvalidConfigurationName = "InvalidConfigurationName";
         internal const string InvalidForeachFlag = "InvalidForeachFlag";
+        internal const string KeywordParameterReservedForFutureUse = "KeywordParameterReservedForFutureUse";
         internal const string InvalidFunctionParameter = "InvalidFunctionParameter";
         internal const string InvalidParameterForDataSectionStatement = "InvalidParameterForDataSectionStatement";
         internal const string InvalidSwitchFlag = "InvalidSwitchFlag";
@@ -108,6 +109,7 @@ namespace System.Management.Automation.Language
         internal const string MissingSwitchStatementClause = "MissingSwitchStatementClause";
         internal const string MissingTerminatorMultiLineComment = "MissingTerminatorMultiLineComment";
         internal const string MissingThrottleLimit = "MissingThrottleLimit";
+        internal const string ThrottleLimitRequiresParallelFlag = "ThrottleLimitRequiresParallelFlag";
         internal const string MissingTrapStatement = "MissingTrapStatement";
         internal const string MissingTryStatementBlock = "MissingTryStatementBlock";
         internal const string MissingTypeBody = "MissingTypeBody";

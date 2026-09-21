@@ -153,6 +153,43 @@ internal sealed class AotIfStatementPlan(
 
 internal sealed record AotIfClausePlan(AotConditionPlan Condition, AotBlockPlan Body);
 
+// Foreach is deliberately an iteration plan over the existing closed list
+// value only. It neither asks the CLR to enumerate an arbitrary object nor
+// recreates PowerShell's automatic $foreach enumerator. Like upstream
+// PowerShell foreach, its loop variable belongs to the surrounding scope and
+// retains the final item after successful iteration.
+internal sealed class AotForEachStatementPlan(
+    string variableName,
+    AotExpressionPlan collection,
+    AotBlockPlan body) : AotStatementPlan
+{
+    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    {
+        AotValue value = collection.Evaluate(scope);
+        if (!value.TryGetItems(out IReadOnlyList<AotValue>? items))
+        {
+            throw AotForEachDiagnostics.UnsupportedCollection(collection.Span);
+        }
+
+        foreach (AotValue item in items!)
+        {
+            scope.Set(variableName, item);
+            body.ExecuteInto(context, scope, emit);
+        }
+    }
+}
+
+internal static class AotForEachDiagnostics
+{
+    internal static ScriptException UnsupportedCollection(AotSourceSpan span) =>
+        new(AotDiagnostics.Scope(
+            "AOT5006",
+            "Foreach requires a closed list value in the Native AOT subset.",
+            span,
+            "unsupported foreach collection",
+            "Assign a comma-list of supported closed values, then iterate that variable."));
+}
+
 // Conditions are their own deliberately closed plan family. They reuse value
 // expressions and AotValueComparison but do not add general PowerShell
 // truthiness, coercion, or operator evaluation.

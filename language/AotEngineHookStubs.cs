@@ -225,7 +225,46 @@ namespace System.Management.Automation.Language
     internal static class SemanticChecks
     {
         internal static void CheckArrayTypeNameDepth(ITypeName typeName, IScriptExtent extent, Parser parser) { }
-        internal static void CheckAst(Parser parser, ScriptBlockAst ast) { }
+
+        // This is the narrow semantic-check extraction required by the shared
+        // parser contract. Foreach parameter diagnostics are parse-time
+        // language behavior, not dynamic execution behavior: preserve their
+        // stock IDs/extents without importing the upstream compiler/runspace.
+        internal static void CheckAst(Parser parser, ScriptBlockAst ast)
+        {
+            foreach (Ast node in ast.FindAll(static candidate => candidate is ForEachStatementAst, searchNestedScriptBlocks: true))
+            {
+                var forEach = (ForEachStatementAst)node;
+                if ((forEach.Flags & ForEachFlags.Parallel) == ForEachFlags.Parallel)
+                {
+                    parser.ReportError(
+                        forEach.Extent,
+                        nameof(ParserStrings.KeywordParameterReservedForFutureUse),
+                        ParserStrings.KeywordParameterReservedForFutureUse,
+                        "foreach",
+                        "parallel");
+                }
+
+                if (forEach.ThrottleLimit is not null)
+                {
+                    parser.ReportError(
+                        forEach.Extent,
+                        nameof(ParserStrings.KeywordParameterReservedForFutureUse),
+                        ParserStrings.KeywordParameterReservedForFutureUse,
+                        "foreach",
+                        "throttlelimit");
+                }
+
+                if (forEach.ThrottleLimit is not null
+                    && (forEach.Flags & ForEachFlags.Parallel) != ForEachFlags.Parallel)
+                {
+                    parser.ReportError(
+                        forEach.Extent,
+                        nameof(ParserStrings.ThrottleLimitRequiresParallelFlag),
+                        ParserStrings.ThrottleLimitRequiresParallelFlag);
+                }
+            }
+        }
     }
 
     internal static class TypeResolver
