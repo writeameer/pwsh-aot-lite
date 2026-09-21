@@ -19,7 +19,15 @@ internal static class AotExecutionKernel
 {
     internal static AotExecutionPlan Compile(string source, string? documentName = null, long documentVersion = 0)
     {
-        AotParseResult parseResult = AotScriptParser.Parse(source, documentName, documentVersion);
+        return Compile(AotScriptParser.Parse(source, documentName, documentVersion));
+    }
+
+    // Hosts that need language-service decisions first (for example REPL
+    // continuation) compile the exact same upstream AST result. They never
+    // split, re-tokenize, or re-parse source through a host-specific path.
+    internal static AotExecutionPlan Compile(AotParseResult parseResult)
+    {
+        ArgumentNullException.ThrowIfNull(parseResult);
         if (parseResult.Diagnostics.Count != 0)
         {
             throw new ScriptException(parseResult.Diagnostics[0]);

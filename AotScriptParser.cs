@@ -11,7 +11,15 @@ internal sealed record AotParseResult(
     long DocumentVersion,
     ScriptBlockAst Ast,
     IReadOnlyList<Token> Tokens,
-    IReadOnlyList<AotDiagnostic> Diagnostics);
+    IReadOnlyList<AotDiagnostic> Diagnostics,
+    bool HasIncompleteInput,
+    bool HasBlockingDiagnostics)
+{
+    // A host may wait for another physical line only when upstream's parser
+    // identified every diagnostic as incomplete. A malformed program must be
+    // rendered now rather than trapping the user in a continuation prompt.
+    internal bool RequiresMoreInput => HasIncompleteInput && !HasBlockingDiagnostics;
+}
 
 internal static class AotScriptParser
 {
@@ -22,7 +30,15 @@ internal static class AotScriptParser
             ? Parser.ParseInput(source, out Token[] tokens, out ParseError[] errors)
             : Parser.ParseInput(source, documentName, out tokens, out errors);
         AotDiagnostic[] diagnostics = errors.Select(error => ToDiagnostic(error, documentName)).ToArray();
-        return new AotParseResult(source, documentName, documentVersion, ast, tokens, diagnostics);
+        return new AotParseResult(
+            source,
+            documentName,
+            documentVersion,
+            ast,
+            tokens,
+            diagnostics,
+            errors.Any(static error => error.IncompleteInput),
+            errors.Any(static error => !error.IncompleteInput));
     }
 
     internal static AotSourceSpan ToSpan(IScriptExtent extent, string? fallbackDocumentName = null) =>

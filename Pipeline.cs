@@ -1998,8 +1998,9 @@ internal static class ScriptParser
 
 internal static class TableWriter
 {
-    internal static void Write(IReadOnlyList<IPipelineRecord> rows, IReadOnlyList<string> columns)
+    internal static void Write(IReadOnlyList<IPipelineRecord> rows, IReadOnlyList<string> columns, TextWriter? writer = null)
     {
+        writer ??= Console.Out;
         // Help is terminal prose, not a one-column table. Keeping it a typed
         // pipeline record still lets ScriptRunner share the normal execution
         // path without adding a special stdout path to Get-Help itself.
@@ -2007,7 +2008,7 @@ internal static class TableWriter
         {
             foreach (HelpRecord help in rows.Cast<HelpRecord>())
             {
-                Console.WriteLine(help.Content);
+                writer.WriteLine(help.Content);
             }
 
             return;
@@ -2022,17 +2023,17 @@ internal static class TableWriter
             }
         }
 
-        WriteLine(columns, widths);
-        WriteLine(widths.Select(static width => new string('-', width)).ToArray(), widths);
+        WriteLine(columns, widths, writer);
+        WriteLine(widths.Select(static width => new string('-', width)).ToArray(), widths, writer);
         foreach (IPipelineRecord row in rows)
         {
-            WriteLine(columns.Select(row.TextFor).ToArray(), widths);
+            WriteLine(columns.Select(row.TextFor).ToArray(), widths, writer);
         }
     }
 
-    private static void WriteLine(IReadOnlyList<string> values, IReadOnlyList<int> widths)
+    private static void WriteLine(IReadOnlyList<string> values, IReadOnlyList<int> widths, TextWriter writer)
     {
-        Console.WriteLine(string.Join("  ", values.Select((value, index) => value.PadRight(widths[index]))));
+        writer.WriteLine(string.Join("  ", values.Select((value, index) => value.PadRight(widths[index]))));
     }
 }
 
@@ -2048,6 +2049,7 @@ internal static class SelfTest
         AssertControlFlowCore();
         AssertForEachCore();
         AssertTerminalPresentation();
+        AssertHostReplProjection();
         AssertClosedValuePlane();
 
         if (GeneratedCmdletPorts.Count != 290)
@@ -3921,6 +3923,101 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             || sanitized.Count(character => character == '\u001b') != 2)
         {
             throw new InvalidOperationException("Diagnostic rendering allowed source-derived terminal control characters.");
+        }
+    }
+
+    private static void AssertHostReplProjection()
+    {
+        // This fact originates in the pinned parser's ParseError.IncompleteInput
+        // bit. The REPL does not scan punctuation itself to infer continuation.
+        AotParseResult trailingPipe = AotScriptParser.Parse("Get-Verb |", "repl-pipe.ps1");
+        if (!trailingPipe.HasIncompleteInput
+            || trailingPipe.HasBlockingDiagnostics
+            || !trailingPipe.RequiresMoreInput
+            || trailingPipe.Diagnostics.SingleOrDefault()?.Id != "EmptyPipeElement")
+        {
+            throw new InvalidOperationException("The shared parser did not expose an incomplete trailing pipeline for REPL continuation.");
+        }
+
+        AotReplInputBuffer input = new("repl-buffer.ps1");
+        AotParseResult firstLine = input.Submit("Get-Verb |");
+        if (!firstLine.RequiresMoreInput || !input.HasPending || input.Prompt != ">> ")
+        {
+            throw new InvalidOperationException("The REPL input buffer did not retain an upstream-incomplete first line.");
+        }
+
+        AotParseResult completed = input.Submit("Select-Object Verb");
+        if (completed.Diagnostics.Count != 0
+            || input.HasPending
+            || input.Prompt != "pwsh-aot> "
+            || completed.Source != "Get-Verb |\nSelect-Object Verb")
+        {
+            throw new InvalidOperationException("The REPL input buffer did not preserve multi-line source or reset after a complete parse.");
+        }
+
+        AotExecutionPlan plan = AotExecutionKernel.Compile(completed);
+        if (!ReferenceEquals(plan.ParseResult, completed))
+        {
+            throw new InvalidOperationException("A parser-approved REPL buffer was reparsed instead of lowering its shared parse result.");
+        }
+
+        AotReplInputBuffer malformedBuffer = new("repl-malformed.ps1");
+        AotParseResult malformed = malformedBuffer.Submit("Get-Verb | | Get-Verb");
+        if (!malformed.HasBlockingDiagnostics || malformed.RequiresMoreInput || malformedBuffer.HasPending)
+        {
+            throw new InvalidOperationException("A malformed REPL line was treated as an endlessly incomplete continuation.");
+        }
+
+        StringWriter output = new(CultureInfo.InvariantCulture);
+        StringWriter error = new(CultureInfo.InvariantCulture);
+        AotTerminalEventProjector projector = new(
+            "Get-Verb",
+            "host-projection.ps1",
+            new AotDiagnosticRenderOptions(UseAnsi: true),
+            output,
+            error);
+        AotExecutionOutput segment = new([new VerbRecord("Get", "g", "Common", "fixture")], ["Verb", "AliasPrefix"]);
+        projector.Project(AotRuntimeEvent.Success(1, segment));
+        if (!output.ToString().Contains("Verb", StringComparison.Ordinal)
+            || error.GetStringBuilder().Length != 0)
+        {
+            throw new InvalidOperationException("The terminal event projector did not send a success segment exclusively to stdout.");
+        }
+
+        projector.Project(AotRuntimeEvent.Error(
+            2,
+            null,
+            AotDiagnostics.Runtime("AOT3998", "fixture runtime error", new AotSourceSpan("host-projection.ps1", 0, 8, 1, 1, 1, 9))));
+        if (!error.ToString().Contains("\u001b[31merror[AOT3998]", StringComparison.Ordinal)
+            || !error.ToString().Contains("host-projection.ps1:1:1", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The terminal event projector did not render an event diagnostic on stderr with the configured policy.");
+        }
+
+        StringWriter runnerOutput = new(CultureInfo.InvariantCulture);
+        StringWriter runnerError = new(CultureInfo.InvariantCulture);
+        TextWriter originalOutput = Console.Out;
+        TextWriter originalError = Console.Error;
+        try
+        {
+            Console.SetOut(runnerOutput);
+            Console.SetError(runnerError);
+            if (ScriptRunner.Execute(trailingPipe, colorMode: AotColorMode.Never) != 2)
+            {
+                throw new InvalidOperationException("An incomplete buffer drained at host EOF returned the wrong diagnostic exit code.");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+        }
+
+        if (runnerOutput.GetStringBuilder().Length != 0
+            || !runnerError.ToString().Contains("error[EmptyPipeElement]", StringComparison.Ordinal)
+            || !runnerError.ToString().Contains("repl-pipe.ps1", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The same parser result did not produce an EOF-safe REPL diagnostic through the host projector.");
         }
     }
 
