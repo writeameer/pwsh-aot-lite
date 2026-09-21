@@ -25,10 +25,10 @@ retained behind an AOT-specific contract:
 - `Get-Process`, `-Name` / `-ProcessName`, and `-Id` / `-PID` selection.
 - Selection ordering, duplicate removal, wildcard selection, and
   non-terminating missing-process errors.
-- Pipeline `InputObject` behavior in the typed adapter when an AOT caller
-  supplies a process record. The current upstream-AST runner does not yet admit
-  a command-to-command pipeline stage; it admits a source command followed by
-  direct `Where-Object` and `Select-Object` only.
+- One `Get-Process` source command may feed one downstream `Get-Process`
+  adapter through the static `ProcessRecord` handoff, then the existing direct
+  `Where-Object` and `Select-Object` stages may follow. Direct `-InputObject`
+  text is intentionally rejected: it cannot represent the required record.
 - `-IncludeUserName`, `-Module`, `-FileVersionInfo`, and the valid
   `-Module -FileVersionInfo` combination.
 - Parameter metadata (command name, aliases, parameter sets) comes from the
@@ -71,11 +71,13 @@ shapes:
 ./artifacts/osx-arm64/PwshAotLite -Command "Get-Process -FileVersionInfo | Select-Object FileName, FileVersion, ProductVersion"
 ./artifacts/osx-arm64/PwshAotLite -Command "Get-Process -Module -FileVersionInfo | Select-Object ModuleName, FileVersion"
 ./artifacts/osx-arm64/PwshAotLite -Command "Get-Process -Name PwshAotLite | Where-Object CPU -ge 0 | Select-Object Name, Id"
+./artifacts/osx-arm64/PwshAotLite -Command "Get-Process | Get-Process | Select-Object Name, Id"
 ```
 
 The refreshed artifact also verified the parser boundary: a trailing pipe
 fails with the preserved upstream `EmptyPipeElement` diagnostic; a script-block
-predicate and a four-stage pipeline fail with `AOT1001`. These are deliberate
+predicate, unregistered command stage, repeated typed-input stage, and a stage
+after `Where-Object`/`Select-Object` fail with `AOT1001`. These are deliberate
 current-runner limits, not cmdlet behavior claims.
 
 The project self-test covers binding, aliases, parameter-set handling, fixture

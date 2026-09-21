@@ -114,10 +114,12 @@ internal sealed class AotAssignmentPlan(string name, AotExpressionPlan value) : 
 
 internal sealed class AotPipelineStatementPlan(
     AotCommandPlan source,
+    AotCommandPlan? inputStage,
     AotFilterStagePlan? filter,
     IReadOnlyList<string>? columns,
     bool projected,
-    AotSourceSpan? projectionSpan) : AotStatementPlan
+    AotSourceSpan? projectionSpan,
+    int pipelineLength) : AotStatementPlan
 {
     internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
@@ -128,8 +130,34 @@ internal sealed class AotPipelineStatementPlan(
     internal PipelinePlan BindPipeline(AotScope scope)
     {
         (IAotCmdlet cmdlet, CommandInvocation invocation) = source.Bind(scope);
+        AotPipelineInputStage? boundInputStage = null;
+        if (inputStage is not null)
+        {
+            (IAotCmdlet candidate, CommandInvocation inputInvocation) = inputStage.Bind(scope);
+            if (candidate is not IAotPipelineInputCmdlet inputCmdlet)
+            {
+                // The AST lowerer only creates this plan after querying the
+                // same static registry. Keep the execution boundary fail-closed
+                // if that invariant is ever broken by a future registry edit.
+                throw new ScriptException(AotDiagnostics.Binding(
+                    "AOT2006",
+                    $"{candidate.Descriptor.Name} does not accept static AOT pipeline input.",
+                    inputInvocation.SourceSpan));
+            }
+
+            boundInputStage = new AotPipelineInputStage(inputCmdlet, inputInvocation);
+        }
+
         Filter? resolvedFilter = filter?.Resolve(scope);
-        return new PipelinePlan(cmdlet, invocation, null, null, resolvedFilter, columns ?? cmdlet.DefaultColumns, projected, projectionSpan);
+        return new PipelinePlan(
+            cmdlet,
+            invocation,
+            boundInputStage,
+            resolvedFilter,
+            columns ?? cmdlet.DefaultColumns,
+            projected,
+            projectionSpan,
+            pipelineLength);
     }
 }
 
