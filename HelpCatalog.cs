@@ -148,6 +148,23 @@ internal sealed class CompositeHelpCatalog : IHelpCatalog
         foreach (SourceCmdletMetadata source in GeneratedCmdletPorts.All)
         {
             bool implemented = BuiltInCommandAvailability.NativeAdapterNames.Contains(source.Name);
+            IReadOnlySet<string>? directParameterNames = implemented
+                ? AotCmdletRegistry.DirectParameterNames(source.Name)
+                : null;
+            string? pipelineInputSynopsis = implemented
+                ? AotCmdletRegistry.StaticPipelineInputSynopsis(source.Name)
+                : null;
+            IEnumerable<SourceParameterMetadata> executableParameters = directParameterNames is null
+                ? source.Parameters
+                : source.Parameters.Where(parameter => directParameterNames.Contains(parameter.Name));
+            HashSet<string> omittedMandatoryParameterSets = directParameterNames is null
+                ? []
+                : source.Parameters
+                    .Where(parameter => !directParameterNames.Contains(parameter.Name))
+                    .SelectMany(parameter => parameter.ParameterSets)
+                    .Where(parameterSet => parameterSet.Mandatory)
+                    .Select(parameterSet => parameterSet.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
             yield return new HelpTopic(
                 source.Name,
                 "Cmdlet",
@@ -156,16 +173,17 @@ internal sealed class CompositeHelpCatalog : IHelpCatalog
                 implemented ? "native-aot (implemented current scope)" : "catalogued from source; no native AOT adapter",
                 "built-in source catalog",
                 source.SourceFile + " :: " + source.SourceClass,
-                "Generated contract help from the PowerShell source declaration.",
+                "Generated contract help from the PowerShell source declaration."
+                    + (pipelineInputSynopsis is null ? string.Empty : " " + pipelineInputSynopsis),
                 null,
                 implemented ? "in-process-native-aot" : null,
                 implemented ? "implemented-current-scope" : "catalogued-not-implemented",
-                source.Parameters.Select(parameter => new HelpParameter(
+                executableParameters.Select(parameter => new HelpParameter(
                     parameter.Name,
                     parameter.TypeName,
                     parameter.Shape,
                     parameter.Aliases,
-                    parameter.ParameterSets,
+                    parameter.ParameterSets.Where(parameterSet => !omittedMandatoryParameterSets.Contains(parameterSet.Name)).ToArray(),
                     parameter.ValidationRules,
                     parameter.SupportsWildcards)).ToArray(),
                 source.OutputTypes,

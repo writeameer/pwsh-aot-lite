@@ -18,7 +18,7 @@
         {
           "id": "parameter-binding",
           "sourceFeature": "Name, Id, InputObject, IncludeUserName, Module, FileVersionInfo and parameter sets",
-          "targetDecision": "Generated metadata drives Name, Id, InputObject, IncludeUserName, Module, and FileVersionInfo. InputObject has a typed internal adapter only; the source runner rejects general command-to-command pipeline binding.",
+          "targetDecision": "Generated metadata drives the source contract, while the executable descriptor admits Name, Id, IncludeUserName, Module, and FileVersionInfo directly. InputObject is executable only as one static ProcessRecord handoff into one registered downstream adapter; direct text binding and general command-to-command binding are rejected.",
           "status": "deliberate-subset",
           "automationCandidate": "yes"
         },
@@ -39,7 +39,7 @@
         {
           "id": "advanced-process-options",
           "sourceFeature": "Module, FileVersionInfo, IncludeUserName, pipeline InputObject",
-          "targetDecision": "Module, FileVersionInfo, and IncludeUserName use IProcessCatalog. InputObject is a typed internal adapter; source-level command-to-command binding is deferred.",
+          "targetDecision": "Module, FileVersionInfo, and IncludeUserName use IProcessCatalog. InputObject has one reviewed source-level shape: Get-Process feeds one downstream Get-Process through ProcessRecord; arbitrary record types, multiple input stages, property-name binding, and direct InputObject binding remain deferred.",
           "status": "deliberate-subset",
           "automationCandidate": "partial"
         },

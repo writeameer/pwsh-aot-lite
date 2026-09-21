@@ -45,9 +45,14 @@ streaming, remoting, background jobs, concurrency, or cancellation.
 
 ## Planned finite slices
 
-1. **Ordered success/error events** — integrated in this slice.
-2. **Typed stage composition** — replace the special-case `Get-Process` input
-   path with explicit static record handoff, without reflection or `PSObject`.
+1. **Ordered success/error events** — integrated in the first Runtime Core slice.
+2. **Typed stage composition** — integrated: one source command may feed one
+   registered input-stage adapter, followed by the existing closed
+   `Where-Object`/`Select-Object` transforms. The bridge accepts only a
+   declared `IPipelineRecord` subtype; it has no `object`, `PSObject`, or
+   property-name binding fallback. `Get-Process → Get-Process` is the proof
+   adapter. Direct `-InputObject` remains rejected because text cannot honestly
+   represent a static process record.
 3. **Cancellation and lifecycle** — propagate cancellation, give
    `StopProcessing` exactly-once semantics, and return a stable host result.
 4. **Host/REPL projection** — build multiline input and presentation batching
@@ -56,3 +61,5 @@ streaming, remoting, background jobs, concurrency, or cancellation.
 
 The independent evidence for slice one is in the
 [runtime stream-contract review](../reviews/2026-09-22-runtime-stream-contract.md).
+The typed-stage composition evidence is in the
+[typed-stage review](../reviews/2026-09-22-typed-stage-composition.md).

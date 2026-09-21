@@ -229,12 +229,13 @@ internal static class UpstreamAstPipelineLowerer
             throw Unsupported("background pipelines", pipeline.Extent);
         }
 
-        if (pipeline.PipelineElements.Count is < 1 or > 3)
+        if (pipeline.PipelineElements.Count is < 1 or > 4)
         {
-            throw Unsupported("the structural subset accepts one source command plus Where-Object and Select-Object only", pipeline.Extent);
+            throw Unsupported("the structural subset accepts one source command, one static typed input command, then optional Where-Object and Select-Object", pipeline.Extent);
         }
 
         AotCommandPlan? source = null;
+        AotCommandPlan? inputStage = null;
         AotFilterStagePlan? filter = null;
         IReadOnlyList<string>? columns = null;
         AotSourceSpan? projectionSpan = null;
@@ -315,6 +316,20 @@ internal static class UpstreamAstPipelineLowerer
                 continue;
             }
 
+            // A command can be a downstream stage only when a registered
+            // native adapter explicitly opts into one concrete record type.
+            // It must precede the closed value-plane Where/Select transforms;
+            // no generated metadata declaration, PSObject conversion, or
+            // dynamic binder makes another command pipeline-capable.
+            if (inputStage is null
+                && filter is null
+                && !projected
+                && AotCmdletRegistry.IsStaticPipelineInputCmdlet(lowered.Name))
+            {
+                inputStage = lowered;
+                continue;
+            }
+
             throw Unsupported($"pipeline stage '{lowered.Name}'", command.Extent);
         }
 
@@ -323,7 +338,14 @@ internal static class UpstreamAstPipelineLowerer
             throw Unsupported("a source command is required", pipeline.Extent);
         }
 
-        return new AotPipelineStatementPlan(source, filter, columns, projected, projectionSpan);
+        return new AotPipelineStatementPlan(
+            source,
+            inputStage,
+            filter,
+            columns,
+            projected,
+            projectionSpan,
+            pipeline.PipelineElements.Count);
     }
 
     private static AotCommandPlan LowerCommand(CommandAst command)

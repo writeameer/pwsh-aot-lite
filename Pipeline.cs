@@ -403,8 +403,30 @@ internal interface IAotCmdlet
 {
     CmdletDescriptor Descriptor { get; }
     IReadOnlyList<string> DefaultColumns { get; }
-    IEnumerable<IPipelineRecord> Invoke(CommandInvocation invocation, AotExecutionContext context);
+    IEnumerable<IPipelineRecord> Invoke(
+        CommandInvocation invocation,
+        AotExecutionContext context,
+        int pipelinePosition = 0,
+        int pipelineLength = 1);
 }
+
+// A downstream command may opt in to one concrete input-record contract. The
+// non-generic surface permits the already-bound pipeline plan to dispatch it;
+// the generic base below performs the only type crossing. Neither surface
+// accepts object, Type, PSObject, reflection, or conversion services.
+internal interface IAotPipelineInputCmdlet : IAotCmdlet
+{
+    string PipelineInputSynopsis { get; }
+
+    IEnumerable<IPipelineRecord> InvokeWithPipelineInput(
+        CommandInvocation invocation,
+        IReadOnlyList<IPipelineRecord> input,
+        AotExecutionContext context,
+        int pipelinePosition,
+        int pipelineLength);
+}
+
+internal sealed record AotPipelineInputStage(IAotPipelineInputCmdlet Cmdlet, CommandInvocation Invocation);
 
 // Shared execution base for ports. It mirrors the existing PowerShell cmdlet
 // lifecycle and keeps buffering/error policy in one place. A command port owns
@@ -414,14 +436,28 @@ internal abstract class AotCmdletBase : IAotCmdlet
     public abstract CmdletDescriptor Descriptor { get; }
     public abstract IReadOnlyList<string> DefaultColumns { get; }
 
-    public IEnumerable<IPipelineRecord> Invoke(CommandInvocation invocation, AotExecutionContext context)
+    public IEnumerable<IPipelineRecord> Invoke(
+        CommandInvocation invocation,
+        AotExecutionContext context,
+        int pipelinePosition = 0,
+        int pipelineLength = 1) =>
+        InvokeLifecycle(invocation, context, () => ProcessRecord(invocation, context), pipelinePosition, pipelineLength);
+
+    // Input-capable ports use this exact runner too. That keeps lifecycle,
+    // origin span repair, cancellation, and output materialization shared.
+    protected IEnumerable<IPipelineRecord> InvokeLifecycle(
+        CommandInvocation invocation,
+        AotExecutionContext context,
+        Func<IEnumerable<IPipelineRecord>> process,
+        int pipelinePosition,
+        int pipelineLength)
     {
-        using IDisposable scope = context.EnterInvocation(invocation);
+        using IDisposable scope = context.EnterInvocation(invocation, pipelinePosition, pipelineLength);
         List<IPipelineRecord> output = [];
         try
         {
             output.AddRange(BeginProcessing(context));
-            output.AddRange(ProcessRecord(invocation, context));
+            output.AddRange(process());
             output.AddRange(EndProcessing(context));
             return output;
         }
@@ -442,6 +478,52 @@ internal abstract class AotCmdletBase : IAotCmdlet
     protected abstract IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context);
     protected virtual IEnumerable<IPipelineRecord> EndProcessing(AotExecutionContext context) => [];
     protected virtual void StopProcessing(AotExecutionContext context) { }
+}
+
+// The generic type parameter is statically closed by each port. It replaces a
+// command-specific cast in PipelinePlan, while preserving a concrete record
+// handoff rather than recreating PowerShell's dynamic object binder.
+internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAotPipelineInputCmdlet
+    where TInput : IPipelineRecord
+{
+    public virtual string PipelineInputSynopsis =>
+        $"Accepts static {typeof(TInput).Name} input only from one preceding registered AOT pipeline adapter.";
+
+    IEnumerable<IPipelineRecord> IAotPipelineInputCmdlet.InvokeWithPipelineInput(
+        CommandInvocation invocation,
+        IReadOnlyList<IPipelineRecord> input,
+        AotExecutionContext context,
+        int pipelinePosition,
+        int pipelineLength)
+    {
+        List<TInput> typedInput = [];
+        foreach (IPipelineRecord record in input)
+        {
+            if (record is not TInput typedRecord)
+            {
+                throw new ScriptException(AotDiagnostics.Runtime(
+                    "AOT4010",
+                    $"{Descriptor.Name} does not accept this AOT pipeline record shape.",
+                    invocation.SourceSpan,
+                    "incompatible static pipeline input",
+                    "Use a preceding AOT command that emits the record shape accepted by this command."));
+            }
+
+            typedInput.Add(typedRecord);
+        }
+
+        return InvokeLifecycle(
+            invocation,
+            context,
+            () => ProcessPipelineInput(invocation, typedInput, context),
+            pipelinePosition,
+            pipelineLength);
+    }
+
+    protected abstract IEnumerable<IPipelineRecord> ProcessPipelineInput(
+        CommandInvocation invocation,
+        IReadOnlyList<TInput> input,
+        AotExecutionContext context);
 }
 
 internal static class AotCmdletRegistry
@@ -466,6 +548,28 @@ internal static class AotCmdletRegistry
     // remains centralized in BindCommand below.
     internal static (IAotCmdlet Cmdlet, CommandInvocation Invocation) ParseSource(string stage) =>
         UpstreamAstPipelineLowerer.BindSingleCommand(stage);
+
+    // This is deliberately a registry capability query, not a generated
+    // metadata query. Generated metadata describes upstream declarations for
+    // every command; only an installed native adapter may be executable.
+    internal static bool IsStaticPipelineInputCmdlet(string commandName) =>
+        Cmdlets.Any(candidate => candidate.Descriptor.Name.Equals(commandName, StringComparison.OrdinalIgnoreCase)
+            && candidate is IAotPipelineInputCmdlet);
+
+    internal static IReadOnlySet<string>? DirectParameterNames(string commandName)
+    {
+        IAotCmdlet? cmdlet = Cmdlets.FirstOrDefault(candidate =>
+            candidate.Descriptor.Name.Equals(commandName, StringComparison.OrdinalIgnoreCase));
+        return cmdlet is null
+            ? null
+            : cmdlet.Descriptor.Parameters.Select(static parameter => parameter.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal static string? StaticPipelineInputSynopsis(string commandName) => Cmdlets
+        .FirstOrDefault(candidate => candidate.Descriptor.Name.Equals(commandName, StringComparison.OrdinalIgnoreCase))
+        is IAotPipelineInputCmdlet inputCmdlet
+            ? inputCmdlet.PipelineInputSynopsis
+            : null;
 
     internal static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindCommand(
         string commandName,
@@ -547,12 +651,13 @@ internal static class AotCmdletRegistry
 // Port boundary for Microsoft.PowerShell.Commands.GetProcessCommand:
 // Cmdlet => IAotCmdlet; [Parameter] => Descriptor; WriteError => context.
 // No System.Management.Automation dependency crosses this boundary.
-internal sealed class GetProcessCmdlet(IProcessCatalog catalog) : AotCmdletBase
+internal sealed class GetProcessCmdlet(IProcessCatalog catalog) : AotPipelineInputCmdletBase<ProcessRecord>
 {
     // Generated from the original Process.cs [Cmdlet], [Parameter], and [Alias]
-    // declarations by PwshAotPortGenerator. Every public Get-Process parameter
-    // is represented here; InputObject is bound by a preceding pipeline stage.
-    private static readonly CmdletDescriptor GetProcessDescriptor = GeneratedCmdletPorts.GetProcess.CreateAotDescriptor("Name", "Id", "InputObject", "IncludeUserName", "Module", "FileVersionInfo");
+    // declarations by PwshAotPortGenerator. InputObject is intentionally not
+    // a direct command argument: only the typed static stage contract can
+    // supply ProcessRecord input, so a string cannot masquerade as Process.
+    private static readonly CmdletDescriptor GetProcessDescriptor = GeneratedCmdletPorts.GetProcess.CreateAotDescriptor("Name", "Id", "IncludeUserName", "Module", "FileVersionInfo");
 
     public override CmdletDescriptor Descriptor => GetProcessDescriptor;
     public override IReadOnlyList<string> DefaultColumns { get; } = ["Name", "Id", "CPU"];
@@ -562,23 +667,10 @@ internal sealed class GetProcessCmdlet(IProcessCatalog catalog) : AotCmdletBase
         return Execute(invocation, null, context);
     }
 
-    internal IEnumerable<IPipelineRecord> InvokeWithInput(CommandInvocation invocation, IEnumerable<IPipelineRecord> input, AotExecutionContext context)
-    {
-        // The closed two-command pipeline is still a real invocation boundary.
-        // Keep its error provenance distinct from the source cmdlet until the
-        // generic typed-stage composition slice replaces this special case.
-        using IDisposable scope = context.EnterInvocation(invocation, pipelinePosition: 1, pipelineLength: 2);
-        ProcessRecord[] processes = input.OfType<ProcessRecord>().ToArray();
-        if (processes.Length != input.Count())
-        {
-            throw new ScriptException("Get-Process accepts only process objects from the incoming pipeline.");
-        }
-
-        // Execute is iterator-based for the ports that use Select/SelectMany.
-        // Materialize while this frame is active so deferred provider errors
-        // cannot lose the second-stage source context after the scope exits.
-        return Execute(invocation, processes, context).ToArray();
-    }
+    protected override IEnumerable<IPipelineRecord> ProcessPipelineInput(
+        CommandInvocation invocation,
+        IReadOnlyList<ProcessRecord> input,
+        AotExecutionContext context) => Execute(invocation, input, context);
 
     private IEnumerable<IPipelineRecord> Execute(CommandInvocation invocation, IReadOnlyList<ProcessRecord>? input, AotExecutionContext context)
     {
@@ -1621,26 +1713,26 @@ internal sealed class SystemProcessCatalog : IProcessCatalog
 internal sealed class PipelinePlan(
     IAotCmdlet source,
     CommandInvocation invocation,
-    IAotCmdlet? inputCommand,
-    CommandInvocation? inputInvocation,
+    AotPipelineInputStage? inputStage,
     Filter? filter,
     IReadOnlyList<string> planColumns,
     bool projected = false,
-    AotSourceSpan? projectionSpan = null)
+    AotSourceSpan? projectionSpan = null,
+    int pipelineLength = 1)
 {
     internal IReadOnlyList<string> Columns { get; } = planColumns;
 
     internal IReadOnlyList<IPipelineRecord> Execute(AotExecutionContext context)
     {
-        IEnumerable<IPipelineRecord> rows = source.Invoke(invocation, context);
-        if (inputCommand is not null)
+        IReadOnlyList<IPipelineRecord> rows = source.Invoke(invocation, context, pipelinePosition: 0, pipelineLength).ToArray();
+        if (inputStage is not null)
         {
-            if (inputCommand is not GetProcessCmdlet getProcess || inputInvocation is null)
-            {
-                throw new ScriptException("Unsupported command pipeline stage.");
-            }
-
-            rows = getProcess.InvokeWithInput(inputInvocation, rows, context);
+            rows = inputStage.Cmdlet.InvokeWithPipelineInput(
+                inputStage.Invocation,
+                rows,
+                context,
+                pipelinePosition: 1,
+                pipelineLength).ToArray();
         }
         // Ports retain their strongly typed output records.  The first generic
         // stage is the explicit, closed crossing into AotValue/AotRecord; no
@@ -1881,6 +1973,7 @@ internal static class SelfTest
     {
         AssertExecutionKernelAndDiagnostics();
         AssertRuntimeEventContract();
+        AssertTypedStageComposition();
         AssertLanguageCompatibilityCore();
         AssertControlFlowCore();
         AssertForEachCore();
@@ -1960,6 +2053,15 @@ internal static class SelfTest
             })
         {
             throw new InvalidOperationException("Get-Command did not visibly distinguish a native adapter from catalogued-only commands.");
+        }
+
+        if (ScriptParser.Parse("Get-Help Get-Process").Execute(new AotExecutionContext()).SingleOrDefault() is not HelpRecord { Content: var processHelp }
+            || processHelp.Contains("-InputObject", StringComparison.Ordinal)
+            || processHelp.Contains("parameter set: InputObject", StringComparison.Ordinal)
+            || !processHelp.Contains("Accepts static ProcessRecord input only from one preceding registered AOT pipeline adapter.", StringComparison.Ordinal)
+            || CompletionService.Instance.Suggest("Get-Process -In").Any(static suggestion => suggestion.Text.Equals("-InputObject", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Get-Process help or completion advertised direct InputObject binding outside the static typed-stage contract.");
         }
 
         PipelinePlan binaryExtensionCommandPlan = ScriptParser.Parse("Get-Command Start-ThreadJob");
@@ -2061,10 +2163,13 @@ internal static class SelfTest
 
         SourceCmdletMetadata getProcessContract = GeneratedCmdletPorts.GetProcess;
         SourceParameterMetadata idParameter = getProcessContract.Parameters.Single(parameter => parameter.Name == "Id");
+        SourceParameterMetadata inputParameter = getProcessContract.Parameters.Single(parameter => parameter.Name == "InputObject");
         if (!getProcessContract.BaseTypeChain.Take(2).SequenceEqual(["ProcessBaseCommand", "Cmdlet"])
             || !getProcessContract.Lifecycle.HasProcessRecord
             || idParameter.Shape != AotParameterShape.Array
             || !idParameter.ParameterSets.Any(parameterSet => parameterSet.Name == "Id" && parameterSet.Mandatory && parameterSet.PipelineBinding.HasFlag(PipelineBindingSource.ByPropertyName))
+            || inputParameter.TypeName != "Process[]"
+            || !inputParameter.ParameterSets.Any(parameterSet => parameterSet.Mandatory && parameterSet.PipelineBinding.HasFlag(PipelineBindingSource.ByValue))
             || !getProcessContract.MigrationBlockers.Any(blocker => blocker.Api == "WriteObject"))
         {
             throw new InvalidOperationException("Generated Get-Process contract regression.");
@@ -2168,7 +2273,12 @@ internal static class SelfTest
         }
 
         CommandInvocation inputInvocation = new(port.Descriptor, new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase));
-        if (port.InvokeWithInput(inputInvocation, [new ProcessRecord("pwsh", 7, 1, 2)], new AotExecutionContext()).SingleOrDefault() is not ProcessRecord { Id: 7 })
+        if (((IAotPipelineInputCmdlet)port).InvokeWithPipelineInput(
+                inputInvocation,
+                [new ProcessRecord("pwsh", 7, 1, 2)],
+                new AotExecutionContext(),
+                pipelinePosition: 1,
+                pipelineLength: 2).SingleOrDefault() is not ProcessRecord { Id: 7 })
         {
             throw new InvalidOperationException("Get-Process InputObject regression.");
         }
@@ -2830,10 +2940,12 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
             ["IncludeUserName"] = ["true"],
         }, secondStageSpan);
         AotExecutionContext inputStageContext = new();
-        _ = inputStage.InvokeWithInput(
+        _ = ((IAotPipelineInputCmdlet)inputStage).InvokeWithPipelineInput(
             inputStageInvocation,
             [new ProcessRecord("present", 7, 0, 0)],
-            inputStageContext).ToArray();
+            inputStageContext,
+            pipelinePosition: 1,
+            pipelineLength: 2).ToArray();
         if (inputStageContext.Events.SingleOrDefault() is not
             {
                 Kind: AotRuntimeEventKind.Error,
@@ -2844,6 +2956,61 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
             || frameSpan != secondStageSpan)
         {
             throw new InvalidOperationException("The special-case input cmdlet did not retain its own invocation frame.");
+        }
+    }
+
+    private static void AssertTypedStageComposition()
+    {
+        // The upstream AST is still the only syntax authority. This succeeds
+        // only because the second command is a registered typed-input port;
+        // Where/Select remain the existing closed value-plane transforms.
+        AotExecutionResult composed = AotExecutionKernel.Compile(
+                "Get-Process | Get-Process | Select-Object Name, Id",
+                "typed-stage.ps1")
+            .Execute(new AotExecutionContext());
+        if (composed.Outputs.SingleOrDefault() is not { Columns: var columns, Rows: var rows }
+            || !columns.SequenceEqual(["Name", "Id"])
+            || rows.Count == 0
+            || rows.Any(static row => row is not AotPipelineRecord))
+        {
+            throw new InvalidOperationException("A registered typed input stage did not compose with the existing source and projection stages.");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process -InputObject not-a-process", "direct-input.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("Get-Process accepted direct InputObject text outside the typed stage boundary.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT2002" && error.Diagnostic.Span is { DocumentName: "direct-input.ps1" })
+        {
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Uptime | Get-Process", "input-shape.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("A static input stage accepted an incompatible AOT record shape.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT4010" && error.Diagnostic.Span is { DocumentName: "input-shape.ps1" })
+        {
+        }
+
+        foreach (string unsupported in new[]
+        {
+            "Get-Process | Get-Uptime",
+            "Get-Process | Where-Object CPU -gt 0 | Get-Process",
+            "Get-Process | Get-Process | Get-Process",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(unsupported, "invalid-typed-stage.ps1");
+                throw new InvalidOperationException($"The lowerer accepted an out-of-contract typed stage pipeline: {unsupported}");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+            }
         }
     }
 
@@ -3664,7 +3831,6 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
         PipelinePlan valuePlan = new(
             fixturePort,
             fixtureInvocation,
-            null,
             null,
             new Filter("CPU", Comparison.GreaterThan, AotValue.FromInteger(10)),
             ["Name", "Id"],
