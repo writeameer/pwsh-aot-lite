@@ -1806,7 +1806,9 @@ internal static class SelfTest
             {
                 Name: "Microsoft.PowerShell.ThreadJob", Path: var threadJobPackagePath,
             }
-            || !threadJobPackagePath.EndsWith("extensions/Microsoft.PowerShell.ThreadJob/2.2.0", StringComparison.Ordinal))
+            || !threadJobPackagePath.EndsWith(
+                Path.Combine("extensions", "Microsoft.PowerShell.ThreadJob", "2.2.0"),
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Get-Module -Name filtering or package-path reporting regressed.");
         }
