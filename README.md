@@ -3,8 +3,14 @@
 A deliberately focused, Native-AOT-friendly PowerShell-like runner. It proves the replacement execution model, not compatibility with all of PowerShell.
 
 ```text
-script text → parser → static pipeline plan → precompiled C# execution
+script text → upstream parser facade → AOT execution plan → precompiled C# execution
 ```
+
+The current plan is deliberately a narrow structural pipeline slice; it is the
+foundation for variables, blocks, control flow, and functions, not a claim of
+general script compatibility. Parse, binding, and unsupported-feature failures
+now use typed source-aware diagnostics. See the
+[AOT Execution Kernel foundation](docs/architecture/aot-execution-kernel.md).
 
 Supported pipeline:
 

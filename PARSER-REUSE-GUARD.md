@@ -18,6 +18,10 @@ explicitly excludes its source files.
 ```text
 pinned upstream tokenizer/parser/AST
              ↓
+     shared parser facade
+     (AST + tokens + extents + diagnostics)
+             ├─► parse-only CLI/editor tooling
+             ↓
        AOT feature-policy pass
              ↓
         AST lowerer (supported subset)
@@ -72,6 +76,11 @@ silently skip it, or invent a no-op.
    property reflection, or `PSObject` wrapper is permitted.
 8. Require managed build, Native AOT publish, and a native parse/lower smoke
    test before declaring an extracted grammar slice usable.
+9. Expose AST, tokens, source extents, and diagnostics through one immutable
+   parser facade independently of lowering or command invocation. Execution,
+   CLI tooling, and editor/LSP consumers must use that facade; none may own
+   parsing, split source text to infer grammar, or execute source to inspect
+   it. See `docs/architecture/language-tooling-contract.md`.
 
 ## Review checklist
 
@@ -84,5 +93,8 @@ and code review:
 - Does the change introduce any dynamic execution or reflection reachability?
 - Does the lowerer give an explicit unsupported-feature error where behavior is
   not implemented?
+- Can a tooling client obtain the AST, tokens, spans, and diagnostics without
+  invoking a command, importing a module, loading an extension, or creating an
+  execution context?
 
 Any missing answer blocks the change.

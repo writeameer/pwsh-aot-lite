@@ -7,7 +7,29 @@ using System.Text;
 
 namespace PwshAotLite;
 
-internal sealed class ScriptException(string message) : Exception(message);
+// Transitional compatibility wrapper for ports that still throw their
+// historically asserted message text. The host never renders Message directly:
+// it renders Diagnostic. New execution-kernel code must construct a typed
+// diagnostic at the originating boundary instead of using this constructor.
+internal sealed class ScriptException : AotDiagnosticException
+{
+    internal ScriptException(string message)
+        : this(AotDiagnostics.FromLegacyMessage(message), message)
+    {
+    }
+
+    internal ScriptException(AotDiagnostic diagnostic)
+        : this(diagnostic, diagnostic.PrimaryMessage)
+    {
+    }
+
+    private ScriptException(AotDiagnostic diagnostic, string message)
+        : base(diagnostic, message)
+    {
+    }
+
+    internal ScriptException WithSpan(AotSourceSpan span) => new(Diagnostic with { Span = span }, Message);
+}
 
 // Static replacement for the PowerShell Cmdlet/Parameter/WriteObject contract.
 // It intentionally preserves cmdlet lifecycle and parameter-set information;
@@ -91,9 +113,13 @@ internal sealed record SourceCmdletMetadata(
     }
 }
 
-internal sealed class CommandInvocation(CmdletDescriptor descriptor, IReadOnlyDictionary<string, string[]> parameters)
+internal sealed class CommandInvocation(
+    CmdletDescriptor descriptor,
+    IReadOnlyDictionary<string, string[]> parameters,
+    AotSourceSpan? sourceSpan = null)
 {
     internal CmdletDescriptor Descriptor { get; } = descriptor;
+    internal AotSourceSpan? SourceSpan { get; } = sourceSpan;
 
     internal bool TryGetValues(string name, out string[] values) => parameters.TryGetValue(name, out values!);
 }
@@ -101,17 +127,47 @@ internal sealed class CommandInvocation(CmdletDescriptor descriptor, IReadOnlyDi
 // Parser-independent syntax atoms. The upstream AST lowerer and the legacy
 // compatibility tokenizer both feed this one generated-metadata binder; the
 // binder itself remains the sole authority for aliases and parameter shapes.
-internal sealed record CommandSyntaxAtom(string Text, bool IsParameter);
+internal sealed record CommandSyntaxAtom(string Text, bool IsParameter, AotSourceSpan? Span = null);
 
-internal sealed record CommandError(string Id, string Message);
+internal sealed class CommandError(AotDiagnostic diagnostic)
+{
+    internal AotDiagnostic Diagnostic { get; } = diagnostic;
+    internal string Id => Diagnostic.Id;
+    internal string Message => Diagnostic.PrimaryMessage;
+}
 
 internal sealed class AotExecutionContext
 {
     private readonly List<CommandError> _errors = [];
+    private AotSourceSpan? _activeCommandSpan;
 
     internal IReadOnlyList<CommandError> Errors => _errors;
 
-    internal void WriteNonTerminatingError(string id, string message) => _errors.Add(new CommandError(id, message));
+    internal void WriteNonTerminatingError(string id, string message) =>
+        _errors.Add(new CommandError(new AotDiagnostic(
+            id,
+            AotDiagnosticSeverity.Error,
+            AotDiagnosticCategory.Runtime,
+            message,
+            _activeCommandSpan,
+            "command reported an error")));
+
+    internal IDisposable EnterInvocation(CommandInvocation invocation) => new InvocationScope(this, invocation.SourceSpan);
+
+    private sealed class InvocationScope : IDisposable
+    {
+        private readonly AotExecutionContext _context;
+        private readonly AotSourceSpan? _priorSpan;
+
+        internal InvocationScope(AotExecutionContext context, AotSourceSpan? span)
+        {
+            _context = context;
+            _priorSpan = context._activeCommandSpan;
+            context._activeCommandSpan = span;
+        }
+
+        public void Dispose() => _context._activeCommandSpan = _priorSpan;
+    }
 }
 
 internal interface IPipelineRecord
@@ -308,6 +364,7 @@ internal abstract class AotCmdletBase : IAotCmdlet
 
     public IEnumerable<IPipelineRecord> Invoke(CommandInvocation invocation, AotExecutionContext context)
     {
+        using IDisposable scope = context.EnterInvocation(invocation);
         List<IPipelineRecord> output = [];
         try
         {
@@ -315,6 +372,12 @@ internal abstract class AotCmdletBase : IAotCmdlet
             output.AddRange(ProcessRecord(invocation, context));
             output.AddRange(EndProcessing(context));
             return output;
+        }
+        catch (ScriptException error) when (error.Diagnostic.Span is null && invocation.SourceSpan is not null)
+        {
+            // Older ports are still migrating their origin diagnostics. Never
+            // discard a known command location while that work proceeds.
+            throw error.WithSpan(invocation.SourceSpan);
         }
         catch (OperationCanceledException)
         {
@@ -352,13 +415,16 @@ internal static class AotCmdletRegistry
     internal static (IAotCmdlet Cmdlet, CommandInvocation Invocation) ParseSource(string stage) =>
         UpstreamAstPipelineLowerer.BindSingleCommand(stage);
 
-    internal static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindCommand(string commandName, IEnumerable<CommandSyntaxAtom> arguments)
+    internal static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindCommand(
+        string commandName,
+        IEnumerable<CommandSyntaxAtom> arguments,
+        AotSourceSpan? commandSpan = null)
     {
         IAotCmdlet? cmdlet = Cmdlets.FirstOrDefault(candidate =>
             candidate.Descriptor.Name.Equals(commandName, StringComparison.OrdinalIgnoreCase));
         if (cmdlet is null)
         {
-            throw new ScriptException($"Unsupported source command '{commandName}'.");
+            throw new ScriptException(AotDiagnostics.Binding("AOT2001", $"Unsupported source command '{commandName}'.", commandSpan));
         }
 
         Dictionary<string, List<string>> bound = new(StringComparer.OrdinalIgnoreCase);
@@ -371,12 +437,12 @@ internal static class AotCmdletRegistry
                 current = cmdlet.Descriptor.Parameters.FirstOrDefault(parameter => parameter.Matches(parameterName));
                 if (current is null)
                 {
-                    throw new ScriptException($"{cmdlet.Descriptor.Name} does not support parameter '-{parameterName}'.");
+                    throw new ScriptException(AotDiagnostics.Binding("AOT2002", $"{cmdlet.Descriptor.Name} does not support parameter '-{parameterName}'.", atom.Span ?? commandSpan));
                 }
 
                 if (!bound.TryAdd(current.Name, []))
                 {
-                    throw new ScriptException($"{cmdlet.Descriptor.Name} parameter '-{parameterName}' was specified more than once.");
+                    throw new ScriptException(AotDiagnostics.Binding("AOT2003", $"{cmdlet.Descriptor.Name} parameter '-{parameterName}' was specified more than once.", atom.Span ?? commandSpan));
                 }
 
                 if (current.Shape == AotParameterShape.Switch)
@@ -391,7 +457,7 @@ internal static class AotCmdletRegistry
             current ??= cmdlet.Descriptor.DefaultParameterName is { } defaultParameterName
                 ? cmdlet.Descriptor.Parameters.Single(parameter => parameter.Name.Equals(defaultParameterName, StringComparison.OrdinalIgnoreCase))
                 : cmdlet.Descriptor.Parameters.SingleOrDefault(parameter => parameter.IsDefault)
-                    ?? throw new ScriptException($"{cmdlet.Descriptor.Name} does not accept positional arguments.");
+                    ?? throw new ScriptException(AotDiagnostics.Binding("AOT2005", $"{cmdlet.Descriptor.Name} does not accept positional arguments.", atom.Span ?? commandSpan));
 
             if (!bound.TryGetValue(current.Name, out List<string>? values))
             {
@@ -406,7 +472,7 @@ internal static class AotCmdletRegistry
         {
             if (values.Count == 0)
             {
-                throw new ScriptException($"{cmdlet.Descriptor.Name} parameter '-{name}' requires a value.");
+                throw new ScriptException(AotDiagnostics.Binding("AOT2004", $"{cmdlet.Descriptor.Name} parameter '-{name}' requires a value.", commandSpan));
             }
         }
 
@@ -416,7 +482,7 @@ internal static class AotCmdletRegistry
             frozen.Add(name, [.. values]);
         }
 
-        return (cmdlet, new CommandInvocation(cmdlet.Descriptor, frozen));
+        return (cmdlet, new CommandInvocation(cmdlet.Descriptor, frozen, commandSpan));
     }
 }
 
@@ -458,23 +524,38 @@ internal sealed class GetProcessCmdlet(IProcessCatalog catalog) : AotCmdletBase
         bool wantsUserName = invocation.TryGetValues("IncludeUserName", out _);
         if (hasNames && hasIds)
         {
-            throw new ScriptException("Get-Process parameters -Name and -Id cannot be combined.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3001",
+                "Get-Process parameters -Name and -Id cannot be combined.",
+                invocation.SourceSpan,
+                "conflicting parameter sets",
+                "Use either -Name or -Id, not both."));
         }
 
         if (input is not null && (hasNames || hasIds))
         {
-            throw new ScriptException("Get-Process cannot combine pipeline input with -Name or -Id.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3002",
+                "Get-Process cannot combine pipeline input with -Name or -Id.",
+                invocation.SourceSpan,
+                "conflicting input sources",
+                "Use pipeline input or an explicit -Name/-Id selection."));
         }
 
         if (wantsUserName && (wantsModules || wantsFileVersion))
         {
-            throw new ScriptException("Get-Process -IncludeUserName cannot be combined with -Module or -FileVersionInfo.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3003",
+                "Get-Process -IncludeUserName cannot be combined with -Module or -FileVersionInfo.",
+                invocation.SourceSpan,
+                "conflicting parameters",
+                "Use -IncludeUserName alone, or request module/file-version detail."));
         }
 
         ProcessQuery query = input is not null
             ? ProcessQuery.ByInput(input)
             : hasIds
-            ? ProcessQuery.ById(ids.Select(ParseId).ToArray())
+            ? ProcessQuery.ById(ids.Select(id => ParseId(id, invocation.SourceSpan)).ToArray())
             : hasNames ? ProcessQuery.ByName(names) : ProcessQuery.All;
         IReadOnlyList<IPipelineRecord> processes = ProcessSelector.Select(catalog, query, context);
         if (wantsModules)
@@ -498,11 +579,16 @@ internal sealed class GetProcessCmdlet(IProcessCatalog catalog) : AotCmdletBase
         return processes;
     }
 
-    private static int ParseId(string text)
+    private static int ParseId(string text, AotSourceSpan? span)
     {
         if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int id) || id < 0)
         {
-            throw new ScriptException($"Get-Process -Id expects a non-negative integer, got '{text}'.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3004",
+                $"Get-Process -Id expects a non-negative integer, got '{text}'.",
+                span,
+                "invalid process identifier",
+                "Provide a non-negative integer after -Id."));
         }
 
         return id;
@@ -1474,7 +1560,8 @@ internal sealed class PipelinePlan(
     CommandInvocation? inputInvocation,
     Filter? filter,
     IReadOnlyList<string> planColumns,
-    bool projected = false)
+    bool projected = false,
+    AotSourceSpan? projectionSpan = null)
 {
     internal IReadOnlyList<string> Columns { get; } = planColumns;
 
@@ -1506,7 +1593,7 @@ internal sealed class PipelinePlan(
 
         if (projected)
         {
-            values = values.Select(value => Project(value, Columns));
+            values = values.Select(value => Project(value, Columns, projectionSpan));
         }
 
         // Individual command ports own their source ordering. Get-Process
@@ -1515,11 +1602,16 @@ internal sealed class PipelinePlan(
         return values.Select(ToCompatibilityRecord).Cast<IPipelineRecord>().ToArray();
     }
 
-    private static AotValue Project(AotValue value, IReadOnlyList<string> columns)
+    private static AotValue Project(AotValue value, IReadOnlyList<string> columns, AotSourceSpan? projectionSpan)
     {
         if (!value.TryGetRecord(out AotRecord? record))
         {
-            throw new ScriptException("Select-Object requires a record-shaped AOT pipeline value.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4006",
+                "Select-Object requires a record-shaped AOT pipeline value.",
+                projectionSpan,
+                "projection requires a record",
+                "Select fields from a command that emits record-shaped AOT values."));
         }
 
         HashSet<string> selected = new(StringComparer.OrdinalIgnoreCase);
@@ -1531,7 +1623,12 @@ internal sealed class PipelinePlan(
                 // both `id` and `ID` would create an invalid result shape.
                 // Reject rather than silently choosing, renaming, or exposing
                 // a CLR fallback.
-                throw new ScriptException("Select-Object does not permit duplicate fields that differ only by case in the AOT subset.");
+                throw new ScriptException(AotDiagnostics.Runtime(
+                    "AOT4007",
+                    "Select-Object does not permit duplicate fields that differ only by case in the AOT subset.",
+                    projectionSpan,
+                    "duplicate projection field",
+                    "Select each field only once."));
             }
         }
 
@@ -1541,7 +1638,12 @@ internal sealed class PipelinePlan(
         }
         catch (KeyNotFoundException)
         {
-            throw new ScriptException("Select-Object requested a column not present on this pipeline value.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4008",
+                "Select-Object requested a column not present on this pipeline value.",
+                projectionSpan,
+                "unknown projection field",
+                "Use a field exposed by the preceding AOT pipeline record."));
         }
     }
 
@@ -1556,14 +1658,19 @@ internal sealed class PipelinePlan(
     }
 }
 
-internal sealed class Filter(string property, Comparison comparison, AotValue value)
+internal sealed class Filter(string property, Comparison comparison, AotValue value, AotSourceSpan? propertySpan = null)
 {
     internal bool Matches(AotValue row)
     {
         if (!row.TryGetProperty(property, out AotValue propertyValue)
             || !AotValueComparison.TryCompare(propertyValue, value, out int result))
         {
-            throw new ScriptException($"Where-Object does not support property '{property}' for this pipeline value.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4005",
+                $"Where-Object does not support property '{property}' for this pipeline value.",
+                propertySpan,
+                "unsupported pipeline property",
+                "Use a numeric field exposed by the preceding AOT pipeline record."));
         }
 
         return comparison switch
@@ -1589,16 +1696,30 @@ internal static class ScriptParser
     // not a parser implementation: every call goes through the upstream AST.
     internal static PipelinePlan Parse(string script) => UpstreamAstPipelineLowerer.Parse(script);
 
-    internal static Filter ParseFilterArguments(IReadOnlyList<string> tokens)
+    internal static Filter ParseFilterArguments(
+        IReadOnlyList<string> tokens,
+        AotSourceSpan? span = null,
+        AotSourceSpan? propertySpan = null,
+        AotSourceSpan? operatorSpan = null)
     {
         if (tokens.Count != 3 || !double.TryParse(tokens[2], CultureInfo.InvariantCulture, out double value))
         {
-            throw new ScriptException("Where-Object expects: <property> <-gt|-ge|-lt|-le|-eq|-ne> <number>.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4001",
+                "Where-Object expects: <property> <-gt|-ge|-lt|-le|-eq|-ne> <number>.",
+                span,
+                "invalid predicate",
+                "Provide a direct property, comparison operator, and finite numeric value."));
         }
 
         if (!double.IsFinite(value))
         {
-            throw new ScriptException("Where-Object does not accept NaN or infinity predicate literals in the AOT subset.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4002",
+                "Where-Object does not accept NaN or infinity predicate literals in the AOT subset.",
+                span,
+                "non-finite predicate value",
+                "Provide a finite numeric comparison value."));
         }
 
         string property = tokens[0].TrimStart('$').TrimStart('_').TrimStart('.');
@@ -1610,22 +1731,32 @@ internal static class ScriptParser
             "-le" => Comparison.LessThanOrEqual,
             "-eq" => Comparison.Equal,
             "-ne" => Comparison.NotEqual,
-            _ => throw new ScriptException($"Unsupported comparison '{tokens[1]}'.")
+            _ => throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4003",
+                $"Unsupported comparison '{tokens[1]}'.",
+                operatorSpan ?? span,
+                "unsupported comparison",
+                "Use -gt, -ge, -lt, -le, -eq, or -ne."))
         };
 
-        return new Filter(property, comparison, AotValue.FromFloatingPoint(value));
+        return new Filter(property, comparison, AotValue.FromFloatingPoint(value), propertySpan);
     }
 
     private static string[] ParseColumns(string input) => ParseColumns([input]);
 
-    internal static string[] ParseColumns(IReadOnlyList<string> rawColumns)
+    internal static string[] ParseColumns(IReadOnlyList<string> rawColumns, AotSourceSpan? span = null)
     {
         string[] columns = rawColumns
             .SelectMany(static value => value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .ToArray();
         if (columns.Length == 0)
         {
-            throw new ScriptException("Select-Object requires at least one column.");
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4004",
+                "Select-Object requires at least one column.",
+                span,
+                "missing projection column",
+                "Provide one or more direct field names."));
         }
 
         // The closed AotRecord is the property authority. A global string
@@ -1681,6 +1812,7 @@ internal static class SelfTest
 {
     internal static void Run()
     {
+        AssertExecutionKernelAndDiagnostics();
         AssertClosedValuePlane();
 
         if (GeneratedCmdletPorts.Count != 290)
@@ -1930,7 +2062,7 @@ internal static class SelfTest
             _ = UpstreamAstPipelineLowerer.Parse("Get-Process | Where-Object { $_.CPU -gt 10 }");
             throw new InvalidOperationException("Upstream AST lowerer accepted a script-block predicate.");
         }
-        catch (ScriptException exception) when (exception.Message.StartsWith("AotUnsupportedSyntax:", StringComparison.Ordinal))
+        catch (ScriptException exception) when (exception.Diagnostic is { Id: "AOT1001", Category: AotDiagnosticCategory.UnsupportedExecution })
         {
         }
 
@@ -2272,6 +2404,309 @@ internal static class SelfTest
         if (!quotedTimeZoneName.TryGetValues("Name", out string[] quotedNames) || !quotedNames.SequenceEqual(["Fixture Daylight Time"]))
         {
             throw new InvalidOperationException("Quoted command parameter tokenizer regression.");
+        }
+    }
+
+    private static void AssertExecutionKernelAndDiagnostics()
+    {
+        const string source = "Get-Process | Where-Object { $_.CPU -gt 10 }";
+        AotParseResult parseResult = AotScriptParser.Parse(source, "fixture.ps1", documentVersion: 7);
+        if (parseResult.DocumentName != "fixture.ps1"
+            || parseResult.DocumentVersion != 7
+            || parseResult.Tokens.Count == 0
+            || parseResult.Diagnostics.Count != 0
+            || parseResult.Ast.Extent.Text != source)
+        {
+            throw new InvalidOperationException("The shared upstream parser facade did not preserve the source, AST, tokens, or document identity.");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, "fixture.ps1", documentVersion: 7);
+            throw new InvalidOperationException("The execution kernel accepted an unsupported script-block predicate.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT1001",
+                Category: AotDiagnosticCategory.UnsupportedExecution,
+                Span: { StartLine: 1, StartColumn: 28 },
+                Help: not null,
+            })
+        {
+            string rendered = AotDiagnosticRenderer.Render(error.Diagnostic, source, "fixture.ps1", useAnsi: false);
+            const string expected = """
+error[AOT1001]: expression 'ScriptBlockExpressionAst' is parsed but not executable by the Native AOT structural subset.
+  --> fixture.ps1:1:28
+   |
+1 | Get-Process | Where-Object { $_.CPU -gt 10 }
+   |                            ^^^^^^^^^^^^^^^^^ unsupported execution feature
+   = help: Use only the documented Native AOT execution subset until this AST node has a reviewed plan.
+""";
+            if (!rendered.Equals(expected.TrimEnd(), StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Unsupported syntax diagnostic renderer snapshot regression.");
+            }
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process -NotAParameter value", "binding.ps1");
+            throw new InvalidOperationException("The execution kernel accepted an unsupported parameter.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT2002",
+                Category: AotDiagnosticCategory.Binding,
+                Span: { DocumentName: "binding.ps1", StartLine: 1, StartColumn: 13 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Process -NotAParameter value",
+                """
+error[AOT2002]: Get-Process does not support parameter '-NotAParameter'.
+  --> binding.ps1:1:13
+   |
+1 | Get-Process -NotAParameter value
+   |             ^^^^^^^^^^^^^^ binding failed
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process |", "malformed.ps1");
+            throw new InvalidOperationException("The execution kernel accepted malformed pipeline input.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "EmptyPipeElement",
+                Category: AotDiagnosticCategory.Parse,
+                Span: { DocumentName: "malformed.ps1", StartLine: 1 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Process |",
+                """
+error[EmptyPipeElement]: A pipeline cannot end with '|'.
+  --> malformed.ps1:1:14
+   |
+1 | Get-Process |
+   |              ^ incomplete input
+   = help: Add a command after '|', or remove the trailing pipe.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process | Where-Object CPU -gt NaN", "predicate.ps1");
+            throw new InvalidOperationException("The execution kernel accepted a non-finite predicate literal.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT4002",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "predicate.ps1", StartColumn: 36 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Process | Where-Object CPU -gt NaN",
+                """
+error[AOT4002]: Where-Object does not accept NaN or infinity predicate literals in the AOT subset.
+  --> predicate.ps1:1:36
+   |
+1 | Get-Process | Where-Object CPU -gt NaN
+   |                                    ^^^ non-finite predicate value
+   = help: Provide a finite numeric comparison value.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process | Where-Object CPU -ft 2", "operator.ps1");
+            throw new InvalidOperationException("The execution kernel accepted an unsupported Where-Object comparison.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT4003",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "operator.ps1", StartColumn: 32 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Process | Where-Object CPU -ft 2",
+                """
+error[AOT4003]: Unsupported comparison '-ft'.
+  --> operator.ps1:1:32
+   |
+1 | Get-Process | Where-Object CPU -ft 2
+   |                                ^^^ unsupported comparison
+   = help: Use -gt, -ge, -lt, -le, -eq, or -ne.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process | Where-Object BadProperty -gt 2", "property.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("The execution kernel accepted an unsupported Where-Object property.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT4005",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "property.ps1", StartColumn: 28 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Process | Where-Object BadProperty -gt 2",
+                """
+error[AOT4005]: Where-Object does not support property 'BadProperty' for this pipeline value.
+  --> property.ps1:1:28
+   |
+1 | Get-Process | Where-Object BadProperty -gt 2
+   |                            ^^^^^^^^^^^ unsupported pipeline property
+   = help: Use a numeric field exposed by the preceding AOT pipeline record.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-TimeZone -Id UTC | Select-Object NotAnAotField", "projection.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("The execution kernel accepted an unknown Select-Object field.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT4008",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "projection.ps1", StartColumn: 38 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-TimeZone -Id UTC | Select-Object NotAnAotField",
+                """
+error[AOT4008]: Select-Object requested a column not present on this pipeline value.
+  --> projection.ps1:1:38
+   |
+1 | Get-TimeZone -Id UTC | Select-Object NotAnAotField
+   |                                      ^^^^^^^^^^^^^ unknown projection field
+   = help: Use a field exposed by the preceding AOT pipeline record.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process | Select-Object", "empty-projection.ps1");
+            throw new InvalidOperationException("The execution kernel accepted an empty Select-Object projection.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT4004",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "empty-projection.ps1", StartColumn: 15 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Process | Select-Object",
+                """
+error[AOT4004]: Select-Object requires at least one column.
+  --> empty-projection.ps1:1:15
+   |
+1 | Get-Process | Select-Object
+   |               ^^^^^^^^^^^^^ missing projection column
+   = help: Provide one or more direct field names.
+""");
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Process -Id 1 -Name launchd", "process-parameters.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("The execution kernel accepted conflicting Get-Process parameter sets.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT3001",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "process-parameters.ps1", StartColumn: 1 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Process -Id 1 -Name launchd",
+                """
+error[AOT3001]: Get-Process parameters -Name and -Id cannot be combined.
+  --> process-parameters.ps1:1:1
+   |
+1 | Get-Process -Id 1 -Name launchd
+   | ^^^^^^^^^^^ conflicting parameter sets
+   = help: Use either -Name or -Id, not both.
+""");
+        }
+
+        AotExecutionPlan runtimePlan = AotExecutionKernel.Compile("Get-Process -Id 2147483647", "runtime.ps1");
+        AotExecutionContext runtimeContext = new();
+        _ = runtimePlan.Execute(runtimeContext);
+        if (runtimeContext.Errors.SingleOrDefault()?.Diagnostic is not { } runtimeDiagnostic
+            || runtimeDiagnostic.Id != "NoProcessFoundForGivenId"
+            || runtimeDiagnostic.Span is not { DocumentName: "runtime.ps1", StartColumn: 1 })
+        {
+            throw new InvalidOperationException("Non-terminating runtime diagnostics did not retain the active source-command span.");
+        }
+
+        AssertDiagnosticSnapshot(
+            runtimeDiagnostic,
+            "Get-Process -Id 2147483647",
+            """
+error[NoProcessFoundForGivenId]: No process was found with the process identifier 2147483647.
+  --> runtime.ps1:1:1
+   |
+1 | Get-Process -Id 2147483647
+   | ^^^^^^^^^^^ command reported an error
+""");
+
+        AotExecutionPlan successPlan = AotExecutionKernel.Compile("Get-Verb -Group Common", "success.ps1");
+        AotExecutionContext successContext = new();
+        if (successPlan.Execute(successContext).Count == 0 || successContext.Errors.Count != 0)
+        {
+            throw new InvalidOperationException("Successful execution did not preserve an empty diagnostic stream.");
+        }
+
+        string ansi = AotDiagnosticRenderer.Render(
+            runtimeDiagnostic,
+            "Get-Process -Id 2147483647",
+            "runtime.ps1",
+            new AotDiagnosticRenderOptions(UseAnsi: true));
+        if (!ansi.StartsWith("\u001b[31merror[NoProcessFoundForGivenId]", StringComparison.Ordinal)
+            || !ansi.Contains("\u001b[0m", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("ANSI diagnostic renderer snapshot regression.");
+        }
+
+        string narrow = AotDiagnosticRenderer.Render(
+            runtimeDiagnostic,
+            "Get-Process -Id 2147483647",
+            "runtime.ps1",
+            new AotDiagnosticRenderOptions(Width: 20));
+        if (!narrow.Contains("error[NoProcessFoundForGivenId]: No process was found with the process identifier 2147483647.", StringComparison.Ordinal)
+            || !narrow.Contains("…", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Width-constrained diagnostic renderer lost the required heading or source context.");
+        }
+    }
+
+    private static void AssertDiagnosticSnapshot(AotDiagnostic diagnostic, string source, string expected)
+    {
+        string actual = AotDiagnosticRenderer.Render(diagnostic, source, fallbackDocumentName: null, useAnsi: false);
+        if (!actual.Equals(expected.TrimEnd(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Diagnostic renderer snapshot regression.");
         }
     }
 

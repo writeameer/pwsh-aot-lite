@@ -6,25 +6,29 @@ internal static class ScriptRunner
     {
         try
         {
-            PipelinePlan plan = UpstreamAstPipelineLowerer.Parse(script);
+            AotExecutionPlan plan = AotExecutionKernel.Compile(script, "<command>");
             AotExecutionContext context = new();
             IReadOnlyList<IPipelineRecord> rows = plan.Execute(context);
             TableWriter.Write(rows, plan.Columns);
             foreach (CommandError error in context.Errors)
             {
-                Console.Error.WriteLine($"{error.Id}: {error.Message}");
+                Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", useAnsi: false));
             }
 
             return 0;
         }
-        catch (ScriptException error)
+        catch (AotDiagnosticException error)
         {
-            Console.Error.WriteLine($"Script error: {error.Message}");
+            Console.Error.WriteLine(AotDiagnosticRenderer.Render(error.Diagnostic, script, "<command>", useAnsi: false));
             return 2;
         }
-        catch (Exception error)
+        catch (Exception)
         {
-            Console.Error.WriteLine($"Runtime error: {error.Message}");
+            Console.Error.WriteLine(AotDiagnosticRenderer.Render(
+                AotDiagnostics.Internal("The host encountered an unexpected internal failure."),
+                script,
+                "<command>",
+                useAnsi: false));
             return 1;
         }
     }

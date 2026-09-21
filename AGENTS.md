@@ -30,6 +30,10 @@ The runner must remain Native-AOT safe:
    gates.  PowerShell grammar is upstream source, not a new grammar to grow.
 6. `docs/architecture/reviewer-personas.md` — mandatory independent-review
    personas, dispatch matrix, verdict authority, and review-ledger process.
+7. `docs/architecture/language-tooling-contract.md` — the shared parser
+   contract for execution, CLI tooling, and eventual editor/LSP consumers.
+8. `docs/architecture/diagnostic-contract.md` — mandatory Phase-1 structured
+   diagnostics, renderer, and negative-test requirements.
 
 ## Mandatory independent review process
 
@@ -43,6 +47,8 @@ an explicit variance; never silently bypass it.
 | Change | Required reviewers |
 | --- | --- |
 | Lexer, parser, AST, lowerer, or accepted syntax | **Upstream Grammar Steward** + **Native AOT Boundary Sentinel** |
+| Parser facade, token/span/diagnostic API, syntax highlighting, completion analysis, REPL editing, or editor/LSP integration | **Upstream Grammar Steward** + **Language Tooling Contract Guardian**; add **Native AOT Boundary Sentinel** when executable dependencies change |
+| Execution-kernel behavior, binding, runtime/cmdlet error, or an unsupported-feature diagnostic | **Diagnostic Experience Guardian**; add the applicable parser, data-plane, and AOT reviewers |
 | `AotValue`, pipeline adapter, generic data cmdlet, or parameter binding | **Native AOT Boundary Sentinel** + **Static Data-Plane & Binder Guardian** |
 | Cmdlet port or cross-cutting control-plane feature | **Static Data-Plane & Binder Guardian**; add **Native AOT Boundary Sentinel** when dependencies or execution change |
 | Any feature/milestone described as supported | All three above + **Compatibility Proof Adversary** |
@@ -66,6 +72,16 @@ note.
   kind/text/extents, AST shape, and diagnostic IDs. Parsing a construct is not
   permission to execute it: unsupported nodes must fail in the lowerer with a
   stable explicit diagnostic.
+- Treat the upstream parser facade as a shared, non-executing language service:
+  its AST, tokens, extents, and diagnostics serve the AOT execution kernel,
+  CLI tooling, and future editor/LSP consumers. Do not create an
+  execute-only parser API or a separate tooling grammar/lexer.
+- Big Rock 1, the **AOT Execution Kernel**, is incomplete without the shared
+  `AotDiagnostic` contract and renderer. Every supported, malformed,
+  unsupported, binding, and runtime-error path must have a stable diagnostic
+  ID, actionable message, source extent when source exists, and a negative
+  snapshot test. Do not leak raw exceptions or add command-specific console
+  error formatting; see `docs/architecture/diagnostic-contract.md`.
 - Do not import the dynamic execution engine: `Compiler.cs`, `PSObject`,
   runspaces, `PowerShell`, expression compilation, Reflection.Emit, runtime
   assembly loading, or runtime code generation are outside the AOT path.

@@ -10,6 +10,48 @@ is explicitly excluded from this host project and is not an implementation
 candidate. See [PARSER-REUSE-GUARD.md](PARSER-REUSE-GUARD.md) for the required
 source provenance, differential-test, and AOT-boundary gates.
 
+## Shared language-tooling contract
+
+The parser is not merely an execution pre-step. It is the shared PowerShell
+language service for three independent consumers:
+
+```text
+PowerShell source
+  └─ upstream parser facade
+       ├─ AST + diagnostics ──────► AOT feature policy and execution lowerer
+       ├─ tokens + source extents ► CLI syntax highlighting and editing
+       └─ AST/tokens/diagnostics ─► future editor/LSP analysis
+```
+
+The phase-one execution kernel must consume that facade; it must not own,
+reshape, or hide the source parser behind an execute-only API. The facade must
+preserve stable source spans, token kind/text, structural AST access, and parse
+diagnostics without executing source. A tooling consumer may inspect a partial
+or malformed document and return diagnostics, but may not make a source line
+executable, import a module, evaluate an expression, or load an extension.
+
+No second grammar, lexer, semantic-token classifier, or completion parser may
+be introduced where upstream parser output can provide the answer. A narrow
+incomplete-input scanner is permitted only for non-executable metadata
+completion and must remain explicitly non-authoritative, as documented below.
+Detailed consumer boundaries and rollout milestones are in
+[the language-tooling contract](docs/architecture/language-tooling-contract.md).
+
+## Diagnostic experience is part of the execution kernel
+
+Big Rock 1 is not complete merely when the host can execute an AST subset. It
+also establishes the single structured diagnostic path through parse, lowering,
+binding, pipeline execution, and cmdlet/runtime failures. The host renders
+those records as source-precise, actionable terminal output and later projects
+the same records to JSON and editor/LSP clients.
+
+No feature may use raw exception text, a command-specific `Console.WriteLine`,
+or an unstructured string as its public failure contract. Every supported,
+malformed, unsupported, binding, and runtime-error path needs a stable ID,
+category/severity, actionable primary message, source extent when source is
+available, and a negative snapshot test. The full contract and rollout are in
+[the diagnostic-experience contract](docs/architecture/diagnostic-contract.md).
+
 The recurring independent-review roles, their required evidence, and their
 blocking authority are defined in
 [docs/architecture/reviewer-personas.md](docs/architecture/reviewer-personas.md).
@@ -312,3 +354,10 @@ Before marking work complete, a reviewer should verify:
    the decision and the reusable lesson.
 6. Tests cover the intended mode plus error/negative cases, and at least one
    published Native-AOT smoke test runs from outside the repository.
+7. For parser, execution-kernel, REPL, completion-analysis, or editor-tooling
+   work: AST, token, extent, and diagnostic access remains reusable by all
+   language consumers; no execute-only parser wrapper or second grammar was
+   added.
+8. For any public failure behavior: a shared `AotDiagnostic` is emitted and
+   snapshot-tested. It has a stable ID, actionable message, and source extent
+   when available; no raw exception or ad-hoc console error became observable.

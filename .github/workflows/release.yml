@@ -12,8 +12,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-language-contract:
+    name: parser-fidelity gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore pinned PowerShell source
+        shell: pwsh
+        run: ./eng/Restore-Upstream.ps1
+      - name: Verify upstream parser reuse and differential baselines
+        shell: pwsh
+        run: |
+          ./tools/Test-ParserReuseGuard.ps1
+          ./tools/Export-PwshParserBaseline.ps1 -Verify
   build-release-assets:
     name: ${{ matrix.rid }}
+    needs: validate-language-contract
     strategy:
       fail-fast: false
       matrix:
@@ -92,6 +109,8 @@ jobs:
           generate_release_notes: true
           body: |
             Native AOT assets for macOS ARM64, Windows x64, and Linux x64.
+
+            This release adds the AOT Execution Kernel foundation: a shared upstream parser facade, explicit execution-plan boundary, and typed source-aware diagnostics.
 
             This is a deliberately limited PowerShell migration spike. See the README for the implemented command surface and runtime constraints.
           files: release-assets/*

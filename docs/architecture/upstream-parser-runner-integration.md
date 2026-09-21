@@ -6,7 +6,8 @@ point. The connection is deliberately narrow:
 
 ```text
 script text
-  -> upstream Parser.ParseInput
+  -> AotScriptParser (upstream AST, tokens, extents, diagnostics)
+  -> AotExecutionKernel / AotExecutionPlan
   -> PipelineAst / CommandAst lowerer
   -> existing AotCmdletRegistry + generated CmdletDescriptor binder
   -> typed IPipelineRecord cmdlet output
@@ -29,19 +30,26 @@ parameter binder and obtains command names, aliases, parameter shapes, and
 defaults from generated `CmdletDescriptor` metadata. No AST-specific binder
 exists.
 
-Everything else returns one of these stable errors:
+Every unsupported or invalid input follows the shared diagnostic contract:
 
-- `AotParseError: <upstream-id>` for parser diagnostics.
-- `AotUnsupportedSyntax: ...` for syntax that parses but is outside the AOT
-  executable subset, including script-block predicates, expressions,
-  redirections, additional command stages, DSC, and dynamic keywords.
+- the original upstream parser ID (for example `EmptyPipeElement`) with its
+  source extent for parser diagnostics; and
+- `AOT1001` for syntax that parses but is outside the AOT executable subset,
+  including script-block predicates, expressions, redirections, additional
+  command stages, DSC, and dynamic keywords.
+
+The host renders those typed diagnostics with source labels and actionable help
+where a safe alternative exists. Binding failures use the `AOT200x` family and
+underlines the precise source argument or parameter when available. See the
+[AOT Execution Kernel foundation](aot-execution-kernel.md) for the ID registry
+and scope.
 
 The stock-pwsh fixture comparison remains in the isolated `language` project.
 The runner connection is covered by `SelfTest` and a published-native command
-smoke. There is no second source lexer/parser: `AotCmdletRegistry.ParseSource`
-also delegates to the upstream AST lowerer, and the former `ScriptParser`
-class now contains only AST-atom semantic helpers for the narrow `Where-Object`
-and `Select-Object` stages. No new grammar may be added outside the upstream
+smoke. There is no second source lexer/parser: `AotScriptParser` is the sole
+production source-parser facade, and the former `ScriptParser` class contains
+only AST-atom semantic helpers for the narrow `Where-Object` and
+`Select-Object` stages. No new grammar may be added outside the upstream
 language extraction.
 
 The current independent review outcome is recorded in the

@@ -14,59 +14,59 @@ internal static class UpstreamAstPipelineLowerer
     // remains an AST operation so the repository has no alternate string lexer.
     internal static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindSingleCommand(string script)
     {
-        ScriptBlockAst ast = Parser.ParseInput(script, out _, out ParseError[] errors);
-        if (errors.Length != 0)
-        {
-            throw new ScriptException($"AotParseError: {errors[0].ErrorId}");
-        }
+        AotParseResult parseResult = AotScriptParser.Parse(script);
+        ThrowIfParseFailed(parseResult);
+        ScriptBlockAst ast = parseResult.Ast;
 
         if (ast.EndBlock is null
             || ast.EndBlock.Statements.Count != 1
             || ast.EndBlock.Statements[0] is not PipelineAst { PipelineElements.Count: 1 } pipeline
             || pipeline.PipelineElements[0] is not CommandAst command)
         {
-            throw Unsupported("one direct command");
+            throw Unsupported("one direct command", ast.Extent);
         }
 
         LoweredCommand lowered = LowerCommand(command);
-        return AotCmdletRegistry.BindCommand(lowered.Name, lowered.Arguments);
+        return BindCommand(lowered);
     }
 
-    internal static PipelinePlan Parse(string script)
+    // Compatibility entry point retained for existing focused tests. The host
+    // itself compiles through AotExecutionKernel, which creates an explicit
+    // plan from this same upstream parse result.
+    internal static PipelinePlan Parse(string script) => AotExecutionKernel.Compile(script).Pipeline;
+
+    internal static PipelinePlan Lower(AotParseResult parseResult)
     {
-        ScriptBlockAst ast = Parser.ParseInput(script, out _, out ParseError[] errors);
-        if (errors.Length != 0)
-        {
-            throw new ScriptException($"AotParseError: {errors[0].ErrorId}");
-        }
+        ScriptBlockAst ast = parseResult.Ast;
 
         if (ast.EndBlock is null || ast.EndBlock.Statements.Count != 1 || ast.EndBlock.Statements[0] is not PipelineAst pipeline)
         {
-            throw Unsupported("only one top-level command pipeline is executable");
+            throw Unsupported("only one top-level command pipeline is executable", ast.Extent);
         }
 
         if (pipeline.PipelineElements.Count is < 1 or > 3)
         {
-            throw Unsupported("the structural subset accepts one source command plus Where-Object and Select-Object only");
+            throw Unsupported("the structural subset accepts one source command plus Where-Object and Select-Object only", pipeline.Extent);
         }
 
         IAotCmdlet? source = null;
         CommandInvocation? sourceInvocation = null;
         Filter? filter = null;
         IReadOnlyList<string>? columns = null;
+        AotSourceSpan? projectionSpan = null;
         var projected = false;
 
         for (var index = 0; index < pipeline.PipelineElements.Count; index++)
         {
             if (pipeline.PipelineElements[index] is not CommandAst command)
             {
-                throw Unsupported("pipeline elements must be command ASTs");
+                throw Unsupported("pipeline elements must be command ASTs", pipeline.PipelineElements[index].Extent);
             }
 
             LoweredCommand lowered = LowerCommand(command);
             if (index == 0)
             {
-                (source, sourceInvocation) = AotCmdletRegistry.BindCommand(lowered.Name, lowered.Arguments);
+                (source, sourceInvocation) = BindCommand(lowered);
                 columns = source.DefaultColumns;
                 continue;
             }
@@ -80,7 +80,7 @@ internal static class UpstreamAstPipelineLowerer
                     || !lowered.Arguments[1].IsParameter
                     || lowered.Arguments[2].IsParameter)
                 {
-                    throw Unsupported("Where-Object accepts one direct property/operator/value predicate in this subset");
+                    throw Unsupported("Where-Object accepts one direct property/operator/value predicate in this subset", command.Extent);
                 }
 
                 filter = ScriptParser.ParseFilterArguments(
@@ -88,7 +88,10 @@ internal static class UpstreamAstPipelineLowerer
                     lowered.Arguments[0].Text,
                     "-" + lowered.Arguments[1].Text,
                     lowered.Arguments[2].Text,
-                ]);
+                ],
+                lowered.Arguments[2].Span ?? lowered.CommandSpan,
+                lowered.Arguments[0].Span ?? lowered.CommandSpan,
+                lowered.Arguments[1].Span ?? lowered.CommandSpan);
                 continue;
             }
 
@@ -96,35 +99,49 @@ internal static class UpstreamAstPipelineLowerer
             {
                 if (projected || lowered.Arguments.Any(static argument => argument.IsParameter))
                 {
-                    throw Unsupported("Select-Object accepts one direct property projection only in this subset");
+                    throw Unsupported("Select-Object accepts one direct property projection only in this subset", command.Extent);
                 }
 
-                columns = ScriptParser.ParseColumns(lowered.Arguments.Select(static argument => argument.Text).ToArray());
+                if (lowered.Arguments.Count == 0)
+                {
+                    // Route an empty projection through the generic-stage
+                    // contract rather than indexing the first argument and
+                    // leaking an implementation exception.
+                    columns = ScriptParser.ParseColumns([], lowered.CommandSpan);
+                }
+                else
+                {
+                    columns = ScriptParser.ParseColumns(
+                        lowered.Arguments.Select(static argument => argument.Text).ToArray(),
+                        lowered.Arguments[0].Span ?? lowered.CommandSpan);
+                    projectionSpan = lowered.Arguments[0].Span ?? lowered.CommandSpan;
+                }
+
                 projected = true;
                 continue;
             }
 
-            throw Unsupported($"pipeline stage '{lowered.Name}'");
+            throw Unsupported($"pipeline stage '{lowered.Name}'", command.Extent);
         }
 
         if (source is null || sourceInvocation is null || columns is null)
         {
-            throw Unsupported("a source command is required");
+            throw Unsupported("a source command is required", pipeline.Extent);
         }
 
-        return new PipelinePlan(source, sourceInvocation, null, null, filter, columns, projected);
+        return new PipelinePlan(source, sourceInvocation, null, null, filter, columns, projected, projectionSpan);
     }
 
     private static LoweredCommand LowerCommand(CommandAst command)
     {
         if (command.Redirections.Count > 0)
         {
-            throw Unsupported("redirections");
+            throw Unsupported("redirections", command.Extent);
         }
 
         if (command.CommandElements.Count == 0 || command.CommandElements[0] is not StringConstantExpressionAst commandName)
         {
-            throw Unsupported("command expressions or invocation operators");
+            throw Unsupported("command expressions or invocation operators", command.Extent);
         }
 
         var arguments = new List<CommandSyntaxAtom>();
@@ -132,7 +149,7 @@ internal static class UpstreamAstPipelineLowerer
         {
             if (element is CommandParameterAst parameter)
             {
-                arguments.Add(new CommandSyntaxAtom(parameter.ParameterName, IsParameter: true));
+                arguments.Add(new CommandSyntaxAtom(parameter.ParameterName, IsParameter: true, AotScriptParser.ToSpan(parameter.Extent)));
                 if (parameter.Argument is not null)
                 {
                     AddExpressionArguments(parameter.Argument, arguments);
@@ -147,10 +164,10 @@ internal static class UpstreamAstPipelineLowerer
                 continue;
             }
 
-            throw Unsupported($"command element '{element.GetType().Name}'");
+            throw Unsupported($"command element '{element.GetType().Name}'", element.Extent);
         }
 
-        return new LoweredCommand(commandName.Value, arguments);
+        return new LoweredCommand(commandName.Value, AotScriptParser.ToSpan(commandName.Extent), arguments);
     }
 
     private static void AddExpressionArguments(ExpressionAst expression, List<CommandSyntaxAtom> arguments)
@@ -158,10 +175,10 @@ internal static class UpstreamAstPipelineLowerer
         switch (expression)
         {
             case StringConstantExpressionAst text:
-                arguments.Add(new CommandSyntaxAtom(text.Value, IsParameter: false));
+                arguments.Add(new CommandSyntaxAtom(text.Value, IsParameter: false, AotScriptParser.ToSpan(text.Extent)));
                 return;
             case ConstantExpressionAst constant:
-                arguments.Add(new CommandSyntaxAtom(FormatConstant(constant.Value), IsParameter: false));
+                arguments.Add(new CommandSyntaxAtom(FormatConstant(constant.Value, constant.Extent), IsParameter: false, AotScriptParser.ToSpan(constant.Extent)));
                 return;
             case ArrayLiteralAst array:
                 foreach (ExpressionAst element in array.Elements)
@@ -171,7 +188,7 @@ internal static class UpstreamAstPipelineLowerer
 
                 return;
             default:
-                throw Unsupported($"expression '{expression.GetType().Name}'");
+                throw Unsupported($"expression '{expression.GetType().Name}'", expression.Extent);
         }
     }
 
@@ -179,7 +196,7 @@ internal static class UpstreamAstPipelineLowerer
     // bridge into the string-valued descriptor binder, so keep it closed: a
     // future CLR constant must be explicitly designed, never gain command-line
     // meaning through an incidental ToString implementation.
-    private static string FormatConstant(object? value) => value switch
+    private static string FormatConstant(object? value, IScriptExtent extent) => value switch
     {
         null => string.Empty,
         bool boolean => boolean ? "True" : "False",
@@ -195,11 +212,31 @@ internal static class UpstreamAstPipelineLowerer
         float number => number.ToString("R", CultureInfo.InvariantCulture),
         double number => number.ToString("R", CultureInfo.InvariantCulture),
         decimal number => number.ToString(CultureInfo.InvariantCulture),
-        _ => throw Unsupported($"literal CLR type '{value.GetType().FullName}'"),
+        _ => throw Unsupported($"literal CLR type '{value.GetType().FullName}'", extent),
     };
 
-    private static ScriptException Unsupported(string detail) =>
-        new($"AotUnsupportedSyntax: {detail} is parsed but not executable by the Native AOT structural subset.");
+    private static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindCommand(LoweredCommand lowered)
+    {
+        try
+        {
+            return AotCmdletRegistry.BindCommand(lowered.Name, lowered.Arguments, lowered.CommandSpan);
+        }
+        catch (ScriptException exception)
+        {
+            throw exception.Diagnostic.Span is null ? exception.WithSpan(lowered.CommandSpan) : exception;
+        }
+    }
 
-    private sealed record LoweredCommand(string Name, IReadOnlyList<CommandSyntaxAtom> Arguments);
+    private static void ThrowIfParseFailed(AotParseResult parseResult)
+    {
+        if (parseResult.Diagnostics.Count != 0)
+        {
+            throw new ScriptException(parseResult.Diagnostics[0]);
+        }
+    }
+
+    private static ScriptException Unsupported(string detail, IScriptExtent extent) =>
+        new(AotDiagnostics.Unsupported(detail, AotScriptParser.ToSpan(extent), "Use only the documented Native AOT execution subset until this AST node has a reviewed plan."));
+
+    private sealed record LoweredCommand(string Name, AotSourceSpan CommandSpan, IReadOnlyList<CommandSyntaxAtom> Arguments);
 }

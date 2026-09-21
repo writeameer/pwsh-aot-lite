@@ -74,8 +74,8 @@ shapes:
 ```
 
 The refreshed artifact also verified the parser boundary: a trailing pipe
-fails with `AotParseError: EmptyPipeElement`; a script-block predicate and a
-four-stage pipeline fail with `AotUnsupportedSyntax`. These are deliberate
+fails with the preserved upstream `EmptyPipeElement` diagnostic; a script-block
+predicate and a four-stage pipeline fail with `AOT1001`. These are deliberate
 current-runner limits, not cmdlet behavior claims.
 
 The project self-test covers binding, aliases, parameter-set handling, fixture

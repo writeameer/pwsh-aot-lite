@@ -66,6 +66,19 @@ helper and compatibility facade; it is not a source parser.
 make the parser, AOT-boundary, and reuse controls operational for future
 agents.
 
+The [language-tooling contract](architecture/language-tooling-contract.md)
+keeps execution, CLI editing/highlighting, and future editor/LSP work on the
+same upstream parser output instead of allowing separate grammars to emerge.
+
+The [diagnostic-experience contract](architecture/diagnostic-contract.md)
+makes Rust-style, source-precise diagnostics a non-optional part of the AOT
+Execution Kernel rather than a later UI enhancement.
+
+The [AOT Execution Kernel foundation](architecture/aot-execution-kernel.md)
+records the actual AST-to-plan implementation slice, its stable diagnostics,
+and the next language increments. It must be updated before widening an
+execution-support claim.
+
 The closed, reflection-free pipeline data model and its first reviewed, limited
 adapter slice are documented in the [structured value-plane design](architecture/value-plane.md)
 and [first migration note](architecture/value-plane-first-migration.md).

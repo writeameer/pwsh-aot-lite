@@ -37,7 +37,9 @@ string? script = args.Length switch
 
 if (script is null)
 {
-    Console.Error.WriteLine("Script error: Expected one script argument or -Command <script>.");
+    Console.Error.WriteLine(AotDiagnosticRenderer.Render(
+        AotDiagnostics.HostUsage("Expected one script argument or -Command <script>."),
+        source: null));
     Environment.ExitCode = 2;
     return;
 }
