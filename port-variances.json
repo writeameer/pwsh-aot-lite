@@ -312,6 +312,41 @@
       ]
     },
     {
+      "command": "Test-Path",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/TestPathCommand.cs",
+      "state": "in-progress-wave3-direct-physical-probe-slice",
+      "variances": [
+        {
+          "id": "testpath-generated-contract",
+          "sourceFeature": "TestPathCommand Path/LiteralPath/PathType/provider parameter declarations and parameter sets",
+          "targetDecision": "Generated metadata remains authoritative; the active adapter admits only generated mandatory positional-or-named Path and generated PathType/Type.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "testpath-direct-physical-probe",
+          "sourceFeature": "ProcessRecord delegates existence and container checks to InvokeProvider.Item.Exists and IsContainer through SessionState and CmdletProviderContext",
+          "targetDecision": "Extend IPhysicalChildItemCatalog with ProbeDirectPhysicalItem, sharing captured-root canonicalization, provider/wildcard rejection, all-components no-follow descriptor acquisition, cancellation, and diagnostics. Its only results are Found(kind), Missing, and Rejected; only no-follow Missing becomes false without an error, while Rejected retains the catalog diagnostic and emits no Boolean.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "testpath-closed-pathtype-and-boolean",
+          "sourceFeature": "TestPathType enum binding plus WriteObject(bool) scalar output",
+          "targetDecision": "Use an explicit case-insensitive static Any/Container/Leaf vocabulary and a finite BooleanRecord with explicit PipelineValueAdapter registration and prose scalar presentation. Enum abbreviations/numeric coercion, PSObject, ETS, type discovery, and table imitation are absent.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "testpath-provider-literal-pipeline-isvalid-deferrals",
+          "sourceFeature": "LiteralPath, provider drives, wildcard expansion, IsValid syntax mode, filters, dynamic parameters, provider ErrorRecords, links/hidden paths, and pipeline/property-name binding",
+          "targetDecision": "These source provider-engine behaviors are absent from the descriptor or fail closed at the shared binder/catalog boundary. The noninteractive runner also does not synthesize a mandatory Path prompt; omitted Path fails with AOT6211 and an unsupported closed PathType value fails with AOT6212.",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Get-FileHash",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetHash.cs",
       "state": "complete-direct-physical-file-target",

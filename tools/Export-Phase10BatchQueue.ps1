@@ -27,7 +27,8 @@ $alreadyProven = @(
 # distinct, immutable integration batch instead of being retroactively called
 # a baseline.
 $integratedDuringCampaign = @(
-    'Get-Item'
+    'Get-Item',
+    'Test-Path'
 )
 
 # Batch 01 is intentionally the next direct physical-filesystem cluster.  Its
