@@ -40,6 +40,7 @@ The migration order and candidacy decisions are maintained in the
 | `Get-Date` | direct modes ported; pipeline binding deferred | [Get-Date port notes](cmdlets/get-date.md) |
 | `Get-FileHash` | direct physical-file modes ported; provider/stream binding deferred | [Get-FileHash port notes](cmdlets/get-filehash.md) |
 | `Get-ChildItem` | complete for the bounded Wave 3 macOS-arm64 captured-root direct physical default/positional/`-Path` immediate-child slice, with a statically extracted upstream Unix default view | [Get-ChildItem port notes](cmdlets/get-childitem.md) |
+| `Get-Item` | in progress: bounded Wave 3 captured-root direct physical file-or-directory lookup slice | [Get-Item port notes](cmdlets/get-item.md) |
 | `New-Guid` | default UUID v7 and generated `-Empty` ported; typed input/output deferred | [New-Guid port notes](cmdlets/new-guid.md) |
 | `New-TimeSpan` | no-argument and typed direct component construction ported; date/pipeline input deferred | [New-TimeSpan port notes](cmdlets/new-timespan.md) |
 | `Start-Sleep` | generated `-Milliseconds`/`-ms` ported; seconds, duration, positional, and pipeline input deferred | [Start-Sleep port notes](cmdlets/start-sleep.md) |
