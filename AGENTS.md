@@ -41,6 +41,9 @@ The runner must remain Native-AOT safe:
 11. `docs/architecture/provider-host-substrate.md` — capability authority map
     for physical files, process inspection, host/platform state, and explicit
     unavailable credential/network boundaries.
+12. `docs/campaign/phase10-built-in-cmdlets.md` — checked 290-declaration
+    campaign classification; do not port outside its prerequisites or silently
+    reclassify a row.
 
 ## Mandatory independent review process
 

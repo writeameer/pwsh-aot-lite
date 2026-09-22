@@ -38,7 +38,7 @@ public sealed class PortManifestGenerator : IIncrementalGenerator
                 string text = RemoveConditionalDirectives(file.GetText(cancellationToken)?.ToString() ?? string.Empty);
                 CompilationUnitSyntax root = CSharpSyntaxTree.ParseText(text, cancellationToken: cancellationToken).GetCompilationUnitRoot(cancellationToken);
                 return root.DescendantNodes().OfType<ClassDeclarationSyntax>()
-                    .Select(declaration => new SourceDeclaration(Path.GetFileName(file.Path), declaration));
+                    .Select(declaration => new SourceDeclaration(RelativePowerShellSourcePath(file.Path), declaration));
             })
             .ToArray();
         Dictionary<string, ClassDeclarationSyntax> classes = declarations
@@ -64,7 +64,7 @@ public sealed class PortManifestGenerator : IIncrementalGenerator
                 continue;
             }
 
-            string verb = LastIdentifier(arguments[0].Expression);
+            string verb = ResolveString(arguments[0].Expression, declaration, classes);
             string noun = ResolveString(arguments[1].Expression, declaration, classes);
             if (verb.Length == 0 || noun.Length == 0)
             {
@@ -143,6 +143,14 @@ public sealed class PortManifestGenerator : IIncrementalGenerator
                 static variable => variable.Identifier.ValueText,
                 static variable => ((LiteralExpressionSyntax)variable.Initializer!.Value).Token.ValueText,
                 StringComparer.Ordinal);
+    }
+
+    private static string RelativePowerShellSourcePath(string path)
+    {
+        string normalized = path.Replace('\\', '/');
+        const string marker = "/src/";
+        int markerIndex = normalized.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        return markerIndex >= 0 ? normalized.Substring(markerIndex + 1) : Path.GetFileName(path);
     }
 
     private static IReadOnlyDictionary<string, string> ExtractVerbDescriptions(ImmutableArray<AdditionalText> files, System.Threading.CancellationToken cancellationToken)
@@ -276,6 +284,20 @@ public sealed class PortManifestGenerator : IIncrementalGenerator
         }
 
         string identifier = LastIdentifier(expression);
+        if (expression is MemberAccessExpressionSyntax memberAccess
+            && classes.TryGetValue(LastIdentifier(memberAccess.Expression), out ClassDeclarationSyntax? qualifiedScope))
+        {
+            VariableDeclaratorSyntax? qualifiedConstant = qualifiedScope.Members.OfType<FieldDeclarationSyntax>()
+                .Where(static field => field.Modifiers.Any(SyntaxKind.ConstKeyword))
+                .SelectMany(static field => field.Declaration.Variables)
+                .FirstOrDefault(variable => variable.Identifier.ValueText == identifier);
+            if (qualifiedConstant?.Initializer?.Value is LiteralExpressionSyntax qualifiedValue
+                && qualifiedValue.IsKind(SyntaxKind.StringLiteralExpression))
+            {
+                return qualifiedValue.Token.ValueText;
+            }
+        }
+
         foreach (ClassDeclarationSyntax current in EnumerateHierarchy(scope, classes))
         {
             VariableDeclaratorSyntax? constant = current.Members.OfType<FieldDeclarationSyntax>()
