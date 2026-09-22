@@ -1,7 +1,7 @@
 # Review: Named local functions
 
-Date: `2026-09-22`  
-Claim reviewed: `The Native AOT kernel executes a narrow, pre-lowered subset of sequential root local-function declarations and direct positional calls, with child caller scope and ordered output forwarding.`  
+Date: `2026-09-22`
+Claim reviewed: `The Native AOT kernel executes a narrow, pre-lowered subset of sequential root local-function declarations and direct positional calls, with child caller scope and ordered output forwarding.`
 Upstream commit: `1e53f6bbab4b8791eae782474d21889f9e5d6038`
 
 ## Evidence
