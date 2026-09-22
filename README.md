@@ -11,6 +11,8 @@ conditional, and closed-list `foreach` slice, not a claim of general script comp
 binding, scope, and unsupported-feature failures use typed source-aware diagnostics.
 See the [AOT Execution Kernel foundation](docs/architecture/aot-execution-kernel.md)
 and [Language Compatibility Core](docs/architecture/language-compatibility-core.md).
+Shared native host dependencies and their explicit authority boundaries are in
+[the provider and host substrate](docs/architecture/provider-host-substrate.md).
 
 Supported pipeline:
 

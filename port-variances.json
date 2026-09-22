@@ -44,6 +44,13 @@
           "automationCandidate": "partial"
         },
         {
+          "id": "process-owner-platform-boundary",
+          "sourceFeature": "Process ownership enrichment through platform process APIs and PowerShell error records",
+          "targetDecision": "IncludeUserName uses a dedicated IProcessOwnerReader. The only current local reader invokes fixed absolute /bin/ps with a fixed argument list on macOS/Linux; other platforms emit CouldNotRetrieveUserName. It is not a general process-launch service.",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        },
+        {
           "id": "resource-errors",
           "sourceFeature": "localized ProcessResources and ErrorRecord categories",
           "targetDecision": "stable error IDs and plain messages in AotExecutionContext",
@@ -515,7 +522,7 @@
         {
           "id": "installmodule-local-file-only",
           "sourceFeature": "Install-Module supports remote repositories and package-manager transports",
-          "targetDecision": "Accept only hostless credential-free file URIs whose directory is physically contained by explicit PWSH_AOT_PACKAGE_ROOTS, physically canonicalize configured roots so platform aliases remain valid, require an explicit PWSH_AOT_EXTENSIONS_ROOT write target, and reject symlinks below resolved trusted roots",
+          "targetDecision": "Accept only hostless credential-free file URIs whose directory is physically contained by explicit PWSH_AOT_PACKAGE_ROOTS, physically canonicalize configured roots so platform aliases remain valid, require an explicit PWSH_AOT_EXTENSIONS_ROOT write target, and reject symlinks below resolved trusted roots. These two deployment keys flow through injectable IAotHostConfiguration rather than direct cmdlet environment access.",
           "status": "deliberate-subset",
           "automationCandidate": "yes"
         },

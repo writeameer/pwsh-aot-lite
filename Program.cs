@@ -36,7 +36,7 @@ if (args.SequenceEqual(["--help"]))
 
 if (args.Length == 2 && args[0].Equals("--complete", StringComparison.OrdinalIgnoreCase))
 {
-    CompletionWriter.Write(CompletionService.Instance.Suggest(args[1]));
+    CompletionWriter.Write(AotHostComposition.Completion.Suggest(args[1]));
     return;
 }
 
