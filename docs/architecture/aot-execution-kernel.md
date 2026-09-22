@@ -67,7 +67,7 @@ generic pipeline boundary only through the existing explicit `AotValue`/
 | `AOT2005` | Positional argument is not supported |
 | `AOT3001`–`AOT3004` | `Get-Process` validation failures with command source context |
 | `AOT4001`–`AOT4008` | `Where-Object` / `Select-Object` structural-stage validation failures |
-| `AOT5001`–`AOT5008` | Lexical scope, value-to-binder conversion, variable predicate, closed conditional/list iteration, and bounded local-function failures |
+| `AOT5001`–`AOT5012` | Lexical scope, value-to-binder conversion, variable predicate, closed conditional/list iteration, and bounded local-function failures |
 | `AOT3000` | Transitional typed wrapper around an untouched legacy runtime error; it still inherits the active command span |
 | `AOT9000` | Unexpected host failure, with implementation detail withheld from normal output |
 
