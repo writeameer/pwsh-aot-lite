@@ -31,6 +31,7 @@ internal static class PipelineValueAdapter
             or TimeSpanRecord
             or TextRecord
             or FileHashRecord
+            or PhysicalChildItemRecord
             or CommandInfoRecord
             or ModuleInfoRecord
             or RepositoryModuleRecord
@@ -128,6 +129,21 @@ internal static class PipelineValueAdapter
                 Field("Algorithm", Text(value.Algorithm)),
                 Field("Hash", Text(value.Hash)),
                 Field("Path", Text(value.Path))),
+            PhysicalChildItemRecord value => Record(
+                Field("Name", Text(value.Name)),
+                Field("Path", Text(value.Path)),
+                Field("FullName", Text(value.Path)),
+                Field("ParentPath", Text(value.ParentPath)),
+                Field("Type", Text(value.Kind.ToString())),
+                Field("Kind", Text(value.Kind.ToString())),
+                Field("Length", value.Length is long length ? Integer(length) : AotValue.Null),
+                Field("IsDirectory", Boolean(value.Kind == PhysicalChildItemKind.Directory)),
+                Field("LastWriteTimeUtc", DateTime(value.LastWriteTimeUtc)),
+                Field("UnixMode", Text(value.UnixMode)),
+                Field("User", Text(value.User)),
+                Field("Group", Text(value.Group)),
+                Field("LastWriteTime", DateTime(value.LastWriteTime)),
+                Field("Size", Integer(value.Size))),
             CommandInfoRecord value => Record(
                 Field("Name", Text(value.Name)),
                 Field("CommandType", Text(value.CommandType)),

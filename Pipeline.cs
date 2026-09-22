@@ -709,6 +709,7 @@ internal interface IAotCmdlet
     CmdletDescriptor Descriptor { get; }
     IReadOnlyList<string> DefaultColumns { get; }
     AotTerminalPresentation TerminalPresentation { get; }
+    AotTableLayout? DefaultTableLayout { get; }
     IEnumerable<IPipelineRecord> Invoke(
         CommandInvocation invocation,
         AotExecutionContext context,
@@ -742,6 +743,7 @@ internal abstract class AotCmdletBase : IAotCmdlet
     public abstract CmdletDescriptor Descriptor { get; }
     public abstract IReadOnlyList<string> DefaultColumns { get; }
     public virtual AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Table;
+    public virtual AotTableLayout? DefaultTableLayout => null;
 
     public IEnumerable<IPipelineRecord> Invoke(
         CommandInvocation invocation,
@@ -876,7 +878,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -2094,6 +2096,14 @@ internal sealed class PipelinePlan(
             ? source.TerminalPresentation
             : AotTerminalPresentation.Table;
 
+    // An upstream-derived static view only applies to the command's direct
+    // result. A typed input stage or structural projection owns a new shape,
+    // so retaining the source view there would mislabel transformed data.
+    internal AotTableLayout? TerminalTableLayout =>
+        inputStage is null && transforms.Count == 0
+            ? source.DefaultTableLayout
+            : null;
+
     // Production execution carries this canonical batch through the runtime
     // event; it never creates compatibility rows in the engine.
     internal AotRecordBatch ExecuteBatch(AotExecutionContext context)
@@ -2293,34 +2303,112 @@ internal static class TableWriter
         IReadOnlyList<string> columns,
         TextWriter? writer = null,
         AotExecutionContext? projectionContext = null,
-        Action? afterRowRendered = null)
+        Action? afterRowRendered = null,
+        AotTableLayout? layout = null)
     {
         writer ??= Console.Out;
-        int[] widths = columns.Select(static column => column.Length).ToArray();
+        IReadOnlyList<AotTableColumn> tableColumns = ResolveColumns(columns, layout);
+        string columnSeparator = layout?.ColumnSeparator ?? "  ";
+        int[] widths = tableColumns.Select(static column => Math.Max(column.Header.Length, column.MinimumWidth)).ToArray();
         foreach (IPipelineRecord row in rows)
         {
             projectionContext?.ThrowIfCancellationRequested();
-            for (int index = 0; index < columns.Count; index++)
+            for (int index = 0; index < tableColumns.Count; index++)
             {
-                widths[index] = Math.Max(widths[index], row.TextFor(columns[index]).Length);
+                widths[index] = Math.Max(widths[index], RenderCell(row, tableColumns[index]).Length);
             }
         }
 
-        WriteLine(columns, widths, writer);
-        WriteLine(widths.Select(static width => new string('-', width)).ToArray(), widths, writer);
+        AotTableGroup? group = layout?.Group;
+        string? activeGroup = null;
+        bool wroteGroup = false;
         foreach (IPipelineRecord row in rows)
         {
             projectionContext?.ThrowIfCancellationRequested();
-            WriteLine(columns.Select(row.TextFor).ToArray(), widths, writer);
+            if (group is not null)
+            {
+                string rowGroup = row.TextFor(group.Field);
+                if (!string.Equals(activeGroup, rowGroup, StringComparison.Ordinal))
+                {
+                    if (wroteGroup)
+                    {
+                        writer.WriteLine();
+                    }
+
+                    writer.WriteLine();
+                    writer.WriteLine($"    {group.Header}: {rowGroup}");
+                    writer.WriteLine();
+                    WriteLine(tableColumns.Select(static column => column.Header).ToArray(), widths, tableColumns, columnSeparator, writer);
+                    WriteSeparator(tableColumns, widths, columnSeparator, writer);
+                    activeGroup = rowGroup;
+                    wroteGroup = true;
+                }
+            }
+            else if (!wroteGroup)
+            {
+                WriteLine(tableColumns.Select(static column => column.Header).ToArray(), widths, tableColumns, columnSeparator, writer);
+                WriteSeparator(tableColumns, widths, columnSeparator, writer);
+                wroteGroup = true;
+            }
+
+            WriteLine(tableColumns.Select(column => RenderCell(row, column)).ToArray(), widths, tableColumns, columnSeparator, writer);
             afterRowRendered?.Invoke();
         }
 
         projectionContext?.ThrowIfCancellationRequested();
     }
 
-    private static void WriteLine(IReadOnlyList<string> values, IReadOnlyList<int> widths, TextWriter writer)
+    private static IReadOnlyList<AotTableColumn> ResolveColumns(IReadOnlyList<string> columns, AotTableLayout? layout)
     {
-        writer.WriteLine(string.Join("  ", values.Select((value, index) => value.PadRight(widths[index]))));
+        if (layout is null)
+        {
+            return columns.Select(static column => new AotTableColumn(column, column)).ToArray();
+        }
+
+        if (!layout.Columns.Select(static column => column.Field).SequenceEqual(columns, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("A static terminal table layout did not match the output record shape.");
+        }
+
+        return layout.Columns;
+    }
+
+    private static string RenderCell(IPipelineRecord row, AotTableColumn column)
+    {
+        if (column.ValueFormat == AotTableValueFormat.FileSystemLastWriteTime
+            && row is AotPipelineRecord { Record: var record }
+            && record.TryGetValue(column.Field, out AotValue value)
+            && value.TryGetDateTime(out DateTime dateTime))
+        {
+            // Static transcription of FileSystem_format_ps1xml.cs:
+            // '{0:d} {0:HH}:{0:mm}' -f $_.LastWriteTime.
+            return string.Format(CultureInfo.CurrentCulture, "{0:d} {0:HH}:{0:mm}", dateTime);
+        }
+
+        return row.TextFor(column.Field);
+    }
+
+    private static void WriteLine(
+        IReadOnlyList<string> values,
+        IReadOnlyList<int> widths,
+        IReadOnlyList<AotTableColumn> columns,
+        string columnSeparator,
+        TextWriter writer)
+    {
+        string line = string.Join(columnSeparator, values.Select((value, index) => columns[index].Alignment == AotTableAlignment.Right
+            ? value.PadLeft(widths[index])
+            : value.PadRight(widths[index])));
+        // Console table controls do not serialize the padding past the final
+        // cell. Keep column geometry intact while matching that terminal fact.
+        writer.WriteLine(line.TrimEnd());
+    }
+
+    private static void WriteSeparator(IReadOnlyList<AotTableColumn> columns, IReadOnlyList<int> widths, string columnSeparator, TextWriter writer)
+    {
+        // PowerShell table controls retain declared display widths for column
+        // positioning but underline the header text itself, not all padding;
+        // the underline follows the source header's declared alignment.
+        WriteLine(columns.Select(static column => new string('-', column.Header.Length)).ToArray(), widths, columns, columnSeparator, writer);
     }
 }
 
@@ -2371,7 +2459,7 @@ internal static class SelfTest
         PipelinePlan builtInHelpPlan = ScriptParser.Parse("Get-Help Get-ChildItem");
         IReadOnlyList<IPipelineRecord> builtInHelpRows = builtInHelpPlan.Execute(new AotExecutionContext());
         if (builtInHelpRows.SingleOrDefault() is not HelpRecord { Content: var builtInHelp }
-            || !builtInHelp.Contains("catalogued from source; no native AOT adapter", StringComparison.Ordinal)
+            || !builtInHelp.Contains("native-aot (implemented current scope)", StringComparison.Ordinal)
             || !builtInHelp.Contains("-Path <string[]>", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Get-Help did not render the generated built-in contract.");
@@ -2408,7 +2496,7 @@ internal static class SelfTest
         PipelinePlan builtInCommandPlan = ScriptParser.Parse("Get-Command Get-ChildItem");
         if (builtInCommandPlan.Execute(new AotExecutionContext()).SingleOrDefault() is not CommandInfoRecord
             {
-                Name: "Get-ChildItem", CommandType: "Cmdlet", ModuleName: "PowerShell.BuiltIn", Availability: "catalogued-only",
+                Name: "Get-ChildItem", CommandType: "Cmdlet", ModuleName: "PowerShell.BuiltIn", Availability: "native-aot",
             })
         {
             throw new InvalidOperationException("Get-Command did not query the built-in source catalog.");
@@ -2649,6 +2737,170 @@ internal static class SelfTest
                 pipelineLength: 2).SingleOrDefault() is not ProcessRecord { Id: 7 })
         {
             throw new InvalidOperationException("Get-Process InputObject regression.");
+        }
+
+        SourceCmdletMetadata getChildItemContract = GeneratedCmdletPorts.GetChildItem;
+        if (!getChildItemContract.BaseTypeChain.Take(2).SequenceEqual(["CoreCommandBase", "PSCmdlet"])
+            || getChildItemContract.Parameters.Single(parameter => parameter.Name == "Path").ParameterSets.Single().Position != 0
+            || !getChildItemContract.Parameters.Single(parameter => parameter.Name == "LiteralPath").Aliases.SequenceEqual(["PSPath", "LP"])
+            || !getChildItemContract.Parameters.Single(parameter => parameter.Name == "Recurse").Aliases.SequenceEqual(["s", "r"]))
+        {
+            throw new InvalidOperationException("Generated Get-ChildItem contract regression.");
+        }
+
+        // macOS exposes /tmp and /var through intentional system symlinks.
+        // This fixture must exercise the strict all-components direct-path
+        // policy itself, so locate it below the caller's checked-out working
+        // directory rather than an alias-rooted temporary directory.
+        string childItemFixtureDirectory = Path.Combine(Environment.CurrentDirectory, $"pwsh-aot-lite-childitems-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(childItemFixtureDirectory);
+        try
+        {
+            string childAlphaPath = Path.Combine(childItemFixtureDirectory, "alpha.txt");
+            string childBetaPath = Path.Combine(childItemFixtureDirectory, "beta.txt");
+            string childDirectoryPath = Path.Combine(childItemFixtureDirectory, "folder");
+            string hiddenChildPath = Path.Combine(childItemFixtureDirectory, ".hidden.txt");
+            File.WriteAllText(childAlphaPath, "alpha");
+            File.WriteAllText(childBetaPath, "beta");
+            Directory.CreateDirectory(childDirectoryPath);
+            File.WriteAllText(hiddenChildPath, "hidden");
+
+            IAotHostPlatform macOsChildItemPlatform = new FixtureHostPlatform(new AotHostPlatformSnapshot(AotHostOperatingSystem.MacOS, System.Runtime.InteropServices.Architecture.Arm64));
+            GetChildItemCmdlet childItems = new(new SystemPhysicalChildItemCatalog(new FixtureDiscoveryRoots(childItemFixtureDirectory), macOsChildItemPlatform));
+            PhysicalChildItemRecord[] defaultChildItems = childItems.Invoke(
+                new CommandInvocation(childItems.Descriptor, new Dictionary<string, string[]>()),
+                new AotExecutionContext()).Cast<PhysicalChildItemRecord>().ToArray();
+            string[] expectedChildPaths = [childDirectoryPath, childAlphaPath, childBetaPath];
+            if (!defaultChildItems.Select(static item => item.Path).SequenceEqual(expectedChildPaths)
+                || defaultChildItems.Single(item => item.Path == childDirectoryPath) is not { Kind: PhysicalChildItemKind.Directory, Length: null }
+                || defaultChildItems.Single(item => item.Path == childAlphaPath) is not { Kind: PhysicalChildItemKind.File, Length: 5, Size: 5, UnixMode: var alphaMode }
+                || alphaMode.Length != 10
+                || defaultChildItems.Any(static item => string.IsNullOrWhiteSpace(item.User) || string.IsNullOrWhiteSpace(item.Group)))
+            {
+                throw new InvalidOperationException("Get-ChildItem captured-root/default immediate-child enumeration regression.");
+            }
+
+            if (!childItems.DefaultColumns.SequenceEqual(["UnixMode", "User", "Group", "LastWriteTime", "Size", "Name"])
+                || childItems.DefaultTableLayout is not { Group: { Field: "ParentPath", Header: "Directory" }, ColumnSeparator: " ", Columns: var childColumns }
+                || !childColumns.Select(static column => column.Field).SequenceEqual(childItems.DefaultColumns)
+                || !childColumns.Select(static column => column.Header).SequenceEqual(["UnixMode", "User", "Group", "LastWriteTime", "Size", "Name"]))
+            {
+                throw new InvalidOperationException("Get-ChildItem static upstream Unix display-view transcription regression.");
+            }
+
+            // The catalog owns direct physical enumeration, so it must observe
+            // a host cancellation even when called below the cmdlet lifecycle.
+            using (CancellationTokenSource cancelledChildEnumeration = new())
+            {
+                cancelledChildEnumeration.Cancel();
+                AotExecutionContext cancelledChildContext = new(cancelledChildEnumeration.Token);
+                AssertCancellation(() => ((IPhysicalChildItemCatalog)new SystemPhysicalChildItemCatalog(
+                    new FixtureDiscoveryRoots(childItemFixtureDirectory), macOsChildItemPlatform))
+                    .GetImmediateChildren(childItemFixtureDirectory, cancelledChildContext, span: null)
+                    .ToArray());
+                if (cancelledChildContext.Errors.Count != 0 || cancelledChildContext.Events.Count != 0)
+                {
+                    throw new InvalidOperationException("Get-ChildItem catalog cancellation leaked output or an error event.");
+                }
+            }
+
+            AotExecutionContext unsupportedDarwinArchitecture = new();
+            _ = ((IPhysicalChildItemCatalog)new SystemPhysicalChildItemCatalog(
+                new FixtureDiscoveryRoots(childItemFixtureDirectory),
+                new FixtureHostPlatform(new AotHostPlatformSnapshot(AotHostOperatingSystem.MacOS, System.Runtime.InteropServices.Architecture.X64))))
+                .GetImmediateChildren(childItemFixtureDirectory, unsupportedDarwinArchitecture, span: null)
+                .ToArray();
+            if (unsupportedDarwinArchitecture.Errors.SingleOrDefault()?.Id != "AOT6209")
+            {
+                throw new InvalidOperationException("Get-ChildItem Darwin ABI gate regression.");
+            }
+
+            PhysicalChildItemRecord[] exactFile = childItems.Invoke(
+                new CommandInvocation(childItems.Descriptor, new Dictionary<string, string[]> { ["Path"] = [childAlphaPath] }),
+                new AotExecutionContext()).Cast<PhysicalChildItemRecord>().ToArray();
+            if (exactFile is not [var singleFile]
+                || singleFile is not { Name: "alpha.txt", Path: var exactPath, Kind: PhysicalChildItemKind.File, Length: 5, Size: 5 }
+                || exactPath != childAlphaPath)
+            {
+                throw new InvalidOperationException("Get-ChildItem exact direct-file projection regression.");
+            }
+
+            string childLinkPath = Path.Combine(childItemFixtureDirectory, "alpha-link.txt");
+            File.CreateSymbolicLink(childLinkPath, childAlphaPath);
+            AotExecutionContext symbolicLinkContext = new();
+            if (childItems.Invoke(new CommandInvocation(childItems.Descriptor, new Dictionary<string, string[]> { ["Path"] = [childLinkPath] }), symbolicLinkContext).Any()
+                || symbolicLinkContext.Errors.SingleOrDefault()?.Id != "AOT6205")
+            {
+                throw new InvalidOperationException("Get-ChildItem no-follow direct-link regression.");
+            }
+
+            // The all-components resolver must not accept a syntactically
+            // ordinary file that reaches its target through a linked parent.
+            // This is distinct from the final-link check above: accepting it
+            // would reintroduce traversal before the final O_NOFOLLOW flag.
+            string linkedAncestorTarget = Path.Combine(childItemFixtureDirectory, "linked-ancestor-target");
+            string linkedAncestorChild = Path.Combine(linkedAncestorTarget, "descendant.txt");
+            string linkedAncestor = Path.Combine(childItemFixtureDirectory, "linked-ancestor");
+            Directory.CreateDirectory(linkedAncestorTarget);
+            File.WriteAllText(linkedAncestorChild, "must-not-traverse");
+            Directory.CreateSymbolicLink(linkedAncestor, linkedAncestorTarget);
+            AotExecutionContext ancestorLinkContext = new();
+            if (childItems.Invoke(new CommandInvocation(childItems.Descriptor, new Dictionary<string, string[]> { ["Path"] = [Path.Combine(linkedAncestor, "descendant.txt")] }), ancestorLinkContext).Any()
+                || ancestorLinkContext.Errors.SingleOrDefault()?.Id != "AOT6205")
+            {
+                throw new InvalidOperationException("Get-ChildItem no-follow ancestor-link regression.");
+            }
+
+            (_, CommandInvocation positionalChildItem) = AotCmdletRegistry.ParseSource($"Get-ChildItem '{childAlphaPath}'");
+            (_, CommandInvocation namedChildItem) = AotCmdletRegistry.ParseSource($"Get-ChildItem -Path '{childBetaPath}'");
+            if (!positionalChildItem.TryGetValues("Path", out string[] positionalChildPaths)
+                || !positionalChildPaths.SequenceEqual([childAlphaPath])
+                || !namedChildItem.TryGetValues("Path", out string[] namedChildPaths)
+                || !namedChildPaths.SequenceEqual([childBetaPath]))
+            {
+                throw new InvalidOperationException("Get-ChildItem generated Path positional/named binding regression.");
+            }
+
+            AotSourceSpan childItemSpan = new("childitem-fixture.ps1", 14, 29, 1, 15, 1, 30);
+            AotExecutionContext providerContext = new();
+            _ = childItems.Invoke(new CommandInvocation(childItems.Descriptor, new Dictionary<string, string[]>
+            {
+                ["Path"] = ["FileSystem::/tmp"],
+            }, childItemSpan, new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [childItemSpan] }), providerContext).ToArray();
+            if (providerContext.Errors.SingleOrDefault()?.Diagnostic is not { Id: "AOT6201", Span: var providerSpan }
+                || !ReferenceEquals(providerSpan, childItemSpan))
+            {
+                throw new InvalidOperationException("Get-ChildItem provider rejection/source-span regression.");
+            }
+
+            AotExecutionContext wildcardContext = new();
+            _ = childItems.Invoke(new CommandInvocation(childItems.Descriptor, new Dictionary<string, string[]> { ["Path"] = [Path.Combine(childItemFixtureDirectory, "*.txt")] }), wildcardContext).ToArray();
+            if (wildcardContext.Errors.SingleOrDefault()?.Id != "AOT6202")
+            {
+                throw new InvalidOperationException("Get-ChildItem wildcard rejection regression.");
+            }
+
+            try
+            {
+                _ = AotCmdletRegistry.ParseSource($"Get-ChildItem -LP '{childAlphaPath}'");
+                throw new InvalidOperationException("Get-ChildItem accepted unsupported LiteralPath.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
+            {
+            }
+
+            try
+            {
+                _ = AotCmdletRegistry.ParseSource($"Get-ChildItem -Recurse '{childItemFixtureDirectory}'");
+                throw new InvalidOperationException("Get-ChildItem accepted unsupported Recurse.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
+            {
+            }
+        }
+        finally
+        {
+            Directory.Delete(childItemFixtureDirectory, recursive: true);
         }
 
         SourceCmdletMetadata getFileHashContract = GeneratedCmdletPorts.GetFileHash;
@@ -3715,7 +3967,7 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         AssertCommonParameterFailure("Get-Verb -ErrorAction Ignore", "common-unsupported-error-action.ps1", "AOT1001");
         AssertCommonParameterFailure("Get-Verb -WarningAction SilentlyContinue", "common-unsupported-common.ps1", "AOT1001");
         AssertCommonParameterFailure("Get-Verb -Verbose:'false'", "common-string-switch.ps1", "AOT1001");
-        AssertCommonParameterFailure("Get-ChildItem -ErrorAction Ignore", "common-catalog-only.ps1", "AOT2001");
+        AssertCommonParameterFailure("Get-ChildItem -ErrorAction Ignore", "common-get-childitem.ps1", "AOT1001");
         AssertCommonParameterFailure("No-SuchCommand -ErrorAction Ignore", "common-unknown.ps1", "AOT2001");
 
         StringWriter stdout = new();
@@ -6285,6 +6537,12 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
 
             return "fixture-user";
         }
+    }
+
+    private sealed class FixtureDiscoveryRoots(string currentDirectory) : IAotHostDiscoveryRoots
+    {
+        public string CurrentDirectory { get; } = currentDirectory;
+        public string ApplicationBaseDirectory { get; } = currentDirectory;
     }
 
     private sealed class FixtureHostCulture(CultureInfo currentUICulture) : IHostCulture

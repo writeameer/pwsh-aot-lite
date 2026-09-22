@@ -8,7 +8,15 @@ are not a compatibility claim.
 ## Rules
 
 - Create `cmdlets/<command-name>.md` before starting a port.
+- Start its UTC wall-clock record before research/design work, using
+  [the per-cmdlet template](cmdlets/TEMPLATE.md), and add the same row to the
+  [port timing ledger](cmdlets/port-timing.md). Record an end only after
+  verification and integration; never invent historical times.
 - Link the original source and the generated contract.
+- Complete the mandatory **Upstream reuse evidence matrix** before implementation.
+  It must give pinned source/base/format evidence, a permitted reuse decision,
+  a concrete why-not-copy rationale for each replacement, and the matching
+  variance ID. See [upstream reuse governance](architecture/upstream-reuse-governance.md).
 - Record the implemented behavior, failed approaches, and every observed
   variance from PowerShell.
 - Keep the structured, machine-readable entry in
@@ -31,6 +39,7 @@ The migration order and candidacy decisions are maintained in the
 | `Get-TimeZone` | complete for the current AOT target | [Get-TimeZone port notes](cmdlets/get-timezone.md) |
 | `Get-Date` | direct modes ported; pipeline binding deferred | [Get-Date port notes](cmdlets/get-date.md) |
 | `Get-FileHash` | direct physical-file modes ported; provider/stream binding deferred | [Get-FileHash port notes](cmdlets/get-filehash.md) |
+| `Get-ChildItem` | complete for the bounded Wave 3 macOS-arm64 captured-root direct physical default/positional/`-Path` immediate-child slice, with a statically extracted upstream Unix default view | [Get-ChildItem port notes](cmdlets/get-childitem.md) |
 | `New-Guid` | default UUID v7 and generated `-Empty` ported; typed input/output deferred | [New-Guid port notes](cmdlets/new-guid.md) |
 | `New-TimeSpan` | no-argument and typed direct component construction ported; date/pipeline input deferred | [New-TimeSpan port notes](cmdlets/new-timespan.md) |
 | `Start-Sleep` | generated `-Milliseconds`/`-ms` ported; seconds, duration, positional, and pipeline input deferred | [Start-Sleep port notes](cmdlets/start-sleep.md) |
@@ -68,6 +77,11 @@ helper and compatibility facade; it is not a source parser.
 [Reviewer personas and the review ledger](architecture/reviewer-personas.md)
 make the parser, AOT-boundary, and reuse controls operational for future
 agents.
+
+The [upstream reuse and format-contract governance](architecture/upstream-reuse-governance.md)
+is the mandatory anti-NIH evidence gate for every cmdlet port: it requires
+pinned-source proof for reused behavior and for every output/default-display
+surface, and approves only explicit AOT replacements.
 
 The [language-tooling contract](architecture/language-tooling-contract.md)
 keeps execution, CLI editing/highlighting, and future editor/LSP work on the
@@ -132,16 +146,23 @@ generic pipeline stages cross the explicit `AotValue` adapter.
 
 ## Per-cmdlet note shape
 
-Use this structure for every new file:
+Start from [the per-cmdlet template](cmdlets/TEMPLATE.md). Use this structure
+for every new file:
 
-1. **Status and source** — original files, base classes, generated contract.
+1. **Status, source, and port timing** — original files, base classes,
+   generated contract, UTC start/end, elapsed wall clock, and scoped slice.
 2. **What transferred** — code/behavior retained and its AOT counterpart.
-3. **What did not transfer** — engine dependencies, failed approaches, and
+3. **Upstream reuse evidence matrix** — exact upstream producer/base/format
+   contract, permitted reuse decision, variance, why-not-copy rationale, and
+   verification for every behavior/output surface.
+4. **What did not transfer** — engine dependencies, failed approaches, and
    explicit deferrals.
-4. **Verification** — fixture and Native AOT commands actually run.
-5. **Variances** — concise summary plus links/IDs from `port-variances.json`.
-6. **Reusable learnings** — candidates for generator or shared-runtime work.
-7. **Next action** — blank only when the port is genuinely complete.
+5. **Verification** — fixture and Native AOT commands actually run.
+6. **Variances and format-contract status** — concise summary plus links/IDs
+   from `port-variances.json`, output/default-column provenance, and an explicit
+   display convergence path where needed.
+7. **Reusable learnings** — candidates for generator or shared-runtime work.
+8. **Next action** — blank only when the port is genuinely complete.
 
 This keeps repeated problems discoverable across ports: a pattern should become
 a generator rule or shared runtime service, not a new one-off adapter.

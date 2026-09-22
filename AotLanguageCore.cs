@@ -76,11 +76,95 @@ internal static class AotScopeVariablePolicy
 // reverts to an ordinary table.
 internal enum AotTerminalPresentation { Table, Prose }
 
+// A table layout is compiled data supplied by a reviewed port. It is not a
+// format/type lookup facility: the execution record shape remains the sole
+// pipeline contract, while the terminal may apply an attributed fixed view to
+// a direct, untransformed command result.
+internal enum AotTableAlignment { Left, Right }
+
+// The finite set of source-attributed terminal projections. A command may not
+// supply a delegate/script formatter here; new entries require an upstream
+// format-data citation and review.
+internal enum AotTableValueFormat { Default, FileSystemLastWriteTime }
+
+internal sealed record AotTableColumn
+{
+    internal AotTableColumn(
+        string field,
+        string header,
+        AotTableAlignment alignment = AotTableAlignment.Left,
+        int minimumWidth = 0,
+        AotTableValueFormat valueFormat = AotTableValueFormat.Default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(field);
+        ArgumentException.ThrowIfNullOrWhiteSpace(header);
+        ArgumentOutOfRangeException.ThrowIfNegative(minimumWidth);
+        Field = field;
+        Header = header;
+        Alignment = alignment;
+        MinimumWidth = minimumWidth;
+        ValueFormat = valueFormat;
+    }
+
+    internal string Field { get; }
+    internal string Header { get; }
+    internal AotTableAlignment Alignment { get; }
+    internal int MinimumWidth { get; }
+    internal AotTableValueFormat ValueFormat { get; }
+}
+
+internal sealed record AotTableGroup
+{
+    internal AotTableGroup(string field, string header)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(field);
+        ArgumentException.ThrowIfNullOrWhiteSpace(header);
+        Field = field;
+        Header = header;
+    }
+
+    internal string Field { get; }
+    internal string Header { get; }
+}
+
+internal sealed class AotTableLayout
+{
+    internal AotTableLayout(IReadOnlyList<AotTableColumn> columns, AotTableGroup? group = null, string columnSeparator = "  ")
+    {
+        ArgumentNullException.ThrowIfNull(columns);
+        if (columns.Count == 0 || columns.Any(static column => column is null))
+        {
+            throw new ArgumentException("A static terminal table layout requires one or more declared columns.", nameof(columns));
+        }
+
+        if (columns.Select(static column => column.Field).Distinct(StringComparer.OrdinalIgnoreCase).Count() != columns.Count)
+        {
+            throw new ArgumentException("A static terminal table layout cannot declare the same field twice.", nameof(columns));
+        }
+
+        if (string.IsNullOrEmpty(columnSeparator) || columnSeparator.Any(static character => character != ' '))
+        {
+            throw new ArgumentException("A static terminal table layout requires a non-empty literal-space column separator.", nameof(columnSeparator));
+        }
+
+        Columns = columns.ToArray();
+        Group = group;
+        ColumnSeparator = columnSeparator;
+    }
+
+    internal IReadOnlyList<AotTableColumn> Columns { get; }
+    internal AotTableGroup? Group { get; }
+    // Table controls own this fixed, source-attributed presentation fact.
+    // It cannot be a format script or a runtime-selectable setting.
+    internal string ColumnSeparator { get; }
+}
+
 internal sealed record AotExecutionOutput(
     AotRecordBatch Batch,
     AotRecordShape Shape,
     AotTerminalPresentation Presentation = AotTerminalPresentation.Table,
-    AotSourceSpan? ShapeSpan = null)
+    AotSourceSpan? ShapeSpan = null,
+    AotTableLayout? TableLayout = null)
 {
     internal IReadOnlyList<string> Columns => Shape.Fields;
     internal IReadOnlyList<AotRecord> Rows => Batch.Records;
@@ -303,7 +387,7 @@ internal sealed class AotPipelineStatementPlan(
 
         PipelinePlan pipeline = BindPipeline(scope);
         context.ThrowIfCancellationRequested();
-        emit(new AotExecutionOutput(pipeline.ExecuteBatch(context), pipeline.Shape, pipeline.TerminalPresentation, source.CommandSpan));
+        emit(new AotExecutionOutput(pipeline.ExecuteBatch(context), pipeline.Shape, pipeline.TerminalPresentation, source.CommandSpan, pipeline.TerminalTableLayout));
         return AotControlFlow.Continue;
     }
 

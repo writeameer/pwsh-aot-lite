@@ -38,7 +38,7 @@ internal sealed class AotTerminalEventProjector(
 
             else
             {
-                TableWriter.Write(rows, output.Columns, rendered, projectionContext, afterBufferedRowRendered);
+                TableWriter.Write(rows, output.Columns, rendered, projectionContext, afterBufferedRowRendered, output.TableLayout);
             }
 
             projectionContext.ThrowIfCancellationRequested();
