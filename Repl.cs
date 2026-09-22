@@ -25,13 +25,14 @@ internal static class ScriptRunner
     {
         ArgumentNullException.ThrowIfNull(parseResult);
         AotDiagnosticRenderOptions renderOptions = AotTerminalColorPolicy.RendererOptions(colorMode);
+        AotExecutionContext context = new(cancellationToken);
         AotTerminalEventProjector projector = new(
             parseResult.Source,
             parseResult.DocumentName ?? "<command>",
             renderOptions,
             Console.Out,
-            Console.Error);
-        AotExecutionContext context = new(cancellationToken);
+            Console.Error,
+            context);
         try
         {
             context.ThrowIfCancellationRequested();

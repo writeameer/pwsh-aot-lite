@@ -9,16 +9,40 @@ internal sealed class AotTerminalEventProjector(
     string documentName,
     AotDiagnosticRenderOptions renderOptions,
     TextWriter standardOutput,
-    TextWriter standardError)
+    TextWriter standardError,
+    AotExecutionContext projectionContext,
+    Action? afterBufferedRowRendered = null)
 {
     internal void Project(AotRuntimeEvent runtimeEvent)
     {
         ArgumentNullException.ThrowIfNull(runtimeEvent);
         if (runtimeEvent is { Kind: AotRuntimeEventKind.Success, Output: { } output })
         {
-            // An event success is already a completed output segment. Format
-            // it as one table, never as speculative per-record host output.
-            TableWriter.Write(output.Rows, output.Columns, standardOutput);
+            projectionContext.ThrowIfCancellationRequested();
+            // An event success is already a completed output segment. Render
+            // the entire segment into a private buffer before writing stdout:
+            // cancellation during a multi-row projection must not leave a
+            // partial terminal table or prose block behind.
+            output.Batch.ValidateForProjection(projectionContext, output.Shape, output.ShapeSpan);
+            IReadOnlyList<IPipelineRecord> rows = output.Batch.ToTerminalRows(projectionContext);
+            StringWriter rendered = new();
+            if (output.Presentation is AotTerminalPresentation.Prose)
+            {
+                foreach (IPipelineRecord row in rows)
+                {
+                    projectionContext.ThrowIfCancellationRequested();
+                    rendered.WriteLine(row.TextFor("Value"));
+                    afterBufferedRowRendered?.Invoke();
+                }
+            }
+
+            else
+            {
+                TableWriter.Write(rows, output.Columns, rendered, projectionContext, afterBufferedRowRendered);
+            }
+
+            projectionContext.ThrowIfCancellationRequested();
+            standardOutput.Write(rendered.ToString());
             return;
         }
 

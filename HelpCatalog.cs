@@ -630,6 +630,7 @@ internal sealed class GetHelpCmdlet(IHelpCatalog catalog) : AotCmdletBase
 
     public override CmdletDescriptor Descriptor => GetHelpDescriptor;
     public override IReadOnlyList<string> DefaultColumns => ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
 
     protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
     {

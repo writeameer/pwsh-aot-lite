@@ -66,9 +66,38 @@ internal static class AotScopeVariablePolicy
 }
 
 // Block output is segmented because successive commands may legitimately have
-// different table shapes.  Flattening them under one column list would invent
-// a formatting contract that PowerShell itself does not have.
-internal sealed record AotExecutionOutput(IReadOnlyList<IPipelineRecord> Rows, IReadOnlyList<string> Columns);
+// different table shapes. Every segment carries its canonical record batch;
+// compatibility rows are created only by the terminal projector.
+//
+// Presentation is a static cmdlet/pipeline-plan contract, never an inference
+// from the runtime record implementation. Prose is intentionally narrow: a
+// direct, untransformed pipeline whose terminal cmdlet declares prose. Once a
+// structural transform or typed input stage participates, terminal rendering
+// reverts to an ordinary table.
+internal enum AotTerminalPresentation { Table, Prose }
+
+internal sealed record AotExecutionOutput(
+    AotRecordBatch Batch,
+    AotRecordShape Shape,
+    AotTerminalPresentation Presentation = AotTerminalPresentation.Table,
+    AotSourceSpan? ShapeSpan = null)
+{
+    internal IReadOnlyList<string> Columns => Shape.Fields;
+    internal IReadOnlyList<AotRecord> Rows => Batch.Records;
+
+    internal static AotExecutionOutput FromTypedRows(
+        AotExecutionContext context,
+        IReadOnlyList<IPipelineRecord> rows,
+        IReadOnlyList<string> columns,
+        AotTerminalPresentation presentation = AotTerminalPresentation.Table,
+        AotSourceSpan? shapeSpan = null) =>
+        new(AotRecordBatch.FromTypedRows(context, rows, shapeSpan), new AotRecordShape(columns), presentation, shapeSpan);
+}
+
+// A producer captures executable typed output, not rendered terminal text.
+// A missing default shape is intentional: callers must select an explicit
+// shape before rendering heterogeneous segments.
+internal sealed record AotFunctionProducerOutput(AotRecordBatch Batch, IReadOnlyList<string>? DefaultColumns);
 
 internal sealed class AotExecutionResult(IReadOnlyList<AotExecutionOutput> outputs)
 {
@@ -193,11 +222,10 @@ internal sealed class AotLocalFunctionPlan(
         _ = body.ExecuteInto(context, localScope, emit);
     }
 
-    // A function may become an outer pipeline source only when its body is a
-    // single, transparent native-source statement. This is deliberately not a
-    // general object/segment stream: the one raw typed segment crosses the
-    // existing value-plane boundary only in the outer Where/Select tail.
-    internal AotExecutionOutput InvokeAsPipelineProducer(
+    // A function producer executes the already-lowered static body into a
+    // private typed-output collector. It never captures formatted tables or
+    // arbitrary objects. The ordered result crosses the generic boundary once.
+    internal AotFunctionProducerOutput InvokeAsPipelineProducer(
         AotExecutionContext context,
         AotScope callerScope,
         IReadOnlyList<AotCommandArgumentPlan> arguments,
@@ -206,15 +234,25 @@ internal sealed class AotLocalFunctionPlan(
         context.ThrowIfCancellationRequested();
         using IDisposable invocation = context.EnterFunction(Name, callSpan);
         AotScope localScope = BindInvocationScope(callerScope, arguments, callSpan);
-        if (body.Statements is not [AotPipelineStatementPlan pipeline])
+        List<AotRecord> records = [];
+        IReadOnlyList<string>? commonColumns = null;
+        bool hasOutput = false;
+        _ = body.ExecuteInto(context, localScope, output =>
         {
-            throw new ScriptException(AotDiagnostics.Unsupported(
-                "a local function with exactly one direct native source pipeline statement",
-                callSpan,
-                "Use the function directly, or define one native source command in its body before composing Where-Object or Select-Object outside it."));
-        }
+            context.ThrowIfCancellationRequested();
+            records.AddRange(output.Batch.Records);
+            if (!hasOutput)
+            {
+                commonColumns = output.Columns;
+                hasOutput = true;
+            }
+            else if (commonColumns is not null && !commonColumns.SequenceEqual(output.Columns, StringComparer.OrdinalIgnoreCase))
+            {
+                commonColumns = null;
+            }
+        });
 
-        return pipeline.ExecuteAsFunctionProducer(context, localScope, callSpan);
+        return new AotFunctionProducerOutput(new AotRecordBatch(records), commonColumns);
     }
 
     private AotScope BindInvocationScope(
@@ -233,10 +271,7 @@ internal sealed class AotLocalFunctionPlan(
 internal sealed class AotPipelineStatementPlan(
     AotCommandPlan source,
     AotCommandPlan? inputStage,
-    AotFilterStagePlan? filter,
-    IReadOnlyList<string>? columns,
-    bool projected,
-    AotSourceSpan? projectionSpan,
+    IReadOnlyList<AotPipelineTailStagePlan> tailStages,
     int pipelineLength) : AotStatementPlan
 {
     internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
@@ -252,29 +287,23 @@ internal sealed class AotPipelineStatementPlan(
                     "Use a native source command for typed-input stages; local-function composition supports only the existing Where-Object and Select-Object tail."));
             }
 
-            if (pipelineLength == 1)
+            if (tailStages.Count == 0)
             {
                 function.Invoke(context, scope, source.Arguments, source.CommandSpan, emit);
                 return AotControlFlow.Continue;
             }
 
-            AotExecutionOutput seed = function.InvokeAsPipelineProducer(context, scope, source.Arguments, source.CommandSpan);
-            Filter? resolvedFilter = filter?.Resolve(scope);
-            IReadOnlyList<string> outputColumns = projected ? columns! : seed.Columns;
-            IReadOnlyList<IPipelineRecord> rows = PipelinePlan.ApplyTail(
-                context,
-                seed.Rows,
-                resolvedFilter,
-                outputColumns,
-                projected,
-                projectionSpan);
-            emit(new AotExecutionOutput(rows, outputColumns));
+            AotFunctionProducerOutput seed = function.InvokeAsPipelineProducer(context, scope, source.Arguments, source.CommandSpan);
+            IReadOnlyList<AotRecordTransform> transforms = ResolveTail(scope);
+            AotRecordShape outputShape = ResolveOutputShape(seed.DefaultColumns, source.CommandSpan);
+            AotRecordBatch batch = seed.Batch.Apply(context, transforms);
+            emit(new AotExecutionOutput(batch, outputShape, AotTerminalPresentation.Table, source.CommandSpan));
             return AotControlFlow.Continue;
         }
 
         PipelinePlan pipeline = BindPipeline(scope);
         context.ThrowIfCancellationRequested();
-        emit(new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns));
+        emit(new AotExecutionOutput(pipeline.ExecuteBatch(context), pipeline.Shape, pipeline.TerminalPresentation, source.CommandSpan));
         return AotControlFlow.Continue;
     }
 
@@ -299,41 +328,36 @@ internal sealed class AotPipelineStatementPlan(
             boundInputStage = new AotPipelineInputStage(inputCmdlet, inputInvocation);
         }
 
-        Filter? resolvedFilter = filter?.Resolve(scope);
         return new PipelinePlan(
             cmdlet,
             invocation,
             boundInputStage,
-            resolvedFilter,
-            columns ?? cmdlet.DefaultColumns,
-            projected,
-            projectionSpan,
+            ResolveTail(scope),
+            ResolveOutputShape(cmdlet.DefaultColumns, source.CommandSpan),
+            source.CommandSpan,
             pipelineLength);
     }
 
-    internal AotExecutionOutput ExecuteAsFunctionProducer(
-        AotExecutionContext context,
-        AotScope scope,
-        AotSourceSpan callSpan)
+    private IReadOnlyList<AotRecordTransform> ResolveTail(AotScope scope) =>
+        tailStages.Select(stage => stage.Resolve(scope)).ToArray();
+
+    private AotRecordShape ResolveOutputShape(IReadOnlyList<string>? sourceColumns, AotSourceSpan callSpan)
     {
-        if (pipelineLength != 1 || inputStage is not null || filter is not null || projected || columns is not null)
+        AotProjectionTailStagePlan? projection = tailStages.OfType<AotProjectionTailStagePlan>().LastOrDefault();
+        if (projection is not null)
         {
-            throw new ScriptException(AotDiagnostics.Unsupported(
-                "a local function producer body with transforms or multiple pipeline stages",
-                callSpan,
-                "Use exactly one direct native source command in the function body, then compose Where-Object or Select-Object outside the function."));
+            return projection.Shape;
         }
 
-        if (scope.TryGetFunction(source.Name, out _))
+        if (sourceColumns is null)
         {
             throw new ScriptException(AotDiagnostics.Unsupported(
-                "a local function producer body that invokes another local function",
-                callSpan,
-                "Use one direct native source command in the producer body."));
+                    "a function producer with heterogeneous output shapes and no last direct Select-Object",
+                    callSpan,
+                    "Add a last direct Select-Object to establish one output shape."));
         }
 
-        PipelinePlan pipeline = BindPipeline(scope);
-        return new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns);
+        return new AotRecordShape(sourceColumns);
     }
 }
 
@@ -752,6 +776,53 @@ internal static class AotCommandArgumentConverter
 internal abstract class AotFilterStagePlan
 {
     internal abstract Filter Resolve(AotScope scope);
+}
+
+internal abstract class AotPipelineTailStagePlan
+{
+    internal abstract AotRecordTransform Resolve(AotScope scope);
+}
+
+internal sealed class AotFilterTailStagePlan(AotFilterStagePlan filter, AotSourceSpan? span) : AotPipelineTailStagePlan
+{
+    internal override AotRecordTransform Resolve(AotScope scope) => new AotRecordFilterTransform(filter.Resolve(scope), span);
+}
+
+internal sealed class AotProjectionTailStagePlan(IReadOnlyList<string> columns, AotSourceSpan? span) : AotPipelineTailStagePlan
+{
+    internal IReadOnlyList<string> Columns { get; } = columns;
+
+    internal AotRecordShape Shape
+    {
+        get
+        {
+            ValidateColumns();
+            return new AotRecordShape(Columns);
+        }
+    }
+
+    internal override AotRecordTransform Resolve(AotScope scope)
+    {
+        ValidateColumns();
+        return new AotRecordProjectionTransform(Columns, span);
+    }
+
+    private void ValidateColumns()
+    {
+        HashSet<string> selected = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string column in Columns)
+        {
+            if (!selected.Add(column))
+            {
+                throw new ScriptException(AotDiagnostics.Runtime(
+                    "AOT4007",
+                    "Select-Object does not permit duplicate fields that differ only by case in the AOT subset.",
+                    span,
+                    "duplicate projection field",
+                    "Select each field only once."));
+            }
+        }
+    }
 }
 
 internal sealed class AotLiteralFilterStagePlan(Filter filter) : AotFilterStagePlan

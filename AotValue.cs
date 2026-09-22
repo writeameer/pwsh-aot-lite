@@ -341,6 +341,8 @@ internal sealed class AotRecord : IEquatable<AotRecord>
         return value;
     }
 
+    internal string TextFor(string name) => AotValueText.Render(GetRequiredValue(name));
+
     internal AotRecord WithField(string name, AotValue value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

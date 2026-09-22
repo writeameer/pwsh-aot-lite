@@ -8,6 +8,9 @@ namespace PwshAotLite;
 // Parser acceptance never implies execution support.
 internal static class UpstreamAstPipelineLowerer
 {
+    // A deliberately small, reviewable execution cap. It applies after the
+    // optional statically typed input handoff; it is not a grammar limit.
+    private const int MaxStructuralTailStages = 4;
     private readonly record struct AotLoweringContext(bool AllowRootFunctionDefinitions, bool AllowLocalFunctionReturn);
     // Compatibility entry points used by established cmdlet tests. They retain
     // the old one-pipeline shape, while the host itself compiles a block plan.
@@ -334,17 +337,14 @@ internal static class UpstreamAstPipelineLowerer
             throw Unsupported("background pipelines", pipeline.Extent);
         }
 
-        if (pipeline.PipelineElements.Count is < 1 or > 4)
+        if (pipeline.PipelineElements.Count is < 1 or > (2 + MaxStructuralTailStages))
         {
-            throw Unsupported("the structural subset accepts one source command, one static typed input command, then optional Where-Object and Select-Object", pipeline.Extent);
+            throw Unsupported("one source command, one static typed input command, and at most four Where-Object/Select-Object transforms", pipeline.Extent);
         }
 
         AotCommandPlan? source = null;
         AotCommandPlan? inputStage = null;
-        AotFilterStagePlan? filter = null;
-        IReadOnlyList<string>? columns = null;
-        AotSourceSpan? projectionSpan = null;
-        bool projected = false;
+        List<AotPipelineTailStagePlan> tailStages = [];
 
         for (int index = 0; index < pipeline.PipelineElements.Count; index++)
         {
@@ -362,9 +362,12 @@ internal static class UpstreamAstPipelineLowerer
 
             if (lowered.Name.Equals("Where-Object", StringComparison.OrdinalIgnoreCase))
             {
-                if (filter is not null
-                    || projected
-                    || lowered.Arguments.Count != 3
+                if (tailStages.Count >= MaxStructuralTailStages)
+                {
+                    throw Unsupported("more than four ordered Where-Object/Select-Object transforms", command.Extent);
+                }
+
+                if (lowered.Arguments.Count != 3
                     || lowered.Arguments[0] is not AotValueArgumentPlan propertyArgument
                     || lowered.Arguments[1] is not AotParameterArgumentPlan operatorArgument
                     || lowered.Arguments[2] is not AotValueArgumentPlan valueArgument
@@ -379,16 +382,20 @@ internal static class UpstreamAstPipelineLowerer
                 AotSourceSpan operatorSpan = operatorArgument.Span;
                 if (TryGetDirectScalarText(valueArgument.Expression, out string? literalValue))
                 {
-                    filter = new AotLiteralFilterStagePlan(ScriptParser.ParseFilterArguments(
-                    [property!, comparisonText, literalValue!],
-                    valueSpan,
-                    propertySpan,
-                    operatorSpan));
+                    tailStages.Add(new AotFilterTailStagePlan(
+                        new AotLiteralFilterStagePlan(ScriptParser.ParseFilterArguments(
+                            [property!, comparisonText, literalValue!],
+                            valueSpan,
+                            propertySpan,
+                            operatorSpan)),
+                        AotScriptParser.ToSpan(command.Extent)));
                 }
                 else
                 {
                     Comparison comparison = ScriptParser.ParseComparison(comparisonText, operatorSpan);
-                    filter = new AotVariableFilterStagePlan(property!, comparison, valueArgument.Expression, propertySpan);
+                    tailStages.Add(new AotFilterTailStagePlan(
+                        new AotVariableFilterStagePlan(property!, comparison, valueArgument.Expression, propertySpan),
+                        AotScriptParser.ToSpan(command.Extent)));
                 }
 
                 continue;
@@ -396,14 +403,22 @@ internal static class UpstreamAstPipelineLowerer
 
             if (lowered.Name.Equals("Select-Object", StringComparison.OrdinalIgnoreCase))
             {
-                if (projected || lowered.Arguments.Any(static argument => argument is AotParameterArgumentPlan))
+                if (tailStages.Count >= MaxStructuralTailStages)
                 {
-                    throw Unsupported("Select-Object accepts one direct property projection only in this subset", command.Extent);
+                    throw Unsupported("more than four ordered Where-Object/Select-Object transforms", command.Extent);
                 }
 
+                if (lowered.Arguments.Any(static argument => argument is AotParameterArgumentPlan))
+                {
+                    throw Unsupported("Select-Object accepts one direct property projection in this subset", command.Extent);
+                }
+
+                IReadOnlyList<string> columns;
+                AotSourceSpan projectionSpan;
                 if (lowered.Arguments.Count == 0)
                 {
                     columns = ScriptParser.ParseColumns([], lowered.CommandSpan);
+                    projectionSpan = lowered.CommandSpan;
                 }
                 else
                 {
@@ -417,7 +432,7 @@ internal static class UpstreamAstPipelineLowerer
                     projectionSpan = lowered.Arguments[0].Span;
                 }
 
-                projected = true;
+                tailStages.Add(new AotProjectionTailStagePlan(columns, projectionSpan));
                 continue;
             }
 
@@ -427,8 +442,7 @@ internal static class UpstreamAstPipelineLowerer
             // no generated metadata declaration, PSObject conversion, or
             // dynamic binder makes another command pipeline-capable.
             if (inputStage is null
-                && filter is null
-                && !projected
+                && tailStages.Count == 0
                 && AotCmdletRegistry.IsStaticPipelineInputCmdlet(lowered.Name))
             {
                 inputStage = lowered;
@@ -446,10 +460,7 @@ internal static class UpstreamAstPipelineLowerer
         return new AotPipelineStatementPlan(
             source,
             inputStage,
-            filter,
-            columns,
-            projected,
-            projectionSpan,
+            tailStages,
             pipeline.PipelineElements.Count);
     }
 

@@ -74,12 +74,51 @@ Adversary verdicts are recorded in the
 The focused evidence and remaining limits are recorded in
 [the migration note](value-plane-first-migration.md).
 
-Phase 6 additionally permits one transparent local-function producer: its
-body must be exactly one native source command, producing one concrete raw
-typed record batch. The outer pipeline may apply the same existing `Where-Object`/
-`Select-Object` boundary to that segment. The runner does not capture rendered
-tables, concatenate heterogeneous function output, or make a function a
-general object-stream stage; those require a later explicit data-plane design.
+The Phase 7 batch slice introduces `AotRecordBatch`: an immutable ordered
+collection of `AotRecord` values. `PipelineValueAdapter.ToRecord` remains a
+closed type switch over known `IPipelineRecord` implementations (including the
+already-boundary-produced `AotPipelineRecord`); unknown rows fail closed. A
+native source and its optional registered typed-input adapter finish before the
+single batch crossing. Thereafter the batch supports at most four ordered,
+AST-lowered direct `Where-Object`/`Select-Object` transforms. Repeated and
+mixed transforms operate only on explicit record fields, preserving order and
+never inspecting CLR members.
+
+`AotRecordShape` is immutable ordered field metadata, separate from terminal
+column presentation. A projection validates and produces its declared shape;
+the terminal projector validates that its selected shape is available before it
+creates the legacy `AotPipelineRecord` compatibility rows. The last direct
+`Select-Object` establishes the terminal shape. A shape-contract violation is
+`AOT4011`; `AOT4010` remains reserved for a registered typed-input cmdlet that
+receives the wrong concrete input record. Thus a later `Where-Object`
+observes only fields retained by an earlier projection, and referring to a
+dropped field fails with the existing source-spanned property diagnostic.
+Without any projection, a function producer may render only when all emitted
+segments declare the same default-column sequence (case-insensitive comparison,
+with the first segment's casing retained). Otherwise it fails closed and asks
+for a last direct projection; it never infers a union/table shape.
+
+An unregistered `IPipelineRecord` fails at the explicit batch boundary with
+`AOT4009` and the source-stage span. This replaces the former raw implementation
+exception and keeps new port adapters an explicit reviewed decision.
+
+A local function used as an outer pipeline source executes its pre-lowered,
+already-supported body into a private ordered typed-output collector. It
+collects `IPipelineRecord` rows, converts them through the same explicit batch
+boundary, and only then applies outer structural transforms. It does not capture
+terminal rendering, flatten `object`, expose a function as an input stage, or
+make script blocks/object streaming executable. If function output shapes are
+heterogeneous and no last direct `Select-Object` establishes a shared output shape,
+execution rejects the pipeline rather than inventing formatting semantics.
+
+Terminal presentation is explicit metadata, not a record-type heuristic.
+`AotCmdletBase.TerminalPresentation` declares the default and `PipelinePlan`
+carries it to `AotExecutionOutput`. The only admitted prose producer is a
+direct, untransformed `Get-Help` plan. A typed input stage or any structural
+`Where-Object`/`Select-Object` transform produces a table contract, even when
+the source happened to be help. Direct local-function invocation forwards each
+contained segment's immutable presentation contract unchanged. The terminal
+projector never tests for `HelpRecord` or another runtime source type.
 
 ## Non-goals
 

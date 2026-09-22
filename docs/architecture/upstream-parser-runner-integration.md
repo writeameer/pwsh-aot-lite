@@ -18,9 +18,11 @@ script text
 uses the dynamic compiler/binder, `PSObject`, or a runspace. It accepts an
 unnamed top-level statement block containing direct `=` assignments, sequential
 root local-function definitions/direct calls, and command
-pipelines with one native registered source command and up to
-`Where-Object <property> <comparison> <value>` and
-`Select-Object <property>[, <property>...]` stages. The first variable proof is:
+pipelines with one native registered source command, an optional registered
+static typed-input command, and up to four ordered direct
+`Where-Object <property> <comparison> <value>` /
+`Select-Object <property>[, <property>...]` transforms. The transform cap is
+an execution policy, not a new grammar. The first variable proof is:
 
 ```powershell
 $threshold = 10
@@ -38,11 +40,24 @@ conversion, and deferred syntax boundary is in the
 
 The local-function subset lowers the upstream `FunctionDefinitionAst` once into
 an immutable plan and registers it only when its declaration statement runs.
-Its direct positional call creates a child scope of the caller and forwards
-body output through the existing event sink. This is precompiled plan execution,
-not `ScriptBlock` invocation; advanced function blocks, attributes/defaults,
-named arguments, root/value/pipeline returns, and function pipelines remain
-fail-closed.
+Its closed positional/named/default-parameter call creates a child scope of the
+caller and forwards body output through the existing event sink. This is
+precompiled plan execution, not `ScriptBlock` invocation; advanced function
+blocks, attributes, non-closed defaults, splatting, and root/value/pipeline
+returns remain fail-closed. A function
+as a pipeline source collects only its existing pre-lowered typed output into
+the same immutable record batch used by native commands; it never collects
+rendered text, `object`, `PSObject`, or runtime-discovered members.
+
+The runtime event carries the resulting canonical `AotRecordBatch`, an
+explicit immutable `AotRecordShape`, and a static terminal-presentation mode.
+Only `AotTerminalEventProjector` converts that batch to compatibility rows for
+the existing table writer. The projector does not inspect runtime record types:
+direct, untransformed `Get-Help` declares prose through its cmdlet/pipeline
+plan; structural transforms and typed input stages are tables. Function
+composition therefore carries records, never terminal shells, and an unknown
+typed record reports `AOT4009` at its source-stage boundary rather than leaking
+a raw implementation exception.
 
 The narrow exception is a bare `ReturnStatementAst` inside an admitted local
 function. It lowers to typed function-local control flow and is consumed by
