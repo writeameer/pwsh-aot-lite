@@ -31,6 +31,12 @@ internal sealed class ScriptException : AotDiagnosticException
     internal ScriptException WithSpan(AotSourceSpan span) => new(Diagnostic with { Span = span }, Message);
 }
 
+// ErrorAction Stop has already emitted its terminating transcript event. This
+// carrier prevents ScriptRunner from rendering the same diagnostic again.
+internal sealed class AotPublishedTerminatingException(AotDiagnostic diagnostic) : AotDiagnosticException(diagnostic)
+{
+}
+
 // Static replacement for the PowerShell Cmdlet/Parameter/WriteObject contract.
 // It intentionally preserves cmdlet lifecycle and parameter-set information;
 // ports do not flatten those semantics into untyped string switches.
@@ -117,10 +123,12 @@ internal sealed class CommandInvocation(
     CmdletDescriptor descriptor,
     IReadOnlyDictionary<string, string[]> parameters,
     AotSourceSpan? sourceSpan = null,
-    IReadOnlyDictionary<string, AotSourceSpan?[]>? valueSpans = null)
+    IReadOnlyDictionary<string, AotSourceSpan?[]>? valueSpans = null,
+    AotCommonParameters? commonParameters = null)
 {
     internal CmdletDescriptor Descriptor { get; } = descriptor;
     internal AotSourceSpan? SourceSpan { get; } = sourceSpan;
+    internal AotCommonParameters CommonParameters { get; } = commonParameters ?? AotCommonParameters.Default;
 
     internal bool TryGetValues(string name, out string[] values) => parameters.TryGetValue(name, out values!);
 
@@ -131,6 +139,9 @@ internal sealed class CommandInvocation(
         && index < spans.Length
             ? spans[index]
             : SourceSpan;
+
+    internal CommandInvocation WithCommonParameters(AotCommonParameters commonParameters) =>
+        new(Descriptor, parameters, SourceSpan, valueSpans, commonParameters);
 }
 
 // Parser-independent syntax atoms. The upstream AST lowerer and the legacy
@@ -152,6 +163,7 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
     private readonly List<Action<AotRuntimeEvent>> _observers = [];
     private readonly HashSet<string> _activeFunctions = new(StringComparer.OrdinalIgnoreCase);
     private AotInvocationFrame? _activeInvocation;
+    private AotCommonParameters _activeCommonParameters = AotCommonParameters.Default;
     private long _nextSequence;
 
     internal IReadOnlyList<CommandError> Errors => _errors;
@@ -174,8 +186,17 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
         return new ObserverScope(this, observer);
     }
 
-    internal void WriteOutput(AotExecutionOutput output) =>
-        Publish(AotRuntimeEvent.Success(NextSequence(), output));
+    internal void WriteOutput(AotExecutionOutput output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        // A completed empty batch has no user-visible data. Suppressing it at
+        // the one transcript ingress prevents blank table headers and makes
+        // the factory invariant true for every producer.
+        if (output.Batch.Records.Count != 0)
+        {
+            Publish(AotRuntimeEvent.Success(NextSequence(), output));
+        }
+    }
 
     internal void WriteNonTerminatingError(string id, string message) =>
         WriteNonTerminatingError(AotDiagnostics.Runtime(id, message, _activeInvocation?.SourceSpan, "command reported an error"));
@@ -187,8 +208,26 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
             ? diagnostic with { Span = _activeInvocation.SourceSpan, Label = diagnostic.Label ?? "command reported an error" }
             : diagnostic;
         _errors.Add(new CommandError(sourceAwareDiagnostic));
-        Publish(AotRuntimeEvent.Error(NextSequence(), _activeInvocation, sourceAwareDiagnostic));
+        switch (_activeCommonParameters.ErrorAction)
+        {
+            case AotErrorAction.Continue:
+                Publish(AotRuntimeEvent.Error(NextSequence(), _activeInvocation, sourceAwareDiagnostic));
+                return;
+            case AotErrorAction.SilentlyContinue:
+                return;
+            case AotErrorAction.Stop:
+                Publish(AotRuntimeEvent.TerminatingError(NextSequence(), _activeInvocation, sourceAwareDiagnostic));
+                throw new AotPublishedTerminatingException(sourceAwareDiagnostic);
+            default:
+                throw new InvalidOperationException("Unknown static ErrorAction policy.");
+        }
     }
+
+    // Ports opt into these typed side streams explicitly.  Existing ports do
+    // not manufacture verbose/debug messages merely because a common switch
+    // was supplied; that would be a fake compatibility behavior.
+    internal void WriteVerbose(string message) => WriteSideStream(AotRuntimeEventKind.Verbose, message, _activeCommonParameters.Verbose);
+    internal void WriteDebug(string message) => WriteSideStream(AotRuntimeEventKind.Debug, message, _activeCommonParameters.Debug);
 
     internal IDisposable EnterInvocation(CommandInvocation invocation, int pipelinePosition = 0, int pipelineLength = 1) =>
         new InvocationScope(this, new AotInvocationFrame(
@@ -196,7 +235,17 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
             invocation.SourceSpan,
             pipelinePosition,
             pipelineLength,
-            _activeInvocation));
+            _activeInvocation), invocation.CommonParameters);
+
+    private void WriteSideStream(AotRuntimeEventKind kind, string message, bool enabled)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        if (enabled)
+        {
+            ThrowIfCancellationRequested();
+            Publish(AotRuntimeEvent.Stream(NextSequence(), kind, _activeInvocation, message));
+        }
+    }
 
     // Local functions deliberately reject recursive re-entry. It prevents a
     // static-AOT host stack overflow while recursive control flow remains
@@ -233,15 +282,22 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
     {
         private readonly AotExecutionContext _context;
         private readonly AotInvocationFrame? _priorInvocation;
+        private readonly AotCommonParameters _priorCommonParameters;
 
-        internal InvocationScope(AotExecutionContext context, AotInvocationFrame invocation)
+        internal InvocationScope(AotExecutionContext context, AotInvocationFrame invocation, AotCommonParameters commonParameters)
         {
             _context = context;
             _priorInvocation = context._activeInvocation;
+            _priorCommonParameters = context._activeCommonParameters;
             context._activeInvocation = invocation;
+            context._activeCommonParameters = commonParameters;
         }
 
-        public void Dispose() => _context._activeInvocation = _priorInvocation;
+        public void Dispose()
+        {
+            _context._activeInvocation = _priorInvocation;
+            _context._activeCommonParameters = _priorCommonParameters;
+        }
     }
 
     private sealed class FunctionScope(AotExecutionContext context, string name) : IDisposable
@@ -630,6 +686,12 @@ internal static class AotCmdletRegistry
     internal static bool IsStaticPipelineInputCmdlet(string commandName) =>
         Cmdlets.Any(candidate => candidate.Descriptor.Name.Equals(commandName, StringComparison.OrdinalIgnoreCase)
             && candidate is IAotPipelineInputCmdlet);
+
+    // This is a static registry availability query, not metadata discovery.
+    // It guards the common-parameter extraction boundary: generated catalog
+    // entries and unknown names must reach the normal AOT2001 binder path.
+    internal static bool IsStaticNativeCommand(string commandName) =>
+        Cmdlets.Any(candidate => candidate.Descriptor.Name.Equals(commandName, StringComparison.OrdinalIgnoreCase));
 
     internal static IReadOnlySet<string>? DirectParameterNames(string commandName)
     {
@@ -2040,6 +2102,7 @@ internal static class SelfTest
     {
         AssertExecutionKernelAndDiagnostics();
         AssertRuntimeEventContract();
+        AssertStaticCommonParameterPolicy();
         AssertTypedStageComposition();
         AssertCancellationLifecycle();
         AssertLanguageCompatibilityCore();
@@ -2974,12 +3037,12 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         using IDisposable subscription = context.Subscribe(observed.Add);
         AotExecutionResult result = AotExecutionKernel.Compile(source, "runtime-events.ps1").Execute(context);
 
-        if (result.Outputs.Count != 3
-            || context.Events.Count != 4
+        if (result.Outputs.Count != 2
+            || context.Events.Count != 3
             || !context.Events.Select(static runtimeEvent => runtimeEvent.Kind).SequenceEqual(
-                [AotRuntimeEventKind.Success, AotRuntimeEventKind.Error, AotRuntimeEventKind.Success, AotRuntimeEventKind.Success])
+                [AotRuntimeEventKind.Success, AotRuntimeEventKind.Error, AotRuntimeEventKind.Success])
             || !observed.SequenceEqual(context.Events)
-            || !context.Events.Select(static runtimeEvent => runtimeEvent.Sequence).SequenceEqual([1L, 2L, 3L, 4L])
+            || !context.Events.Select(static runtimeEvent => runtimeEvent.Sequence).SequenceEqual([1L, 2L, 3L])
             || context.Events[1] is not
             {
                 Diagnostic: { Id: "TimeZoneNotFound", Span: { DocumentName: "runtime-events.ps1" } },
@@ -3033,6 +3096,201 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         {
             throw new InvalidOperationException("The special-case input cmdlet did not retain its own invocation frame.");
         }
+
+        AotExecutionOutput emptyOutput = new(new AotRecordBatch([]), new AotRecordShape(["Value"]));
+        AssertArgumentException(() => AotRuntimeEvent.Success(1, emptyOutput));
+        AssertArgumentException(() => AotRuntimeEvent.Stream(1, AotRuntimeEventKind.Success, null, "not-a-stream"));
+        AssertArgumentException(() => AotRuntimeEvent.Stream(1, AotRuntimeEventKind.Verbose, null, " "));
+        AssertArgumentException(() => AotRuntimeEvent.Error(0, null, AotDiagnostics.Runtime("Fixture", "fixture")));
+    }
+
+    private static void AssertStaticCommonParameterPolicy()
+    {
+        const string missingZone = "AotCommonParameterMissingZone";
+
+        // Common parameters are extracted from upstream AST nodes before the
+        // sole generated-metadata cmdlet binder. Both the canonical spelling
+        // and its reviewed -ea alias preserve Continue's normal event path.
+        AotExecutionContext continueContext = new();
+        _ = AotExecutionKernel.Compile($"Get-TimeZone -Id {missingZone} -ErrorAction Continue", "common-continue.ps1")
+            .Execute(continueContext);
+        if (continueContext.Errors.Count != 1
+            || continueContext.Events.Count(static runtimeEvent => runtimeEvent.Kind == AotRuntimeEventKind.Error) != 1)
+        {
+            throw new InvalidOperationException("-ErrorAction Continue did not retain the typed non-terminating error event.");
+        }
+
+        AotExecutionContext aliasContext = new();
+        _ = AotExecutionKernel.Compile($"Get-TimeZone -Id {missingZone} -ea Continue", "common-ea.ps1")
+            .Execute(aliasContext);
+        if (aliasContext.Errors.Count != 1
+            || aliasContext.Events.Count(static runtimeEvent => runtimeEvent.Kind == AotRuntimeEventKind.Error) != 1)
+        {
+            throw new InvalidOperationException("The -ea common-parameter alias did not use the typed Continue policy.");
+        }
+
+        AotExecutionContext silentContext = new();
+        _ = AotExecutionKernel.Compile($"Get-TimeZone -Id {missingZone} -ErrorAction SilentlyContinue", "common-silent.ps1")
+            .Execute(silentContext);
+        if (silentContext.Errors.Count != 1
+            || silentContext.Events.Any(static runtimeEvent => runtimeEvent.Kind == AotRuntimeEventKind.Error))
+        {
+            throw new InvalidOperationException("-ErrorAction SilentlyContinue did not retain the record while suppressing terminal error projection.");
+        }
+
+        AotExecutionContext stopContext = new();
+        try
+        {
+            _ = AotExecutionKernel.Compile($"Get-TimeZone -Id {missingZone} -ErrorAction Stop", "common-stop.ps1")
+                .Execute(stopContext);
+            throw new InvalidOperationException("-ErrorAction Stop did not terminate the current script.");
+        }
+        catch (AotPublishedTerminatingException error) when (error.Diagnostic.Id == "TimeZoneNotFound")
+        {
+            if (stopContext.Errors.Count != 1
+                || !stopContext.Events.Select(static runtimeEvent => runtimeEvent.Kind).SequenceEqual([AotRuntimeEventKind.TerminatingError])
+                || stopContext.Events.Single().Diagnostic != error.Diagnostic)
+            {
+                throw new InvalidOperationException("-ErrorAction Stop did not publish the exact typed terminating context event before throwing it.");
+            }
+        }
+
+        TextWriter originalStopOutput = Console.Out;
+        TextWriter originalStopError = Console.Error;
+        StringWriter stopOutput = new();
+        StringWriter stopError = new();
+        try
+        {
+            Console.SetOut(stopOutput);
+            Console.SetError(stopError);
+            if (ScriptRunner.Execute($"Get-TimeZone -Id {missingZone} -ea Stop", colorMode: AotColorMode.Never) != 2)
+            {
+                throw new InvalidOperationException("-ErrorAction Stop did not preserve the terminating host exit path.");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalStopOutput);
+            Console.SetError(originalStopError);
+        }
+
+        const string terminatingHeading = "error[TimeZoneNotFound]";
+        int firstTerminatingHeading = stopError.ToString().IndexOf(terminatingHeading, StringComparison.Ordinal);
+        if (firstTerminatingHeading < 0
+            || firstTerminatingHeading != stopError.ToString().LastIndexOf(terminatingHeading, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A typed terminating event was rendered zero or multiple times by the static host.");
+        }
+
+        // The attached AST argument is essential: a bare switch enables a
+        // side stream, while `-Verbose:$false` / `-Debug:$false` disables it.
+        (_, CommandInvocation enabledInvocation) = AotCmdletRegistry.ParseSource("Get-Verb -Verbose -Debug");
+        AotExecutionContext enabledContext = new();
+        using (enabledContext.EnterInvocation(enabledInvocation))
+        {
+            enabledContext.WriteVerbose("fixture verbose");
+            enabledContext.WriteDebug("fixture debug");
+        }
+
+        if (!enabledContext.Events.Select(static runtimeEvent => runtimeEvent.Kind)
+                .SequenceEqual([AotRuntimeEventKind.Verbose, AotRuntimeEventKind.Debug])
+            || enabledContext.Events[0] is not { Message: "fixture verbose", Invocation: { CommandName: "Get-Verb" } }
+            || enabledContext.Events[1] is not { Message: "fixture debug", Invocation: { CommandName: "Get-Verb" } })
+        {
+            throw new InvalidOperationException("Bare -Verbose/-Debug did not enable the closed typed side streams.");
+        }
+
+        (_, CommandInvocation disabledInvocation) = AotCmdletRegistry.ParseSource("Get-Verb -Verbose:$false -Debug:$false");
+        AotExecutionContext disabledContext = new();
+        using (disabledContext.EnterInvocation(disabledInvocation))
+        {
+            disabledContext.WriteVerbose("must remain hidden");
+            disabledContext.WriteDebug("must remain hidden");
+        }
+
+        if (disabledContext.Events.Count != 0)
+        {
+            throw new InvalidOperationException("Attached $false common-switch values were detached from their upstream parameter ASTs.");
+        }
+
+        (_, CommandInvocation detachedInvocation) = AotCmdletRegistry.ParseSource("Get-Verb -Verbose $false");
+        if (!detachedInvocation.CommonParameters.Verbose
+            || !detachedInvocation.TryGetValues("Verb", out string[] detachedValues)
+            || !detachedValues.SequenceEqual(["False"], StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("A bare -Verbose incorrectly consumed the following upstream command element as an attached switch value.");
+        }
+
+        AssertCommonParameterFailure("Get-Verb -ErrorAction", "common-missing-error-action.ps1", "AOT2004");
+        AssertCommonParameterFailure("Get-Verb -ErrorAction Ignore", "common-unsupported-error-action.ps1", "AOT1001");
+        AssertCommonParameterFailure("Get-Verb -WarningAction SilentlyContinue", "common-unsupported-common.ps1", "AOT1001");
+        AssertCommonParameterFailure("Get-Verb -Verbose:'false'", "common-string-switch.ps1", "AOT1001");
+        AssertCommonParameterFailure("Get-ChildItem -ErrorAction Ignore", "common-catalog-only.ps1", "AOT2001");
+        AssertCommonParameterFailure("No-SuchCommand -ErrorAction Ignore", "common-unknown.ps1", "AOT2001");
+
+        StringWriter stdout = new();
+        StringWriter stderr = new();
+        AotTerminalEventProjector projector = new(
+            "",
+            "common-projector.ps1",
+            new AotDiagnosticRenderOptions(UseAnsi: false),
+            stdout,
+            stderr,
+            new AotExecutionContext());
+        projector.Project(AotRuntimeEvent.Stream(1, AotRuntimeEventKind.Verbose, null, "fixture verbose\n\u001b[2J"));
+        projector.Project(AotRuntimeEvent.Stream(2, AotRuntimeEventKind.Debug, null, "fixture debug"));
+        if (stdout.ToString().Length != 0
+            || !stderr.ToString().Equals("VERBOSE: fixture verbose\\n\\u001B[2J" + Environment.NewLine + "DEBUG: fixture debug" + Environment.NewLine, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The static terminal projector did not sanitize admitted side streams or keep them out of success output.");
+        }
+
+        using CancellationTokenSource cancelledSideStream = new();
+        cancelledSideStream.Cancel();
+        AotExecutionContext cancelledContext = new(cancelledSideStream.Token);
+        CommandInvocation cancelledInvocation = new(
+            LifecycleFixtureCmdlet.DescriptorContract,
+            new Dictionary<string, string[]>(),
+            commonParameters: new AotCommonParameters(AotErrorAction.Continue, Verbose: true, Debug: false));
+        using (cancelledContext.EnterInvocation(cancelledInvocation))
+        {
+            AssertCancellation(() => cancelledContext.WriteVerbose("must not publish"));
+        }
+        if (cancelledContext.Events.Count != 0)
+        {
+            throw new InvalidOperationException("Cancellation published a side-stream event.");
+        }
+
+        AotExecutionContext emptyContext = new();
+        emptyContext.WriteOutput(new AotExecutionOutput(new AotRecordBatch([]), new AotRecordShape(["Value"])));
+        if (emptyContext.Events.Count != 0)
+        {
+            throw new InvalidOperationException("A zero-row output batch became a blank success segment.");
+        }
+    }
+
+    private static void AssertCommonParameterFailure(string source, string documentName, string diagnosticId)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName).Execute(new AotExecutionContext());
+            throw new InvalidOperationException($"Expected {diagnosticId} for common-parameter source '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == diagnosticId)
+        {
+        }
+    }
+
+    private static void AssertArgumentException(Action action)
+    {
+        try
+        {
+            action();
+            throw new InvalidOperationException("Expected a runtime-event factory invariant failure.");
+        }
+        catch (ArgumentException)
+        {
+        }
     }
 
     private static void AssertCancellationLifecycle()
@@ -3073,7 +3331,10 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         AotExecutionContext processContext = new(processCancellation.Token);
         // This represents a previously completed output segment. Cancellation
         // does not erase transcript history or synthesize an error record.
-        processContext.WriteOutput(new AotExecutionOutput(new AotRecordBatch([]), new AotRecordShape(["Value"])));
+        processContext.WriteOutput(AotExecutionOutput.FromTypedRows(
+            processContext,
+            [new TextRecord("completed-before-cancellation")],
+            ["Value"]));
         AssertCancellation(() => cancelledDuringProcess.Invoke(invocation, processContext).ToArray());
         if (cancelledDuringProcess.BeginCalls != 1
             || cancelledDuringProcess.ProcessCalls != 1
@@ -3217,11 +3478,16 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
             throw new InvalidOperationException("A variable list did not expand into values for the existing generated-metadata binder.");
         }
 
+        AotExecutionContext singleQuotedContext = new();
+        AotScope singleQuotedScope = new();
         AotExecutionResult singleQuotedResult = AotExecutionKernel.Compile(
                 "$literal = '$notInterpolation'; Get-Process -Name $literal",
                 "single-quoted-variable.ps1")
-            .Execute(new AotExecutionContext());
-        if (singleQuotedResult.Outputs.Count != 1)
+            .Execute(singleQuotedContext, singleQuotedScope);
+        if (!singleQuotedScope.TryGet("literal", out AotValue literalValue)
+            || !literalValue.TryGetString(out string? literalText)
+            || !string.Equals(literalText, "$notInterpolation", StringComparison.Ordinal)
+            || singleQuotedResult.Outputs.Count > 1)
         {
             throw new InvalidOperationException("A single-quoted dollar sequence was treated as an interpolated variable.");
         }
@@ -4282,7 +4548,7 @@ foreach ($verb in $verbs) {
                 "$values = $null, $null; foreach ($verb in $values) { Get-Verb -Verb $verb }",
                 "foreach-null-item.ps1")
             .Execute(new AotExecutionContext(), nullItemScope);
-        if (nullItemResult.Outputs.Count != 2
+        if (nullItemResult.Outputs.Count != 0
             || !nullItemScope.TryGet("verb", out AotValue nullItem)
             || nullItem.Kind != AotValueKind.Null)
         {

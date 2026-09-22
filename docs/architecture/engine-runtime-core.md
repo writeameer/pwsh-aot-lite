@@ -15,7 +15,8 @@ cmdlet lifecycle / pipeline plan
           ▼
  AotExecutionContext
    ├─ Success(AotExecutionOutput)  ──► host stdout/table projection
-   └─ Error(AotDiagnostic)         ──► host stderr/diagnostic projection
+   ├─ Error(AotDiagnostic)         ──► host stderr/diagnostic projection
+   └─ Verbose/Debug(text)          ──► host stderr side-stream projection
 ```
 
 `AotRuntimeEvent` has a monotonically increasing sequence number. Both a host
@@ -37,6 +38,45 @@ an individual object. Existing ports still materialize a segment before the
 table host formats it. Therefore a source command that raises a non-terminating
 error while forming its rows can emit `Error` before the segment's `Success`.
 That ordering is intentional, testable, and honest.
+
+## Static invocation policy subset
+
+Only after a name is confirmed in the static native executable registry, and
+before that command reaches the sole generated-metadata binder, the
+AST-derived command plan removes this closed common-parameter subset. Local
+functions, catalog-only commands, sidecars, and arbitrary/unknown script
+commands do not participate; they retain the ordinary `AOT2001` unavailable
+command path rather than receiving a common-policy diagnostic:
+
+| Source form | Admitted policy |
+| --- | --- |
+| `-ErrorAction` / `-ea` | One direct literal: `Continue`, `SilentlyContinue`, or `Stop`. |
+| bare `-Verbose`, bare `-Debug` | Enables the corresponding typed side stream for a port which explicitly emits it. |
+| `-Verbose:$true/$false`, `-Debug:$true/$false` | Attached Boolean switch value only. |
+
+The extraction retains `CommandParameterAst.Argument`: `-Verbose:$false` is
+not treated like `-Verbose $false`. The latter keeps `-Verbose` enabled and
+leaves `$false` for ordinary parameter binding. No parameter text is reparsed.
+
+`Continue` preserves the existing typed non-terminating `Error` event.
+`SilentlyContinue` keeps the typed error in `AotExecutionContext.Errors` but
+does not publish it to the transcript/projector. `Stop` keeps the typed error,
+publishes one `TerminatingError` transcript event, and throws a dedicated
+already-published carrier for that same diagnostic. The terminal projector
+renders `TerminatingError`; `ScriptRunner` catches only the dedicated carrier
+to return exit code `2` without rendering it a second time. Existing ports do not generate
+verbose/debug messages simply because their switch was present. A port must
+call the explicit typed runtime side-stream method, so supported absence of a
+message is not a fake no-op implementation.
+
+The default terminal projection renders admitted side-stream events to stderr
+as `VERBOSE:` or `DEBUG:` lines, separate from tables on stdout. Other hosts
+may project the same closed event transcript differently. Side-stream factory
+construction escapes control characters (including ANSI escapes and newlines)
+before any host projection, and a cancelled context publishes no side event.
+
+Success events are completed **non-empty** output segments only. A zero-row
+batch produces no runtime event and no blank table header.
 
 ## Cooperative cancellation and lifecycle
 
@@ -89,12 +129,17 @@ the language-tooling contract, without adding another lexer.
 
 This slice does not support or imply `ErrorRecord`/`$Error`, preference
 variables such as `ErrorActionPreference`, stream redirection or merging,
-warning/verbose/debug/information/progress streams, record-by-record
+warning/information/progress streams, record-by-record
 streaming, remoting, background jobs, concurrency, async/preemptive
 interruption, cancellation while parsing, cancellation of native/external
 processes, or a `Console.CancelKeyPress` policy. An arbitrary blocking port
 must be explicitly migrated to use the token; this contract does not interrupt
 it from another thread.
+
+Only the static per-invocation `-ErrorAction` subset and explicit
+verbose/debug event emission above are admitted. All other common parameters,
+preference variables, stream merging, and redirections fail closed with a
+source diagnostic.
 
 ## Planned finite slices
 
@@ -116,6 +161,9 @@ it from another thread.
    function producer may relay one concrete raw typed record batch into the
    existing outer `Where-Object`/`Select-Object` tail. It does not alter the
    success-event contract or introduce record-by-record object streaming.
+6. **Static invocation policy** — integrated: a bounded `-ErrorAction`/
+   `-ea` policy plus explicit verbose/debug event opt-in. It is intentionally
+   not a preference-variable or general common-parameter implementation.
 
 The independent evidence for slice one is in the
 [runtime stream-contract review](../reviews/2026-09-22-runtime-stream-contract.md).

@@ -48,6 +48,11 @@ internal static class ScriptRunner
             // a non-terminating error record.
             return CancellationExitCode;
         }
+        catch (AotPublishedTerminatingException)
+        {
+            // Its typed TerminatingError event already reached the projector.
+            return 2;
+        }
         catch (AotDiagnosticException error)
         {
             projector.WriteDiagnostic(error.Diagnostic);

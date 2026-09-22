@@ -569,14 +569,35 @@ internal abstract class AotCommandArgumentPlan(AotSourceSpan span)
 
 internal sealed class AotParameterArgumentPlan : AotCommandArgumentPlan
 {
-    internal AotParameterArgumentPlan(string name, AotSourceSpan span)
+    internal AotParameterArgumentPlan(
+        string name,
+        AotSourceSpan span,
+        AotExpressionPlan? attachedValue = null,
+        AotSourceSpan? attachedValueSpan = null)
         : base(span)
     {
         Name = name;
+        AttachedValue = attachedValue;
+        AttachedValueSpan = attachedValueSpan;
     }
 
     internal string Name { get; }
-    internal override void AppendResolved(AotScope scope, List<CommandSyntaxAtom> atoms) => atoms.Add(new CommandSyntaxAtom(Name, IsParameter: true, Span));
+    // CommandParameterAst.Argument is not interchangeable with the next
+    // command element: `-Verbose:$false` is a switch value, whereas
+    // `-Verbose $false` is a bare switch followed by an ordinary argument.
+    // Retaining that upstream association lets static common-parameter
+    // extraction make a truthful decision without text reparsing.
+    internal AotExpressionPlan? AttachedValue { get; }
+    internal AotSourceSpan? AttachedValueSpan { get; }
+
+    internal override void AppendResolved(AotScope scope, List<CommandSyntaxAtom> atoms)
+    {
+        atoms.Add(new CommandSyntaxAtom(Name, IsParameter: true, Span));
+        if (AttachedValue is not null)
+        {
+            AotCommandArgumentConverter.Append(AttachedValue.Evaluate(scope), AttachedValueSpan ?? Span, atoms);
+        }
+    }
 }
 
 internal sealed class AotValueArgumentPlan : AotCommandArgumentPlan
@@ -601,15 +622,25 @@ internal sealed class AotCommandPlan(string name, AotSourceSpan commandSpan, IRe
 
     internal (IAotCmdlet Cmdlet, CommandInvocation Invocation) Bind(AotScope scope)
     {
+        // The static executable registry, rather than generated catalog
+        // metadata, admits common extraction. Unknown/catalog-only commands
+        // must fail through the normal AOT2001 binder path unchanged.
+        AotCommonParameters commonParameters = AotCommonParameters.Default;
+        IReadOnlyList<AotCommandArgumentPlan> commandArguments = Arguments;
+        if (AotCmdletRegistry.IsStaticNativeCommand(Name))
+        {
+            commonParameters = AotCommonParameterBinder.Extract(Name, Arguments, out commandArguments);
+        }
         List<CommandSyntaxAtom> atoms = [];
-        foreach (AotCommandArgumentPlan argument in Arguments)
+        foreach (AotCommandArgumentPlan argument in commandArguments)
         {
             argument.AppendResolved(scope, atoms);
         }
 
         try
         {
-            return AotCmdletRegistry.BindCommand(Name, atoms, CommandSpan);
+            (IAotCmdlet cmdlet, CommandInvocation invocation) = AotCmdletRegistry.BindCommand(Name, atoms, CommandSpan);
+            return (cmdlet, invocation.WithCommonParameters(commonParameters));
         }
         catch (ScriptException exception)
         {
@@ -663,6 +694,12 @@ internal static class AotLocalFunctionArgumentBinder
                         named.Span,
                         "duplicate local-function parameter",
                         "Supply each local-function parameter at most once."));
+                }
+
+                if (named.AttachedValue is not null)
+                {
+                    supplied.Add(parameter.Name, named.AttachedValue.Evaluate(callerScope));
+                    continue;
                 }
 
                 if (++index >= arguments.Count || arguments[index] is not AotValueArgumentPlan value)

@@ -49,6 +49,28 @@ internal sealed class AotTerminalEventProjector(
         if (runtimeEvent is { Kind: AotRuntimeEventKind.Error, Diagnostic: { } diagnostic })
         {
             WriteDiagnostic(diagnostic);
+            return;
+        }
+
+        if (runtimeEvent is { Kind: AotRuntimeEventKind.TerminatingError, Diagnostic: { } terminatingDiagnostic })
+        {
+            // The terminating event is the one host-rendered path. The
+            // dedicated carrier caught by ScriptRunner merely selects exit 2.
+            WriteDiagnostic(terminatingDiagnostic);
+            return;
+        }
+
+        if (runtimeEvent is { Kind: AotRuntimeEventKind.Verbose or AotRuntimeEventKind.Debug, Message: { } message })
+        {
+            // This static terminal projection intentionally keeps the two
+            // admitted side streams separate from success-table output. A
+            // different embedding may retain/route the same typed event.
+            projectionContext.ThrowIfCancellationRequested();
+            string rendered = runtimeEvent.Kind == AotRuntimeEventKind.Verbose
+                ? $"VERBOSE: {message}"
+                : $"DEBUG: {message}";
+            projectionContext.ThrowIfCancellationRequested();
+            standardError.WriteLine(rendered);
         }
     }
 
