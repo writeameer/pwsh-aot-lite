@@ -147,7 +147,15 @@ internal sealed class CommandInvocation(
 // Parser-independent syntax atoms. The upstream AST lowerer and the legacy
 // compatibility tokenizer both feed this one generated-metadata binder; the
 // binder itself remains the sole authority for aliases and parameter shapes.
-internal sealed record CommandSyntaxAtom(string Text, bool IsParameter, AotSourceSpan? Span = null);
+// Preserve the upstream CommandParameterAst.Argument association. In
+// particular, `-Empty:$false` is not a bare `-Empty` followed by a positional
+// `$false`; the binder never reparses command text to recreate this fact.
+internal sealed record CommandSyntaxAtom(
+    string Text,
+    bool IsParameter,
+    AotSourceSpan? Span = null,
+    bool IsAttachedParameterValue = false,
+    bool? AttachedDirectBoolean = null);
 
 internal sealed class CommandError(AotDiagnostic diagnostic)
 {
@@ -472,6 +480,30 @@ internal sealed record TextRecord(string Value) : IPipelineRecord
         : throw new ScriptException($"Select-Object does not support column '{column}' for string values.");
 }
 
+// Port boundary for Microsoft.PowerShell.Commands.NewGuidCommand. The
+// upstream process body is one BCL decision after generated binding: emit a
+// UUID v7 normally, or Guid.Empty when -Empty is true. The existing closed
+// TextRecord prose shape renders the canonical D-format value. InputObject is
+// deliberately not admitted until a typed Guid boundary is separately
+// reviewed.
+internal sealed class NewGuidCmdlet : AotCmdletBase
+{
+    private static readonly CmdletDescriptor NewGuidDescriptor =
+        GeneratedCmdletPorts.NewGuid.CreateAotDescriptor("Empty");
+
+    public override CmdletDescriptor Descriptor => NewGuidDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        bool empty = invocation.TryGetValues("Empty", out string[] values)
+            && values.Single() is "true";
+        Guid value = empty ? Guid.Empty : Guid.CreateVersion7();
+        return [new TextRecord(value.ToString("D"))];
+    }
+}
+
 // Static equivalent of Microsoft.PowerShell.Commands.FileHashInfo.  It keeps
 // the source command's public data (Algorithm, Hash, Path) without requiring
 // PSObject formatting/type data at runtime.
@@ -660,7 +692,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new NewGuidCmdlet(), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -723,8 +755,10 @@ internal static class AotCmdletRegistry
 
         Dictionary<string, List<CommandSyntaxAtom>> bound = new(StringComparer.OrdinalIgnoreCase);
         ParameterSpec? current = null;
-        foreach (CommandSyntaxAtom atom in arguments)
+        CommandSyntaxAtom[] atoms = arguments.ToArray();
+        for (int index = 0; index < atoms.Length; index++)
         {
+            CommandSyntaxAtom atom = atoms[index];
             if (atom.IsParameter)
             {
                 string parameterName = atom.Text;
@@ -741,11 +775,39 @@ internal static class AotCmdletRegistry
 
                 if (current.Shape == AotParameterShape.Switch)
                 {
-                    bound[current.Name].Add(new CommandSyntaxAtom("true", IsParameter: false, atom.Span));
+                    if (index + 1 < atoms.Length && atoms[index + 1].IsAttachedParameterValue)
+                    {
+                        CommandSyntaxAtom attached = atoms[++index];
+                        if (attached.AttachedDirectBoolean is not bool switchValue)
+                        {
+                            throw new ScriptException(AotDiagnostics.Unsupported(
+                                $"non-Boolean attached -{parameterName} value for {cmdlet.Descriptor.Name}",
+                                attached.Span ?? atom.Span ?? commandSpan,
+                                $"Use bare -{parameterName} or attach $true/$false directly (for example, -{parameterName}:$false)."));
+                        }
+
+                        bound[current.Name].Add(new CommandSyntaxAtom(
+                            switchValue ? "true" : "false",
+                            IsParameter: false,
+                            attached.Span));
+                    }
+                    else
+                    {
+                        bound[current.Name].Add(new CommandSyntaxAtom("true", IsParameter: false, atom.Span));
+                    }
+
                     current = null;
                 }
 
                 continue;
+            }
+
+            if (atom.IsAttachedParameterValue && current is null)
+            {
+                throw new ScriptException(AotDiagnostics.Unsupported(
+                    "an attached command parameter value without its parameter",
+                    atom.Span ?? commandSpan,
+                    "Use an admitted static parameter form."));
             }
 
             current ??= cmdlet.Descriptor.DefaultParameterName is { } defaultParameterName
@@ -2083,6 +2145,7 @@ internal static class SelfTest
     internal static void Run()
     {
         AssertHostSubstrate();
+        AssertNewGuidPort();
         AssertExecutionKernelAndDiagnostics();
         AssertRuntimeEventContract();
         AssertStaticCommonParameterPolicy();
@@ -2705,6 +2768,76 @@ internal static class SelfTest
         if (!quotedTimeZoneName.TryGetValues("Name", out string[] quotedNames) || !quotedNames.SequenceEqual(["Fixture Daylight Time"]))
         {
             throw new InvalidOperationException("Quoted command parameter tokenizer regression.");
+        }
+    }
+
+    private static void AssertNewGuidPort()
+    {
+        SourceCmdletMetadata contract = GeneratedCmdletPorts.NewGuid;
+        SourceParameterMetadata empty = contract.Parameters.Single(parameter => parameter.Name == "Empty");
+        SourceParameterMetadata inputObject = contract.Parameters.Single(parameter => parameter.Name == "InputObject");
+        if (!contract.BaseTypeChain.Take(2).SequenceEqual(["PSCmdlet", "Cmdlet"])
+            || !contract.OutputTypes.SequenceEqual(["typeof(Guid)"])
+            || empty.Shape != AotParameterShape.Switch
+            || !empty.ParameterSets.Any(parameterSet => parameterSet.Name == "Empty")
+            || inputObject.Shape != AotParameterShape.Scalar
+            || !inputObject.ParameterSets.Any(parameterSet => parameterSet.Name == "InputObject" && parameterSet.Position == 0 && parameterSet.PipelineBinding.HasFlag(PipelineBindingSource.ByValue)))
+        {
+            throw new InvalidOperationException("Generated New-Guid contract regression.");
+        }
+
+        NewGuidCmdlet cmdlet = new();
+        if (cmdlet.Invoke(new CommandInvocation(cmdlet.Descriptor, new Dictionary<string, string[]>()), new AotExecutionContext())
+            .SingleOrDefault() is not TextRecord { Value: var generated }
+            || !Guid.TryParse(generated, out Guid generatedGuid)
+            || generatedGuid == Guid.Empty
+            || generated.Length != 36
+            || generated[14] != '7')
+        {
+            throw new InvalidOperationException("New-Guid did not emit a UUID v7 through the closed prose record path.");
+        }
+
+        if (cmdlet.Invoke(new CommandInvocation(cmdlet.Descriptor, new Dictionary<string, string[]>
+            {
+                ["Empty"] = ["true"],
+            }), new AotExecutionContext()).SingleOrDefault() is not TextRecord { Value: "00000000-0000-0000-0000-000000000000" })
+        {
+            throw new InvalidOperationException("New-Guid -Empty did not emit Guid.Empty.");
+        }
+
+        (_, CommandInvocation falseInvocation) = AotCmdletRegistry.ParseSource("New-Guid -Empty:$false");
+        if (!falseInvocation.TryGetValues("Empty", out string[] falseValues)
+            || !falseValues.SequenceEqual(["false"], StringComparer.OrdinalIgnoreCase)
+            || cmdlet.Invoke(falseInvocation, new AotExecutionContext()).SingleOrDefault() is not TextRecord { Value: var falseGuid }
+            || !Guid.TryParse(falseGuid, out Guid parsedFalseGuid)
+            || parsedFalseGuid == Guid.Empty
+            || falseGuid.Length != 36
+            || falseGuid[14] != '7')
+        {
+            throw new InvalidOperationException("An attached Boolean switch value was detached or New-Guid -Empty:$false did not emit UUID v7.");
+        }
+
+        if (ScriptParser.Parse("New-Guid").TerminalPresentation is not AotTerminalPresentation.Prose)
+        {
+            throw new InvalidOperationException("New-Guid did not retain its direct prose terminal contract.");
+        }
+
+        AssertNewGuidFailure("New-Guid -Empty:'false'", "new-guid-attached-string.ps1", "AOT1001");
+        AssertNewGuidFailure("New-Guid -Empty:$null", "new-guid-attached-null.ps1", "AOT1001");
+        AssertNewGuidFailure("New-Guid 00000000-0000-0000-0000-000000000000", "new-guid-positional.ps1", "AOT2005");
+        AssertNewGuidFailure("New-Guid -InputObject 00000000-0000-0000-0000-000000000000", "new-guid-input-object.ps1", "AOT2002");
+        AssertNewGuidFailure("New-Guid -Empty -InputObject 00000000-0000-0000-0000-000000000000", "new-guid-conflict.ps1", "AOT2002");
+    }
+
+    private static void AssertNewGuidFailure(string source, string documentName, string diagnosticId)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName).Execute(new AotExecutionContext());
+            throw new InvalidOperationException($"Expected {diagnosticId} for New-Guid source '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == diagnosticId)
+        {
         }
     }
 

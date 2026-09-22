@@ -89,13 +89,18 @@ $declarations = foreach ($match in $matches) {
         requiredPrerequisites = $classification.Required
         directBodyHelperReview = 'required-before-port'
         implementedSubset = $null
-        currentState = if ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
+        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
     }
 }
 
 foreach ($entry in $declarations | Where-Object currentState -like 'existing-reviewed-adapter*') {
     $entry.directBodyHelperReview = 'completed-for-existing-subset; re-review before widening'
     $entry.implementedSubset = if ($entry.command -in @('Get-Help', 'Get-Command', 'Get-Module')) { 'Static metadata control-plane projection only; upstream live/session/module-path behavior remains unsupported.' } else { 'Reviewed current target subset; see port-variances.json and docs/cmdlets.' }
+}
+
+foreach ($entry in $declarations | Where-Object command -eq 'New-Guid') {
+    $entry.directBodyHelperReview = 'reviewed-and-integrated-for-empty-switch subset'
+    $entry.implementedSubset = 'Integrated: default UUID v7 and generated -Empty only; InputObject/positional/pipeline behavior remains rejected pending a typed Guid boundary.'
 }
 
 $duplicateNames = $declarations | Group-Object command | Where-Object Count -gt 1

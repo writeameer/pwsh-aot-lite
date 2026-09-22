@@ -3,7 +3,7 @@
   "generatedFrom": "GeneratedCmdletPorts.g.cs after a fresh Release build",
   "upstreamCommit": "1e53f6bbab4b8791eae782474d21889f9e5d6038",
   "generatedContractSha256": "BCD10A049929638B334B1E6622813112EC730C3286DDC57DFCED184BDD68D21C",
-  "classifierSha256": "3141B7D506254591E051B81562230263C0057883123E039645D42D14C7512D71",
+  "classifierSha256": "F69C37973189F39CD324912B1223E77B90F94840C1C284F4439C17D211F116AB",
   "declarationCount": 290,
   "logicalCommandCount": 288,
   "categoryValues": [
@@ -2934,9 +2934,9 @@
         "typed record contract",
         "direct body/helper review"
       ],
-      "directBodyHelperReview": "required-before-port",
-      "implementedSubset": null,
-      "currentState": "catalogued-only; no execution claim"
+      "directBodyHelperReview": "reviewed-and-integrated-for-empty-switch subset",
+      "implementedSubset": "Integrated: default UUID v7 and generated -Empty only; InputObject/positional/pipeline behavior remains rejected pending a typed Guid boundary.",
+      "currentState": "integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred"
     },
     {
       "declarationId": "src/Microsoft.PowerShell.Commands.Management/commands/management/Navigation.cs|NewItemCommand|1",

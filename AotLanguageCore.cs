@@ -595,7 +595,16 @@ internal sealed class AotParameterArgumentPlan : AotCommandArgumentPlan
         atoms.Add(new CommandSyntaxAtom(Name, IsParameter: true, Span));
         if (AttachedValue is not null)
         {
-            AotCommandArgumentConverter.Append(AttachedValue.Evaluate(scope), AttachedValueSpan ?? Span, atoms);
+            bool? directBoolean = AttachedValue is AotLiteralExpressionPlan literal
+                && literal.Value.TryGetBoolean(out bool value)
+                    ? value
+                    : null;
+            AotCommandArgumentConverter.Append(
+                AttachedValue.Evaluate(scope),
+                AttachedValueSpan ?? Span,
+                atoms,
+                isAttachedParameterValue: true,
+                attachedDirectBoolean: directBoolean);
         }
     }
 }
@@ -778,13 +787,18 @@ internal static class AotLocalFunctionArgumentBinder
 // tokens; only AST parameter nodes create parameter atoms.
 internal static class AotCommandArgumentConverter
 {
-    internal static void Append(AotValue value, AotSourceSpan span, List<CommandSyntaxAtom> atoms)
+    internal static void Append(
+        AotValue value,
+        AotSourceSpan span,
+        List<CommandSyntaxAtom> atoms,
+        bool isAttachedParameterValue = false,
+        bool? attachedDirectBoolean = null)
     {
         if (value.TryGetItems(out IReadOnlyList<AotValue>? items))
         {
             foreach (AotValue item in items!)
             {
-                Append(item, span, atoms);
+                Append(item, span, atoms, isAttachedParameterValue, attachedDirectBoolean);
             }
 
             return;
@@ -806,7 +820,12 @@ internal static class AotCommandArgumentConverter
                 "Use a string, Boolean, finite number, null, or a list of those values.")),
         };
 
-        atoms.Add(new CommandSyntaxAtom(text, IsParameter: false, span));
+        atoms.Add(new CommandSyntaxAtom(
+            text,
+            IsParameter: false,
+            span,
+            isAttachedParameterValue,
+            attachedDirectBoolean));
     }
 }
 

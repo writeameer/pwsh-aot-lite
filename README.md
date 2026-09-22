@@ -113,6 +113,9 @@ Get-Date -UnixTime 0 -AsUTC -Format FileDateTimeUniversal
 Get-Date -Date 2024-02-29T12:34:56 -UFormat '+%Y-%m-%dT%H:%M:%S'
 Get-FileHash README.md -Algorithm SHA512
 Get-FileHash -LiteralPath 'file-with-*.txt' -Algorithm MD5
+New-Guid
+New-Guid -Empty
+New-Guid -Empty:$false
 Get-Help Get-ChildItem
 Get-Help Start-ThreadJob
 Get-Help Get-KubeResource
@@ -128,6 +131,13 @@ PwshAotLite --complete "Get-Help Start-Th"
 ```
 
 The port preserves explicit static parameter metadata, `Name`/`Id`/pipeline-object selection modes, duplicate removal, name/id sort order, wildcard selection, and non-terminating missing-process errors. It supports `-IncludeUserName`, `-Module`, `-FileVersionInfo`, and their valid module/file-version combination in the macOS AOT target. The current wildcard subset is `*` and `?`.
+
+`New-Guid` is the first Wave 2 BCL calibration port. Its executable surface is
+deliberately only default UUID v7 generation and generated `-Empty`, including
+the direct Boolean spelling `-Empty:$false`; it prints one UUID per line. Its
+source `InputObject`, positional, pipeline, invalid-GUID error, and typed Guid
+pipeline behavior are deferred and fail at binding rather than being
+approximated. See the [New-Guid port notes](docs/cmdlets/new-guid.md).
 
 The repeatable mapping for the next cmdlet is in [PORTING.md](PORTING.md).
 
