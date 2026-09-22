@@ -495,11 +495,12 @@ internal static class UpstreamAstPipelineLowerer
         {
             if (element is CommandParameterAst parameter)
             {
-                arguments.Add(new AotParameterArgumentPlan(parameter.ParameterName, AotScriptParser.ToSpan(parameter.Extent)));
-                if (parameter.Argument is not null)
-                {
-                    AddCommandValueArguments(parameter.Argument, arguments);
-                }
+                AotExpressionPlan? attachedValue = parameter.Argument is null ? null : LowerExpression(parameter.Argument);
+                arguments.Add(new AotParameterArgumentPlan(
+                    parameter.ParameterName,
+                    AotScriptParser.ToSpan(parameter.Extent),
+                    attachedValue,
+                    parameter.Argument is null ? null : AotScriptParser.ToSpan(parameter.Argument.Extent)));
 
                 continue;
             }

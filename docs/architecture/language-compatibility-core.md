@@ -247,6 +247,13 @@ failure points at the source use-site, not a previous assignment or the whole
 command. Source-derived command value spans now flow through `CommandInvocation`
 so port validation, such as `Get-Process -Id $value`, underlines `$value`.
 
+`CommandParameterAst.Argument` remains attached to the lowered parameter
+plan. The static invocation-policy subset relies on that association to tell
+`-Verbose:$false` from a bare `-Verbose` followed by a separate command value;
+the latter is never silently consumed as a switch value. See the [Engine
+Runtime Core](engine-runtime-core.md#static-invocation-policy-subset) for the
+closed common-parameter policy.
+
 ## Evidence and next increment
 
 Grammar fixtures `05`–`13` cover variables, valid conditional/foreach ASTs,
