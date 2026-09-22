@@ -116,6 +116,7 @@ Get-FileHash -LiteralPath 'file-with-*.txt' -Algorithm MD5
 New-Guid
 New-Guid -Empty
 New-Guid -Empty:$false
+New-TimeSpan -Days 1 -Hours 2 -Minutes 3 -Seconds 4 -Milliseconds 5
 Get-Help Get-ChildItem
 Get-Help Start-ThreadJob
 Get-Help Get-KubeResource
@@ -138,6 +139,14 @@ the direct Boolean spelling `-Empty:$false`; it prints one UUID per line. Its
 source `InputObject`, positional, pipeline, invalid-GUID error, and typed Guid
 pipeline behavior are deferred and fail at binding rather than being
 approximated. See the [New-Guid port notes](docs/cmdlets/new-guid.md).
+
+`New-TimeSpan` is the second Wave 2 calibration port. It directly constructs
+an invariant BCL duration from the generated `Days`, `Hours`, `Minutes`,
+`Seconds`, and `Milliseconds` components (or emits zero with no components).
+It writes canonical invariant `c` format directly and has a closed explicit
+duration record for structural projections. Source `Start`/`LastWriteTime`/
+`End`, positional, and pipeline DateTime behavior are deferred and rejected at
+binding. See the [New-TimeSpan port notes](docs/cmdlets/new-timespan.md).
 
 The repeatable mapping for the next cmdlet is in [PORTING.md](PORTING.md).
 

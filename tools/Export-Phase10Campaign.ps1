@@ -89,7 +89,7 @@ $declarations = foreach ($match in $matches) {
         requiredPrerequisites = $classification.Required
         directBodyHelperReview = 'required-before-port'
         implementedSubset = $null
-        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
+        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -eq 'New-TimeSpan') { 'integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
     }
 }
 
@@ -101,6 +101,11 @@ foreach ($entry in $declarations | Where-Object currentState -like 'existing-rev
 foreach ($entry in $declarations | Where-Object command -eq 'New-Guid') {
     $entry.directBodyHelperReview = 'reviewed-and-integrated-for-empty-switch subset'
     $entry.implementedSubset = 'Integrated: default UUID v7 and generated -Empty only; InputObject/positional/pipeline behavior remains rejected pending a typed Guid boundary.'
+}
+
+foreach ($entry in $declarations | Where-Object command -eq 'New-TimeSpan') {
+    $entry.directBodyHelperReview = 'reviewed-and-integrated-for-time-components subset'
+    $entry.implementedSubset = 'Integrated: no-argument zero duration and generated Days/Hours/Minutes/Seconds/Milliseconds components only; Start/LastWriteTime/End, positional, and pipeline DateTime behavior remain rejected pending a typed DateTime input boundary.'
 }
 
 $duplicateNames = $declarations | Group-Object command | Where-Object Count -gt 1

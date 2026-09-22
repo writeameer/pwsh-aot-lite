@@ -31,6 +31,7 @@ The migration order and candidacy decisions are maintained in the
 | `Get-TimeZone` | complete for the current AOT target | [Get-TimeZone port notes](cmdlets/get-timezone.md) |
 | `Get-Date` | direct modes ported; pipeline binding deferred | [Get-Date port notes](cmdlets/get-date.md) |
 | `Get-FileHash` | direct physical-file modes ported; provider/stream binding deferred | [Get-FileHash port notes](cmdlets/get-filehash.md) |
+| `New-TimeSpan` | no-argument and typed direct component construction ported; date/pipeline input deferred | [New-TimeSpan port notes](cmdlets/new-timespan.md) |
 | `Get-Help` | complete for static catalog and extension discovery; advanced HelpSystem modes deferred | [Get-Help port notes](cmdlets/get-help.md) |
 | `Get-Command` | complete for static built-in and extension command discovery; live session-state modes deferred | [Get-Command port notes](cmdlets/get-command.md) |
 | `Get-Module` | complete for the static built-in and registered-extension inventory; live/module-path modes deferred | [Get-Module port notes](cmdlets/get-module.md) |

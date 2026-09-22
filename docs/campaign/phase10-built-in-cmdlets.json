@@ -3,7 +3,7 @@
   "generatedFrom": "GeneratedCmdletPorts.g.cs after a fresh Release build",
   "upstreamCommit": "1e53f6bbab4b8791eae782474d21889f9e5d6038",
   "generatedContractSha256": "BCD10A049929638B334B1E6622813112EC730C3286DDC57DFCED184BDD68D21C",
-  "classifierSha256": "F69C37973189F39CD324912B1223E77B90F94840C1C284F4439C17D211F116AB",
+  "classifierSha256": "22881C02F507439E834A2AFCCB148B1FDD009652BDD0517B4D16629003BE9607",
   "declarationCount": 290,
   "logicalCommandCount": 288,
   "categoryValues": [
@@ -3227,9 +3227,9 @@
         "typed record contract",
         "direct body/helper review"
       ],
-      "directBodyHelperReview": "required-before-port",
-      "implementedSubset": null,
-      "currentState": "catalogued-only; no execution claim"
+      "directBodyHelperReview": "reviewed-and-integrated-for-time-components subset",
+      "implementedSubset": "Integrated: no-argument zero duration and generated Days/Hours/Minutes/Seconds/Milliseconds components only; Start/LastWriteTime/End, positional, and pipeline DateTime behavior remain rejected pending a typed DateTime input boundary.",
+      "currentState": "integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred"
     },
     {
       "declarationId": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Var.cs|NewVariableCommand|1",
