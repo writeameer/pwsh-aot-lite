@@ -34,7 +34,7 @@ internal static class UpstreamAstPipelineLowerer
     {
         ScriptBlockAst ast = parseResult.Ast;
         ValidateTopLevelBlock(ast);
-        return LowerStatements(ast.EndBlock!.Statements, ast.EndBlock.Traps, ast.EndBlock.Extent);
+        return LowerStatements(ast.EndBlock!.Statements, ast.EndBlock.Traps, ast.EndBlock.Extent, allowRootFunctionDefinitions: true);
     }
 
     private static void ValidateTopLevelBlock(ScriptBlockAst ast)
@@ -87,12 +87,13 @@ internal static class UpstreamAstPipelineLowerer
     }
 
     private static AotBlockPlan LowerStatementBlock(StatementBlockAst block) =>
-        LowerStatements(block.Statements, block.Traps, block.Extent);
+        LowerStatements(block.Statements, block.Traps, block.Extent, allowRootFunctionDefinitions: false);
 
     private static AotBlockPlan LowerStatements(
         IEnumerable<StatementAst> source,
         IEnumerable<TrapStatementAst>? traps,
-        IScriptExtent extent)
+        IScriptExtent extent,
+        bool allowRootFunctionDefinitions)
     {
         if (traps?.Any() == true)
         {
@@ -102,20 +103,86 @@ internal static class UpstreamAstPipelineLowerer
         List<AotStatementPlan> statements = [];
         foreach (StatementAst statement in source)
         {
-            statements.Add(LowerStatement(statement));
+            statements.Add(LowerStatement(statement, allowRootFunctionDefinitions));
         }
 
         return new AotBlockPlan(statements);
     }
 
-    private static AotStatementPlan LowerStatement(StatementAst statement) => statement switch
+    private static AotStatementPlan LowerStatement(StatementAst statement, bool allowRootFunctionDefinitions)
     {
-        AssignmentStatementAst assignment => LowerAssignment(assignment),
-        PipelineAst pipeline => LowerPipeline(pipeline),
-        IfStatementAst conditional => LowerIf(conditional),
-        ForEachStatementAst forEach => LowerForEach(forEach),
-        _ => throw Unsupported($"statement '{statement.GetType().Name}'", statement.Extent),
-    };
+        if (statement is FunctionDefinitionAst function)
+        {
+            return allowRootFunctionDefinitions
+                ? LowerFunctionDefinition(function)
+                : throw Unsupported("function definitions outside the root script block", function.Extent);
+        }
+
+        return statement switch
+        {
+            AssignmentStatementAst assignment => LowerAssignment(assignment),
+            PipelineAst pipeline => LowerPipeline(pipeline),
+            IfStatementAst conditional => LowerIf(conditional),
+            ForEachStatementAst forEach => LowerForEach(forEach),
+            _ => throw Unsupported($"statement '{statement.GetType().Name}'", statement.Extent),
+        };
+    }
+
+    private static AotFunctionDefinitionPlan LowerFunctionDefinition(FunctionDefinitionAst function)
+    {
+        if (function.IsFilter || function.IsWorkflow)
+        {
+            throw Unsupported("filters and workflows", function.Extent);
+        }
+
+        if (function.Name.Contains(':', StringComparison.Ordinal))
+        {
+            throw Unsupported("scope-qualified local function names", function.Extent);
+        }
+
+        List<AotLocalFunctionParameter> parameters = [];
+        HashSet<string> parameterNames = new(StringComparer.OrdinalIgnoreCase);
+        foreach (ParameterAst parameter in function.Parameters ?? [])
+        {
+            if (parameter.Attributes.Count != 0 || parameter.DefaultValue is not null)
+            {
+                throw Unsupported("function parameter attributes, type constraints, or defaults", parameter.Extent);
+            }
+
+            string parameterName = GetFunctionParameterName(parameter.Name);
+            if (!parameterNames.Add(parameterName))
+            {
+                throw Unsupported("duplicate local function parameters", parameter.Name.Extent);
+            }
+
+            parameters.Add(new AotLocalFunctionParameter(parameterName, AotScriptParser.ToSpan(parameter.Name.Extent)));
+        }
+
+        return new AotFunctionDefinitionPlan(new AotLocalFunctionPlan(
+            function.Name,
+            parameters,
+            LowerFunctionBody(function.Body),
+            AotScriptParser.ToSpan(function.Extent)));
+    }
+
+    private static AotBlockPlan LowerFunctionBody(ScriptBlockAst body)
+    {
+        if (body.UsingStatements?.Count is > 0
+            || body.Attributes?.Count is > 0
+            || body.ParamBlock is not null
+            || body.BeginBlock is not null
+            || body.ProcessBlock is not null
+            || body.DynamicParamBlock is not null
+            || body.CleanBlock is not null
+            || body.EndBlock is null
+            || !body.EndBlock.Unnamed
+            || body.EndBlock.Traps?.Count is > 0)
+        {
+            throw Unsupported("advanced local function blocks or body param declarations", body.Extent);
+        }
+
+        return LowerStatements(body.EndBlock.Statements, body.EndBlock.Traps, body.EndBlock.Extent, allowRootFunctionDefinitions: false);
+    }
 
     private static AotIfStatementPlan LowerIf(IfStatementAst conditional)
     {
@@ -478,6 +545,26 @@ internal static class UpstreamAstPipelineLowerer
             || path.UserPath.Equals("null", StringComparison.OrdinalIgnoreCase))
         {
             throw UnsupportedVariable($"assignment target '${path.UserPath}'", variable.Extent, "Assign one ordinary unscoped variable at a time.");
+        }
+
+        return path.UserPath;
+    }
+
+    private static string GetFunctionParameterName(VariableExpressionAst parameter)
+    {
+        if (parameter.Splatted)
+        {
+            throw UnsupportedVariable("splat local-function parameters", parameter.Extent, "Declare one ordinary unscoped parameter at a time.");
+        }
+
+        var path = parameter.VariablePath;
+        if (!path.IsUnscopedVariable
+            || AotScopeVariablePolicy.IsReservedPowerShellName(path.UserPath)
+            || path.UserPath.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || path.UserPath.Equals("false", StringComparison.OrdinalIgnoreCase)
+            || path.UserPath.Equals("null", StringComparison.OrdinalIgnoreCase))
+        {
+            throw UnsupportedVariable($"local-function parameter '${path.UserPath}'", parameter.Extent, "Declare an ordinary unscoped parameter.");
         }
 
         return path.UserPath;

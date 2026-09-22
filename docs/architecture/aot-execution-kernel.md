@@ -16,16 +16,16 @@ source document
 ```
 
 The first `AotExecutionPlan` established the AST-to-plan boundary. It now owns
-an ordered block of assignment, conditional, closed-list foreach, and structural-pipeline plans;
+an ordered block of assignment, conditional, closed-list foreach, root local-function declaration, and structural-pipeline plans;
 scope, delayed variable binding, closed conditional selection, and closed-list
 iteration are documented in the [Language Compatibility Core](language-compatibility-core.md).
-General enumeration, parallel loops, and functions remain deliberately absent.
+General enumeration, parallel loops, and advanced function semantics remain deliberately absent.
 
 ## Current supported execution shape
 
 An unnamed upstream-parsed block with ordered assignments, reviewed
 `if`/`elseif`/`else` statements, closed-list synchronous `foreach` statements,
-and command pipelines. Each executable
+sequential root local-function declarations/direct calls, and command pipelines. Each executable
 pipeline has:
 
 - one native-AOT source command;
@@ -67,7 +67,7 @@ generic pipeline boundary only through the existing explicit `AotValue`/
 | `AOT2005` | Positional argument is not supported |
 | `AOT3001`–`AOT3004` | `Get-Process` validation failures with command source context |
 | `AOT4001`–`AOT4008` | `Where-Object` / `Select-Object` structural-stage validation failures |
-| `AOT5001`–`AOT5006` | Lexical scope, value-to-binder conversion, variable predicate, closed conditional, and closed-list foreach failures |
+| `AOT5001`–`AOT5008` | Lexical scope, value-to-binder conversion, variable predicate, closed conditional/list iteration, and bounded local-function failures |
 | `AOT3000` | Transitional typed wrapper around an untouched legacy runtime error; it still inherits the active command span |
 | `AOT9000` | Unexpected host failure, with implementation detail withheld from normal output |
 
@@ -96,8 +96,8 @@ pwsh -NoProfile -File tools/Export-PwshParserBaseline.ps1 -Verify
 
 ## Next increments
 
-Language support and runtime behavior now progress independently. Named local
-functions remain a Language Compatibility Core slice. Runtime stream, stage,
+Language support and runtime behavior now progress independently. Advanced
+function flow and parameter semantics remain Language Compatibility Core work. Runtime stream, stage,
 lifecycle, and host work are owned by the [Engine Runtime Core](engine-runtime-core.md).
 Every new port must continue to migrate errors to typed origin diagnostics and
 add fixture-based snapshot coverage.

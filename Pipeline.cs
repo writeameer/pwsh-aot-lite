@@ -150,6 +150,7 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
     private readonly List<CommandError> _errors = [];
     private readonly List<AotRuntimeEvent> _events = [];
     private readonly List<Action<AotRuntimeEvent>> _observers = [];
+    private readonly HashSet<string> _activeFunctions = new(StringComparer.OrdinalIgnoreCase);
     private AotInvocationFrame? _activeInvocation;
     private long _nextSequence;
 
@@ -197,6 +198,25 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
             pipelineLength,
             _activeInvocation));
 
+    // The first local-function slice deliberately rejects recursive re-entry.
+    // It prevents a static-AOT host stack overflow while return semantics and
+    // a reviewed recursive control-flow contract remain outside the subset.
+    internal IDisposable EnterFunction(string name, AotSourceSpan callSpan)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (!_activeFunctions.Add(name))
+        {
+            throw new ScriptException(AotDiagnostics.Scope(
+                "AOT5007",
+                $"Recursive invocation of local function '{name}' is not supported by the Native AOT subset.",
+                callSpan,
+                "unsupported recursive function call",
+                "Use a non-recursive function body until return and recursive control flow receive a reviewed plan."));
+        }
+
+        return new FunctionScope(this, name);
+    }
+
     private long NextSequence() => checked(++_nextSequence);
 
     private void Publish(AotRuntimeEvent runtimeEvent)
@@ -222,6 +242,11 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
         }
 
         public void Dispose() => _context._activeInvocation = _priorInvocation;
+    }
+
+    private sealed class FunctionScope(AotExecutionContext context, string name) : IDisposable
+    {
+        public void Dispose() => context._activeFunctions.Remove(name);
     }
 
     private sealed class ObserverScope(AotExecutionContext context, Action<AotRuntimeEvent> observer) : IDisposable
@@ -2046,6 +2071,7 @@ internal static class SelfTest
         AssertTypedStageComposition();
         AssertCancellationLifecycle();
         AssertLanguageCompatibilityCore();
+        AssertNamedLocalFunctions();
         AssertControlFlowCore();
         AssertForEachCore();
         AssertTerminalPresentation();
@@ -3468,6 +3494,119 @@ error[AOT5003]: Value kind 'Bytes' cannot be passed to a command argument in the
         catch (ScriptException error) when (error.Diagnostic.Id == "AOT5002")
         {
             // The policy must apply symmetrically to reads and assignments.
+        }
+    }
+
+    private static void AssertNamedLocalFunctions()
+    {
+        const string basicSource = """
+function Get-CommonVerb($group) {
+    Get-Verb -Group $group | Select-Object Verb
+}
+Get-CommonVerb Common
+""";
+        AotExecutionResult basicResult = AotExecutionKernel.Compile(basicSource, "function-basic.ps1")
+            .Execute(new AotExecutionContext());
+        if (basicResult.Outputs.SingleOrDefault() is not { Columns: var basicColumns, Rows: var basicRows }
+            || !basicColumns.SequenceEqual(["Verb"])
+            || !basicRows.Any(row => row.TextFor("Verb") == "Add"))
+        {
+            throw new InvalidOperationException("A declared local function did not lower, bind its closed positional parameter, and forward body output.");
+        }
+
+        const string scopeSource = """
+$group = 'Common'
+$outer = 'Other'
+function Read-Group($ignored) {
+    $outer = 'Security'
+    Get-Verb -Group $group | Select-Object Verb
+}
+Read-Group $null
+""";
+        AotScope scope = new();
+        AotExecutionResult scopeResult = AotExecutionKernel.Compile(scopeSource, "function-scope.ps1")
+            .Execute(new AotExecutionContext(), scope);
+        if (scopeResult.Outputs.Count != 1
+            || !scope.TryGet("outer", out AotValue outer)
+            || !outer.TryGetString(out string? outerText)
+            || outerText != "Other")
+        {
+            throw new InvalidOperationException("A local function did not read its caller scope or isolate its assignment to a child scope.");
+        }
+
+        AotScope session = new();
+        _ = AotExecutionKernel.Compile(
+                "function Session-Verb($group) { Get-Verb -Group $group | Select-Object Verb }",
+                "function-repl-definition.ps1")
+            .Execute(new AotExecutionContext(), session);
+        AotExecutionResult sessionResult = AotExecutionKernel.Compile("session-verb Common", "function-repl-call.ps1")
+            .Execute(new AotExecutionContext(), session);
+        if (sessionResult.Outputs.Count != 1 || !sessionResult.Outputs[0].Rows.Any(row => row.TextFor("Verb") == "Add"))
+        {
+            throw new InvalidOperationException("An explicitly owned REPL scope did not retain a local function between submissions.");
+        }
+
+        AotExecutionResult shadowResult = AotExecutionKernel.Compile(
+                "function Get-Verb() { Get-Date | Select-Object DateTime }; get-verb",
+                "function-shadow.ps1")
+            .Execute(new AotExecutionContext());
+        if (shadowResult.Outputs.SingleOrDefault() is not { Columns: var shadowColumns }
+            || !shadowColumns.SequenceEqual(["DateTime"]))
+        {
+            throw new InvalidOperationException("A case-insensitive local function did not shadow the native command registry.");
+        }
+
+        AotExecutionResult orderedOutput = AotExecutionKernel.Compile(
+                "function Two-Outputs() { Get-Verb -Verb Add | Select-Object Verb; Get-Date | Select-Object DateTime }; Two-Outputs; Get-Verb -Verb Get | Select-Object Verb",
+                "function-output-order.ps1")
+            .Execute(new AotExecutionContext());
+        if (orderedOutput.Outputs.Count != 3
+            || !orderedOutput.Outputs[0].Columns.SequenceEqual(["Verb"])
+            || !orderedOutput.Outputs[1].Columns.SequenceEqual(["DateTime"])
+            || !orderedOutput.Outputs[2].Columns.SequenceEqual(["Verb"]))
+        {
+            throw new InvalidOperationException("Local-function body output did not retain the existing ordered segment sink.");
+        }
+
+        AssertFunctionFailure("Before-Definition Common; function Before-Definition($group) { Get-Verb -Group $group }", "function-order.ps1", "AOT2001");
+        AssertFunctionFailure("function Needs-One($group) { Get-Verb -Group $group }; Needs-One", "function-arity.ps1", "AOT5008");
+        AssertFunctionFailure("function Positional-Only($group) { Get-Verb -Group $group }; Positional-Only -group Common", "function-named.ps1", "AOT1001");
+        AssertFunctionFailure("function Pipe-Only() { Get-Verb -Verb Add }; Pipe-Only | Select-Object Verb", "function-pipeline.ps1", "AOT1001");
+        AssertFunctionFailure("function Loop() { Loop }; Loop", "function-recursion.ps1", "AOT5007");
+
+        foreach (string unsupported in new[]
+        {
+            "if ($true) { function Nested() { Get-Verb -Verb Add } }",
+            "function With-BodyParam() { param($group) Get-Verb -Group $group }",
+            "function With-Default($group = 'Common') { Get-Verb -Group $group }",
+            "function With-Type([string]$group) { Get-Verb -Group $group }",
+            "filter Stream-Verb { Get-Verb -Verb Add }",
+            "function With-Return() { return; Get-Verb -Verb Add }",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(unsupported, "function-unsupported.ps1");
+                throw new InvalidOperationException($"The kernel accepted deferred local-function syntax '{unsupported}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+                // The parser may see rich function syntax, but the native plan
+                // is intentionally limited to the documented local subset.
+            }
+        }
+    }
+
+    private static void AssertFunctionFailure(string source, string documentName, string diagnosticId)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName).Execute(new AotExecutionContext());
+            throw new InvalidOperationException($"The local-function failure '{diagnosticId}' did not occur for '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == diagnosticId)
+        {
+            // The test names the stable boundary without accepting a raw host exception.
         }
     }
 

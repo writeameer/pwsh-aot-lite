@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented third slice. This extends the AOT Execution Kernel from one
+Implemented fourth slice. This extends the AOT Execution Kernel from one
 pipeline to ordered statements with lexical values, narrowly defined
 `if`/`elseif`/`else` selection, and closed-list `foreach`. It is not a claim of general PowerShell
 expression, session-state, or script compatibility.
@@ -14,6 +14,7 @@ upstream ScriptBlockAst
        └─ AotPipelineStatementPlan(command/stage plans)
        └─ AotIfStatementPlan(closed conditions, nested statement blocks)
        └─ AotForEachStatementPlan(closed list, nested statement block)
+       └─ AotFunctionDefinitionPlan(pre-lowered local function)
              └─ execute with an explicit AotScope
                     └─ resolved atoms → existing AotCmdletRegistry binder
 ```
@@ -32,6 +33,46 @@ $threshold = 10
 $names = 'pwsh', 'dotnet'
 Get-Process -Name $names | Where-Object CPU -gt $threshold | Select-Object Name, Id
 ```
+
+## Named local functions
+
+The fourth slice accepts a sequential, root-script declaration and a direct
+call of that name:
+
+```powershell
+function Get-CommonVerb($group) {
+    Get-Verb -Group $group | Select-Object Verb
+}
+
+Get-CommonVerb Common
+```
+
+`FunctionDefinitionAst` is lowered once into an immutable
+`AotLocalFunctionPlan`; executing its declaration installs that plan in the
+current explicit `AotScope`. There is no source recompilation, `ScriptBlock`
+execution, runspace, reflection, or dynamic command discovery. Declarations
+therefore take effect in source order: a call before its declaration is the
+ordinary static-registry unknown-command failure. The REPL's explicit session
+scope retains a declaration between submissions; each `-Command` call starts
+with a fresh scope.
+
+Function names are case-insensitive and resolve before native adapters, so a
+local function may shadow a built-in command. Invocation is direct and must be
+the whole pipeline statement. Its body executes through the same context and
+output sink, preserving cancellation and ordered output segments.
+
+Each invocation creates `new AotScope(callerScope)`. Parameters and assignments
+are local, while an unresolved variable reads through the caller chain. This
+is the deliberately small dynamic-lookup behavior needed for ordinary local
+functions, not a general `SessionState` or closure implementation.
+
+The admitted signature is only unscoped, untyped header parameters with one
+closed positional `AotValue` per parameter and exact arity. Values stay closed
+values—there is no stringification/reparse path. Named/splatted arguments,
+aliases, switches, parameter sets, defaults, type/validation attributes,
+body `param`, `$args`, `$input`, and `$PSBoundParameters` are not supported.
+Direct or indirect recursive re-entry produces `AOT5007` rather than consuming
+the native host stack; a wrong positional arity produces `AOT5008`.
 
 Supported RHS values are null, Boolean, finite integer/decimal/floating-point
 numbers, non-interpolated string constants, direct variable references, and
@@ -105,7 +146,8 @@ The following parsed forms remain fail-closed: scoped/drive-qualified and
 automatic variables, splatting, compound assignment, multi-target assignment,
 interpolated strings/subexpressions, `@(...)`, hashtables, casts, member/index
 access, operator expressions, assignment from commands/pipelines, redirection,
-backgrounding, functions, general loops, flow-control statements, script blocks, and
+backgrounding, advanced/nested/conditional functions, general loops,
+flow-control statements, script blocks, and
 named PowerShell blocks. Conditional `-and`, `-or`, `-not`, invocation or
 pipeline conditions, and all expressions beyond the direct condition matrix
 above remain excluded. They need a dedicated reviewed plan; they must never
@@ -152,6 +194,8 @@ earlier successful statement remains visible if a later statement terminates.
 | `AOT5004` | A resolved `Where-Object` predicate value is not finite numeric. |
 | `AOT5005` | An `if` condition or comparison uses a value/shape outside the closed condition subset. |
 | `AOT5006` | A `foreach` collection resolves to a non-list closed value. |
+| `AOT5007` | A local function recursively re-enters the active AOT call chain. |
+| `AOT5008` | A local function call has the wrong number of positional closed values. |
 
 Static AST forms outside this slice retain `AOT1001`. Every scope/evaluation
 failure points at the source use-site, not a previous assignment or the whole
@@ -169,10 +213,9 @@ parameter-injection resistance, selected/skip/elseif behavior, same-scope
 branch assignment, closed-list foreach source snapshot/order/nesting/final
 scope behavior, output segment streaming, and typed diagnostic snapshots.
 
-The next language increment is named local functions. It must extend
-`AotBlockPlan` through the parser facade, value plane, and central binder; its
-scope semantics require a separate PowerShell-compatibility decision and test
-proof.
+The next language increment should be explicit `return`/function-flow
+semantics before any broader function parameter or pipeline contract. It must
+remain a parser-facade plan with the same closed value and diagnostic boundary.
 
 The original variables-only admission is recorded in the
 [Language Compatibility Core review ledger](../reviews/2026-09-22-language-compatibility-core.md).
@@ -180,3 +223,5 @@ Conditional execution and terminal presentation are admitted separately in the
 [control-flow and terminal-presentation review ledger](../reviews/2026-09-22-if-control-flow-terminal-presentation.md).
 Closed-list foreach is admitted separately in the
 [foreach review ledger](../reviews/2026-09-22-foreach-closed-list.md).
+Named local functions are admitted separately in the
+[local-function review ledger](../reviews/2026-09-22-named-local-functions.md).
