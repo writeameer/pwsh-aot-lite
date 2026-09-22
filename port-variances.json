@@ -284,6 +284,41 @@
       ]
     },
     {
+      "command": "New-TimeSpan",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/NewTimeSpanCommand.cs",
+      "state": "complete-direct-components-calibration-slice",
+      "variances": [
+        {
+          "id": "newtimespan-static-component-construction",
+          "sourceFeature": "Time parameter set calls new TimeSpan(Days, Hours, Minutes, Seconds, Milliseconds)",
+          "targetDecision": "generated opt-in descriptor binds only the five generated integer components and invokes the same static BCL constructor through AotCmdletBase lifecycle",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "newtimespan-closed-output-record",
+          "sourceFeature": "TimeSpan CLR object output with PowerShell formatting and property adaptation",
+          "targetDecision": "TimeSpanRecord is a closed target record and PipelineValueAdapter maps only a synthetic invariant-c Value field, components, ticks, and total-duration fields; direct terminal output is invariant c format. The source TimeSpan has no Value property and shared table rendering may round displayed totals.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "newtimespan-date-input-deferred",
+          "sourceFeature": "Date parameter set accepts Start/LastWriteTime/End, positional DateTime input, current-time defaults, ValueFromPipeline, and property-name binding",
+          "targetDecision": "all direct Date parameter-set members are absent from the executable descriptor and fail at generated binding; positional dates also fail there. Pipeline DateTime input fails earlier in the structural lowerer as AOT1001 until a reviewed typed DateTime input/conversion and parameter-set contract exists",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "newtimespan-component-diagnostics",
+          "sourceFeature": "PowerShell scalar conversion and engine error records for component binding/constructor range failures",
+          "targetDecision": "invariant integer conversion is explicit; invalid or fractional scalar text is AOT3005 and combined TimeSpan overflow is AOT3006 with source spans and corrective guidance. PowerShell's broader numeric-to-int coercion is deferred rather than approximated",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "New-Guid",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/NewGuidCommand.cs",
       "state": "complete-empty-switch-calibration-slice",

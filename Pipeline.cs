@@ -469,6 +469,57 @@ internal sealed record DateRecord(DateTime Value, string DisplayHint) : IPipelin
     };
 }
 
+// Static projection of the source TimeSpan output. The BCL value remains
+// private to this record: structural pipelines can observe only this explicit
+// finite field set, never arbitrary CLR TimeSpan members.
+internal sealed record TimeSpanRecord(TimeSpan Value) : IPipelineRecord
+{
+    public int Days => Value.Days;
+    public int Hours => Value.Hours;
+    public int Minutes => Value.Minutes;
+    public int Seconds => Value.Seconds;
+    public int Milliseconds => Value.Milliseconds;
+    public long Ticks => Value.Ticks;
+    public double TotalDays => Value.TotalDays;
+    public double TotalHours => Value.TotalHours;
+    public double TotalMinutes => Value.TotalMinutes;
+    public double TotalSeconds => Value.TotalSeconds;
+    public double TotalMilliseconds => Value.TotalMilliseconds;
+
+    public double NumberFor(string property) => property switch
+    {
+        "Days" => Days,
+        "Hours" => Hours,
+        "Minutes" => Minutes,
+        "Seconds" => Seconds,
+        "Milliseconds" => Milliseconds,
+        "Ticks" => Ticks,
+        "TotalDays" => TotalDays,
+        "TotalHours" => TotalHours,
+        "TotalMinutes" => TotalMinutes,
+        "TotalSeconds" => TotalSeconds,
+        "TotalMilliseconds" => TotalMilliseconds,
+        _ => throw new ScriptException($"Where-Object does not support property '{property}' for TimeSpan values.")
+    };
+
+    public string TextFor(string column) => column switch
+    {
+        "Value" => Value.ToString("c", CultureInfo.InvariantCulture),
+        "Days" => Days.ToString(CultureInfo.InvariantCulture),
+        "Hours" => Hours.ToString(CultureInfo.InvariantCulture),
+        "Minutes" => Minutes.ToString(CultureInfo.InvariantCulture),
+        "Seconds" => Seconds.ToString(CultureInfo.InvariantCulture),
+        "Milliseconds" => Milliseconds.ToString(CultureInfo.InvariantCulture),
+        "Ticks" => Ticks.ToString(CultureInfo.InvariantCulture),
+        "TotalDays" => TotalDays.ToString("R", CultureInfo.InvariantCulture),
+        "TotalHours" => TotalHours.ToString("R", CultureInfo.InvariantCulture),
+        "TotalMinutes" => TotalMinutes.ToString("R", CultureInfo.InvariantCulture),
+        "TotalSeconds" => TotalSeconds.ToString("R", CultureInfo.InvariantCulture),
+        "TotalMilliseconds" => TotalMilliseconds.ToString("R", CultureInfo.InvariantCulture),
+        _ => throw new ScriptException($"Select-Object does not support column '{column}' for TimeSpan values.")
+    };
+}
+
 // Formatting branches of Get-Date write strings in the source command. This
 // small scalar record preserves that distinction instead of pretending a
 // formatted date remains a date object.
@@ -501,6 +552,76 @@ internal sealed class NewGuidCmdlet : AotCmdletBase
             && values.Single() is "true";
         Guid value = empty ? Guid.Empty : Guid.CreateVersion7();
         return [new TextRecord(value.ToString("D"))];
+    }
+}
+
+// Port boundary for Microsoft.PowerShell.Commands.NewTimeSpanCommand. The
+// admitted Time parameter set maps directly to the static BCL constructor.
+// Date/LastWriteTime/Start/End and pipeline modes stay outside the descriptor
+// until a reviewed typed DateTime input contract exists.
+internal sealed class NewTimeSpanCmdlet : AotCmdletBase
+{
+    private static readonly CmdletDescriptor NewTimeSpanDescriptor =
+        GeneratedCmdletPorts.NewTimeSpan.CreateAotDescriptor("Days", "Hours", "Minutes", "Seconds", "Milliseconds");
+
+    public override CmdletDescriptor Descriptor => NewTimeSpanDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        int days = Component(invocation, "Days");
+        int hours = Component(invocation, "Hours");
+        int minutes = Component(invocation, "Minutes");
+        int seconds = Component(invocation, "Seconds");
+        int milliseconds = Component(invocation, "Milliseconds");
+
+        try
+        {
+            return [new TimeSpanRecord(new TimeSpan(days, hours, minutes, seconds, milliseconds))];
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3006",
+                "New-TimeSpan components produce a TimeSpan outside the supported range.",
+                FirstComponentSpan(invocation),
+                "TimeSpan overflow",
+                "Use component values whose combined duration fits in TimeSpan."));
+        }
+    }
+
+    private static int Component(CommandInvocation invocation, string name)
+    {
+        if (!invocation.TryGetValues(name, out string[] values))
+        {
+            return 0;
+        }
+
+        if (values.Length != 1 || !int.TryParse(values[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3005",
+                $"New-TimeSpan -{name} expects one invariant integer value, got '{string.Join(", ", values)}'.",
+                invocation.GetValueSpan(name, 0),
+                "invalid TimeSpan component",
+                "Use an integer literal in the range supported by TimeSpan."));
+        }
+
+        return value;
+    }
+
+    private static AotSourceSpan? FirstComponentSpan(CommandInvocation invocation)
+    {
+        foreach (string name in new[] { "Days", "Hours", "Minutes", "Seconds", "Milliseconds" })
+        {
+            if (invocation.TryGetValues(name, out _))
+            {
+                return invocation.GetValueSpan(name, 0);
+            }
+        }
+
+        return invocation.SourceSpan;
     }
 }
 
@@ -692,7 +813,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new NewGuidCmdlet(), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -2146,6 +2267,7 @@ internal static class SelfTest
     {
         AssertHostSubstrate();
         AssertNewGuidPort();
+        AssertNewTimeSpanPort();
         AssertExecutionKernelAndDiagnostics();
         AssertRuntimeEventContract();
         AssertStaticCommonParameterPolicy();
@@ -2837,6 +2959,72 @@ internal static class SelfTest
             throw new InvalidOperationException($"Expected {diagnosticId} for New-Guid source '{source}'.");
         }
         catch (ScriptException error) when (error.Diagnostic.Id == diagnosticId)
+        {
+        }
+    }
+
+    private static void AssertNewTimeSpanPort()
+    {
+        SourceCmdletMetadata contract = GeneratedCmdletPorts.NewTimeSpan;
+        if (!contract.BaseTypeChain.Take(2).SequenceEqual(["PSCmdlet", "Cmdlet"])
+            || !contract.OutputTypes.SequenceEqual(["typeof(TimeSpan)"])
+            || contract.Parameters.Single(parameter => parameter.Name == "Start") is not { Aliases: var startAliases }
+            || !startAliases.SequenceEqual(["LastWriteTime"])
+            || contract.Parameters.Where(parameter => parameter.Name is "Days" or "Hours" or "Minutes" or "Seconds" or "Milliseconds")
+                .Any(parameter => parameter.Shape != AotParameterShape.Scalar || !parameter.ParameterSets.Any(set => set.Name == "Time")))
+        {
+            throw new InvalidOperationException("Generated New-TimeSpan contract regression.");
+        }
+
+        NewTimeSpanCmdlet cmdlet = new();
+        if (cmdlet.Invoke(new CommandInvocation(cmdlet.Descriptor, new Dictionary<string, string[]>()), new AotExecutionContext())
+            .SingleOrDefault() is not TimeSpanRecord { Value: var zero }
+            || zero != TimeSpan.Zero)
+        {
+            throw new InvalidOperationException("New-TimeSpan did not emit the zero TimeSpan without components.");
+        }
+
+        (_, CommandInvocation componentInvocation) = AotCmdletRegistry.ParseSource("New-TimeSpan -Days 1 -Hours 2 -Minutes 3 -Seconds 4 -Milliseconds 5");
+        if (cmdlet.Invoke(componentInvocation, new AotExecutionContext()).SingleOrDefault() is not TimeSpanRecord value
+            || value.Value != new TimeSpan(1, 2, 3, 4, 5)
+            || value.TextFor("Value") != "1.02:03:04.0050000")
+        {
+            throw new InvalidOperationException("New-TimeSpan did not preserve Time components or invariant c-format presentation.");
+        }
+
+        AotRecord record = PipelineValueAdapter.ToRecord(value!);
+        if (record.TextFor("Value") != "1.02:03:04.0050000"
+            || record.TextFor("Ticks") != "937840050000"
+            || record.TextFor("TotalMilliseconds") != "93784005.00")
+        {
+            throw new InvalidOperationException("New-TimeSpan explicit value-plane adapter regression.");
+        }
+
+        if (ScriptParser.Parse("New-TimeSpan").TerminalPresentation is not AotTerminalPresentation.Prose
+            || ScriptParser.Parse("New-TimeSpan -Seconds 2 | Select-Object TotalSeconds").TerminalPresentation is not AotTerminalPresentation.Table)
+        {
+            throw new InvalidOperationException("New-TimeSpan terminal presentation contract regression.");
+        }
+
+        AssertNewTimeSpanFailure("New-TimeSpan -Seconds nope", "new-timespan-invalid.ps1", "AOT3005", 23);
+        AssertNewTimeSpanFailure("New-TimeSpan -Seconds 1.2", "new-timespan-fractional.ps1", "AOT3005", 23);
+        AssertNewTimeSpanFailure("New-TimeSpan -Days 2147483647", "new-timespan-overflow.ps1", "AOT3006", 20);
+        AssertNewTimeSpanFailure("New-TimeSpan -Start 2020-01-01", "new-timespan-start.ps1", "AOT2002", 14);
+        AssertNewTimeSpanFailure("New-TimeSpan -End 2020-01-01", "new-timespan-end.ps1", "AOT2002", 14);
+        AssertNewTimeSpanFailure("New-TimeSpan -LastWriteTime 2020-01-01", "new-timespan-last-write-time.ps1", "AOT2002", 14);
+        AssertNewTimeSpanFailure("New-TimeSpan 2020-01-01", "new-timespan-positional.ps1", "AOT2005", 14);
+        AssertNewTimeSpanFailure("Get-Date | New-TimeSpan", "new-timespan-pipeline.ps1", "AOT1001", 12);
+    }
+
+    private static void AssertNewTimeSpanFailure(string source, string documentName, string diagnosticId, int startColumn)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName).Execute(new AotExecutionContext());
+            throw new InvalidOperationException($"Expected {diagnosticId} for New-TimeSpan source '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: var id, Span: { DocumentName: var document, StartColumn: var column } }
+            && id == diagnosticId && document == documentName && column == startColumn)
         {
         }
     }

@@ -28,6 +28,7 @@ internal static class PipelineValueAdapter
             or TimeZoneRecord
             or VerbRecord
             or DateRecord
+            or TimeSpanRecord
             or TextRecord
             or FileHashRecord
             or CommandInfoRecord
@@ -109,6 +110,19 @@ internal static class PipelineValueAdapter
                 Field("Value", DateTime(value.Value)),
                 Field("DateTime", DateTime(value.Value)),
                 Field("DisplayHint", Text(value.DisplayHint))),
+            TimeSpanRecord value => Record(
+                Field("Value", Text(value.Value.ToString("c", CultureInfo.InvariantCulture))),
+                Field("Days", Integer(value.Days)),
+                Field("Hours", Integer(value.Hours)),
+                Field("Minutes", Integer(value.Minutes)),
+                Field("Seconds", Integer(value.Seconds)),
+                Field("Milliseconds", Integer(value.Milliseconds)),
+                Field("Ticks", Integer(value.Ticks)),
+                Field("TotalDays", Floating(value.TotalDays)),
+                Field("TotalHours", Floating(value.TotalHours)),
+                Field("TotalMinutes", Floating(value.TotalMinutes)),
+                Field("TotalSeconds", Floating(value.TotalSeconds)),
+                Field("TotalMilliseconds", Floating(value.TotalMilliseconds))),
             TextRecord value => Record(Field("Value", Text(value.Value))),
             FileHashRecord value => Record(
                 Field("Algorithm", Text(value.Algorithm)),
