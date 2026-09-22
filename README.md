@@ -51,6 +51,21 @@ foreach ($verb in $verbs) {
 }
 ```
 
+The first local-function form is pre-lowered and runs without a PowerShell
+runspace. Definitions are sequential, parameters are positional closed values,
+and function-local assignments do not leak to the caller:
+
+```powershell
+function Get-CommonVerb($group) {
+    Get-Verb -Group $group | Select-Object Verb
+}
+
+Get-CommonVerb Common
+```
+
+Advanced functions, `param` blocks, typed/default/named parameters, `return`,
+recursion, and function pipelines remain explicitly unsupported.
+
 Diagnostics are plain by default in redirected output. In an interactive
 terminal, choose `--color auto` (default), `--color always`, or `--color never`:
 

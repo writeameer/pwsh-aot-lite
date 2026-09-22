@@ -9,6 +9,7 @@ namespace PwshAotLite;
 internal sealed class AotScope(AotScope? parent = null)
 {
     private readonly Dictionary<string, AotValue> _values = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AotLocalFunctionPlan> _functions = new(StringComparer.OrdinalIgnoreCase);
 
     internal AotScope? Parent { get; } = parent;
 
@@ -20,6 +21,18 @@ internal sealed class AotScope(AotScope? parent = null)
 
     internal bool TryGet(string name, out AotValue value) =>
         _values.TryGetValue(name, out value) || (Parent?.TryGet(name, out value) ?? false);
+
+    // Functions are a separate, closed namespace from values. This is not a
+    // SessionState command table: only pre-lowered FunctionDefinitionAst plans
+    // can enter it, and lookup remains lexical/dynamic through AotScope.
+    internal void DefineFunction(AotLocalFunctionPlan function)
+    {
+        ArgumentNullException.ThrowIfNull(function);
+        _functions[function.Name] = function;
+    }
+
+    internal bool TryGetFunction(string name, out AotLocalFunctionPlan function) =>
+        _functions.TryGetValue(name, out function!) || (Parent?.TryGetFunction(name, out function!) ?? false);
 }
 
 // The AOT scope intentionally has no PowerShell SessionState. Names that
@@ -114,6 +127,65 @@ internal sealed class AotAssignmentPlan(string name, AotExpressionPlan value) : 
     }
 }
 
+// A declaration is an executable statement, so a function exists only after
+// its source position runs. This preserves PowerShell's declaration-before-use
+// behavior without pre-scanning or installing a dynamic command table.
+internal sealed class AotFunctionDefinitionPlan(AotLocalFunctionPlan function) : AotStatementPlan
+{
+    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit) =>
+        scope.DefineFunction(function);
+}
+
+internal sealed record AotLocalFunctionParameter(string Name, AotSourceSpan Span);
+
+// The function plan is immutable and fully lowered ahead of execution. Its
+// invocation creates a child of the *caller* scope, not a closure of the
+// definition site: reads follow PowerShell's basic dynamic lookup while writes
+// and parameters remain local to the invocation.
+internal sealed class AotLocalFunctionPlan(
+    string name,
+    IReadOnlyList<AotLocalFunctionParameter> parameters,
+    AotBlockPlan body,
+    AotSourceSpan definitionSpan)
+{
+    internal string Name { get; } = name;
+    internal IReadOnlyList<AotLocalFunctionParameter> Parameters { get; } = parameters;
+    internal AotSourceSpan DefinitionSpan { get; } = definitionSpan;
+
+    internal void Invoke(
+        AotExecutionContext context,
+        AotScope callerScope,
+        IReadOnlyList<AotValue> arguments,
+        AotSourceSpan callSpan,
+        Action<AotExecutionOutput> emit)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(callerScope);
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(emit);
+
+        if (arguments.Count != Parameters.Count)
+        {
+            throw new ScriptException(AotDiagnostics.Scope(
+                "AOT5008",
+                $"Function '{Name}' requires exactly {Parameters.Count} positional argument(s), but received {arguments.Count}.",
+                callSpan,
+                "unsupported function argument count",
+                "Supply one closed positional value for each declared function parameter."));
+        }
+
+        context.ThrowIfCancellationRequested();
+        using IDisposable invocation = context.EnterFunction(Name, callSpan);
+        AotScope localScope = new(callerScope);
+        for (int index = 0; index < Parameters.Count; index++)
+        {
+            localScope.Set(Parameters[index].Name, arguments[index]);
+        }
+
+        body.ExecuteInto(context, localScope, emit);
+    }
+}
+
 internal sealed class AotPipelineStatementPlan(
     AotCommandPlan source,
     AotCommandPlan? inputStage,
@@ -126,6 +198,20 @@ internal sealed class AotPipelineStatementPlan(
     internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         context.ThrowIfCancellationRequested();
+        if (scope.TryGetFunction(source.Name, out AotLocalFunctionPlan function))
+        {
+            if (pipelineLength != 1)
+            {
+                throw new ScriptException(AotDiagnostics.Unsupported(
+                    "local functions as pipeline sources or stages",
+                    source.CommandSpan,
+                    "Call a local function as a complete statement; compose supported pipelines inside its body."));
+            }
+
+            function.Invoke(context, scope, source.ResolveLocalFunctionArguments(scope), source.CommandSpan, emit);
+            return;
+        }
+
         PipelinePlan pipeline = BindPipeline(scope);
         context.ThrowIfCancellationRequested();
         emit(new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns));
@@ -415,6 +501,29 @@ internal sealed class AotCommandPlan(string name, AotSourceSpan commandSpan, IRe
         {
             throw exception.Diagnostic.Span is null ? exception.WithSpan(CommandSpan) : exception;
         }
+    }
+
+    // Native cmdlets intentionally receive flattened syntax atoms through the
+    // generated-metadata binder. Local-function parameters instead retain one
+    // evaluated closed value per source argument; they never stringify and
+    // reparse values or grow a second general command binder.
+    internal IReadOnlyList<AotValue> ResolveLocalFunctionArguments(AotScope scope)
+    {
+        List<AotValue> resolved = [];
+        foreach (AotCommandArgumentPlan argument in Arguments)
+        {
+            if (argument is not AotValueArgumentPlan value)
+            {
+                throw new ScriptException(AotDiagnostics.Unsupported(
+                    "named local-function arguments",
+                    argument.Span,
+                    "Use positional closed values for this Native AOT local-function subset."));
+            }
+
+            resolved.Add(value.Expression.Evaluate(scope));
+        }
+
+        return resolved;
     }
 }
 

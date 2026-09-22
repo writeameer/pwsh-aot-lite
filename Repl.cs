@@ -105,6 +105,7 @@ internal static class Repl
                 Console.WriteLine("Get-Process [-Name <pattern>] [-Id <id>] [-IncludeUserName] [-Module] [-FileVersionInfo]");
                 Console.WriteLine("Get-Process -Name pwsh* | Where-Object CPU -ge 0 | Select-Object Name, Id");
                 Console.WriteLine("$threshold = 10; Get-Process | Where-Object CPU -gt $threshold | Select-Object Name, Id");
+                Console.WriteLine("function Get-CommonVerb($group) { Get-Verb -Group $group | Select-Object Verb }; Get-CommonVerb Common");
                 Console.WriteLine("Get-Process | Where-Object CPU -gt 10 | Select-Object Name, Id, CPU");
                 Console.WriteLine("Get-Uptime [-Since] | Select-Object Value, Since");
                 Console.WriteLine("Get-UICulture | Select-Object Name, DisplayName, LCID");

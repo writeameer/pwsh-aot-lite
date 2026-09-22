@@ -1,0 +1,971 @@
+{
+  "schemaVersion": 1,
+  "fixture": "15-local-function-boundaries.ps1",
+  "sourceSha256": "ea3254d39c54cebd07c457ba8e31e68426d5b374d832dd93344e7aae6db67316",
+  "tokens": [
+    {
+      "kind": "Function",
+      "text": "function",
+      "flags": "Keyword, StatementDoesntSupportAttributes",
+      "extent": {
+        "startOffset": 0,
+        "endOffset": 8,
+        "startLine": 1,
+        "startColumn": 1,
+        "endLine": 1,
+        "endColumn": 9
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "With-Default",
+      "flags": "None",
+      "extent": {
+        "startOffset": 9,
+        "endOffset": 21,
+        "startLine": 1,
+        "startColumn": 10,
+        "endLine": 1,
+        "endColumn": 22
+      }
+    },
+    {
+      "kind": "LParen",
+      "text": "(",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 21,
+        "endOffset": 22,
+        "startLine": 1,
+        "startColumn": 22,
+        "endLine": 1,
+        "endColumn": 23
+      }
+    },
+    {
+      "kind": "Variable",
+      "text": "$group",
+      "flags": "None",
+      "extent": {
+        "startOffset": 22,
+        "endOffset": 28,
+        "startLine": 1,
+        "startColumn": 23,
+        "endLine": 1,
+        "endColumn": 29
+      }
+    },
+    {
+      "kind": "Equals",
+      "text": "=",
+      "flags": "AssignmentOperator",
+      "extent": {
+        "startOffset": 29,
+        "endOffset": 30,
+        "startLine": 1,
+        "startColumn": 30,
+        "endLine": 1,
+        "endColumn": 31
+      }
+    },
+    {
+      "kind": "StringLiteral",
+      "text": "'Common'",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 31,
+        "endOffset": 39,
+        "startLine": 1,
+        "startColumn": 32,
+        "endLine": 1,
+        "endColumn": 40
+      }
+    },
+    {
+      "kind": "RParen",
+      "text": ")",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 39,
+        "endOffset": 40,
+        "startLine": 1,
+        "startColumn": 40,
+        "endLine": 1,
+        "endColumn": 41
+      }
+    },
+    {
+      "kind": "LCurly",
+      "text": "{",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 41,
+        "endOffset": 42,
+        "startLine": 1,
+        "startColumn": 42,
+        "endLine": 1,
+        "endColumn": 43
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 42,
+        "endOffset": 43,
+        "startLine": 1,
+        "startColumn": 43,
+        "endLine": 2,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Get-Verb",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 47,
+        "endOffset": 55,
+        "startLine": 2,
+        "startColumn": 5,
+        "endLine": 2,
+        "endColumn": 13
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Group",
+      "flags": "None",
+      "extent": {
+        "startOffset": 56,
+        "endOffset": 62,
+        "startLine": 2,
+        "startColumn": 14,
+        "endLine": 2,
+        "endColumn": 20
+      }
+    },
+    {
+      "kind": "Variable",
+      "text": "$group",
+      "flags": "None",
+      "extent": {
+        "startOffset": 63,
+        "endOffset": 69,
+        "startLine": 2,
+        "startColumn": 21,
+        "endLine": 2,
+        "endColumn": 27
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 69,
+        "endOffset": 70,
+        "startLine": 2,
+        "startColumn": 27,
+        "endLine": 3,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "RCurly",
+      "text": "}",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 70,
+        "endOffset": 71,
+        "startLine": 3,
+        "startColumn": 1,
+        "endLine": 3,
+        "endColumn": 2
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 71,
+        "endOffset": 72,
+        "startLine": 3,
+        "startColumn": 2,
+        "endLine": 4,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 72,
+        "endOffset": 73,
+        "startLine": 4,
+        "startColumn": 1,
+        "endLine": 5,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Function",
+      "text": "function",
+      "flags": "Keyword, StatementDoesntSupportAttributes",
+      "extent": {
+        "startOffset": 73,
+        "endOffset": 81,
+        "startLine": 5,
+        "startColumn": 1,
+        "endLine": 5,
+        "endColumn": 9
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "With-BodyParam",
+      "flags": "None",
+      "extent": {
+        "startOffset": 82,
+        "endOffset": 96,
+        "startLine": 5,
+        "startColumn": 10,
+        "endLine": 5,
+        "endColumn": 24
+      }
+    },
+    {
+      "kind": "LCurly",
+      "text": "{",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 97,
+        "endOffset": 98,
+        "startLine": 5,
+        "startColumn": 25,
+        "endLine": 5,
+        "endColumn": 26
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 98,
+        "endOffset": 99,
+        "startLine": 5,
+        "startColumn": 26,
+        "endLine": 6,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Param",
+      "text": "param",
+      "flags": "Keyword",
+      "extent": {
+        "startOffset": 103,
+        "endOffset": 108,
+        "startLine": 6,
+        "startColumn": 5,
+        "endLine": 6,
+        "endColumn": 10
+      }
+    },
+    {
+      "kind": "LParen",
+      "text": "(",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 108,
+        "endOffset": 109,
+        "startLine": 6,
+        "startColumn": 10,
+        "endLine": 6,
+        "endColumn": 11
+      }
+    },
+    {
+      "kind": "Variable",
+      "text": "$group",
+      "flags": "None",
+      "extent": {
+        "startOffset": 109,
+        "endOffset": 115,
+        "startLine": 6,
+        "startColumn": 11,
+        "endLine": 6,
+        "endColumn": 17
+      }
+    },
+    {
+      "kind": "RParen",
+      "text": ")",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 115,
+        "endOffset": 116,
+        "startLine": 6,
+        "startColumn": 17,
+        "endLine": 6,
+        "endColumn": 18
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 116,
+        "endOffset": 117,
+        "startLine": 6,
+        "startColumn": 18,
+        "endLine": 7,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Get-Verb",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 121,
+        "endOffset": 129,
+        "startLine": 7,
+        "startColumn": 5,
+        "endLine": 7,
+        "endColumn": 13
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Group",
+      "flags": "None",
+      "extent": {
+        "startOffset": 130,
+        "endOffset": 136,
+        "startLine": 7,
+        "startColumn": 14,
+        "endLine": 7,
+        "endColumn": 20
+      }
+    },
+    {
+      "kind": "Variable",
+      "text": "$group",
+      "flags": "None",
+      "extent": {
+        "startOffset": 137,
+        "endOffset": 143,
+        "startLine": 7,
+        "startColumn": 21,
+        "endLine": 7,
+        "endColumn": 27
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 143,
+        "endOffset": 144,
+        "startLine": 7,
+        "startColumn": 27,
+        "endLine": 8,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "RCurly",
+      "text": "}",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 144,
+        "endOffset": 145,
+        "startLine": 8,
+        "startColumn": 1,
+        "endLine": 8,
+        "endColumn": 2
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 145,
+        "endOffset": 146,
+        "startLine": 8,
+        "startColumn": 2,
+        "endLine": 9,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 146,
+        "endOffset": 147,
+        "startLine": 9,
+        "startColumn": 1,
+        "endLine": 10,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Filter",
+      "text": "filter",
+      "flags": "Keyword, StatementDoesntSupportAttributes",
+      "extent": {
+        "startOffset": 147,
+        "endOffset": 153,
+        "startLine": 10,
+        "startColumn": 1,
+        "endLine": 10,
+        "endColumn": 7
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Stream-Verb",
+      "flags": "None",
+      "extent": {
+        "startOffset": 154,
+        "endOffset": 165,
+        "startLine": 10,
+        "startColumn": 8,
+        "endLine": 10,
+        "endColumn": 19
+      }
+    },
+    {
+      "kind": "LCurly",
+      "text": "{",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 166,
+        "endOffset": 167,
+        "startLine": 10,
+        "startColumn": 20,
+        "endLine": 10,
+        "endColumn": 21
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 167,
+        "endOffset": 168,
+        "startLine": 10,
+        "startColumn": 21,
+        "endLine": 11,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Get-Verb",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 172,
+        "endOffset": 180,
+        "startLine": 11,
+        "startColumn": 5,
+        "endLine": 11,
+        "endColumn": 13
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Verb",
+      "flags": "None",
+      "extent": {
+        "startOffset": 181,
+        "endOffset": 186,
+        "startLine": 11,
+        "startColumn": 14,
+        "endLine": 11,
+        "endColumn": 19
+      }
+    },
+    {
+      "kind": "Identifier",
+      "text": "Add",
+      "flags": "None",
+      "extent": {
+        "startOffset": 187,
+        "endOffset": 190,
+        "startLine": 11,
+        "startColumn": 20,
+        "endLine": 11,
+        "endColumn": 23
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 190,
+        "endOffset": 191,
+        "startLine": 11,
+        "startColumn": 23,
+        "endLine": 12,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "RCurly",
+      "text": "}",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 191,
+        "endOffset": 192,
+        "startLine": 12,
+        "startColumn": 1,
+        "endLine": 12,
+        "endColumn": 2
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 192,
+        "endOffset": 193,
+        "startLine": 12,
+        "startColumn": 2,
+        "endLine": 13,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "EndOfInput",
+      "text": "",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 194,
+        "endOffset": 194,
+        "startLine": 13,
+        "startColumn": 2,
+        "endLine": 13,
+        "endColumn": 2
+      }
+    }
+  ],
+  "ast": {
+    "type": "ScriptBlockAst",
+    "extent": {
+      "startOffset": 0,
+      "endOffset": 193,
+      "startLine": 1,
+      "startColumn": 1,
+      "endLine": 13,
+      "endColumn": 1
+    },
+    "children": [
+      {
+        "type": "NamedBlockAst",
+        "extent": {
+          "startOffset": 0,
+          "endOffset": 192,
+          "startLine": 1,
+          "startColumn": 1,
+          "endLine": 12,
+          "endColumn": 2
+        },
+        "children": [
+          {
+            "type": "FunctionDefinitionAst",
+            "extent": {
+              "startOffset": 0,
+              "endOffset": 71,
+              "startLine": 1,
+              "startColumn": 1,
+              "endLine": 3,
+              "endColumn": 2
+            },
+            "children": [
+              {
+                "type": "ParameterAst",
+                "extent": {
+                  "startOffset": 22,
+                  "endOffset": 39,
+                  "startLine": 1,
+                  "startColumn": 23,
+                  "endLine": 1,
+                  "endColumn": 40
+                },
+                "children": [
+                  {
+                    "type": "VariableExpressionAst",
+                    "extent": {
+                      "startOffset": 22,
+                      "endOffset": 28,
+                      "startLine": 1,
+                      "startColumn": 23,
+                      "endLine": 1,
+                      "endColumn": 29
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 31,
+                      "endOffset": 39,
+                      "startLine": 1,
+                      "startColumn": 32,
+                      "endLine": 1,
+                      "endColumn": 40
+                    },
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "ScriptBlockAst",
+                "extent": {
+                  "startOffset": 41,
+                  "endOffset": 71,
+                  "startLine": 1,
+                  "startColumn": 42,
+                  "endLine": 3,
+                  "endColumn": 2
+                },
+                "children": [
+                  {
+                    "type": "NamedBlockAst",
+                    "extent": {
+                      "startOffset": 47,
+                      "endOffset": 69,
+                      "startLine": 2,
+                      "startColumn": 5,
+                      "endLine": 2,
+                      "endColumn": 27
+                    },
+                    "children": [
+                      {
+                        "type": "PipelineAst",
+                        "extent": {
+                          "startOffset": 47,
+                          "endOffset": 69,
+                          "startLine": 2,
+                          "startColumn": 5,
+                          "endLine": 2,
+                          "endColumn": 27
+                        },
+                        "children": [
+                          {
+                            "type": "CommandAst",
+                            "extent": {
+                              "startOffset": 47,
+                              "endOffset": 69,
+                              "startLine": 2,
+                              "startColumn": 5,
+                              "endLine": 2,
+                              "endColumn": 27
+                            },
+                            "children": [
+                              {
+                                "type": "StringConstantExpressionAst",
+                                "extent": {
+                                  "startOffset": 47,
+                                  "endOffset": 55,
+                                  "startLine": 2,
+                                  "startColumn": 5,
+                                  "endLine": 2,
+                                  "endColumn": 13
+                                },
+                                "children": []
+                              },
+                              {
+                                "type": "CommandParameterAst",
+                                "extent": {
+                                  "startOffset": 56,
+                                  "endOffset": 62,
+                                  "startLine": 2,
+                                  "startColumn": 14,
+                                  "endLine": 2,
+                                  "endColumn": 20
+                                },
+                                "children": []
+                              },
+                              {
+                                "type": "VariableExpressionAst",
+                                "extent": {
+                                  "startOffset": 63,
+                                  "endOffset": 69,
+                                  "startLine": 2,
+                                  "startColumn": 21,
+                                  "endLine": 2,
+                                  "endColumn": 27
+                                },
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "FunctionDefinitionAst",
+            "extent": {
+              "startOffset": 73,
+              "endOffset": 145,
+              "startLine": 5,
+              "startColumn": 1,
+              "endLine": 8,
+              "endColumn": 2
+            },
+            "children": [
+              {
+                "type": "ScriptBlockAst",
+                "extent": {
+                  "startOffset": 97,
+                  "endOffset": 145,
+                  "startLine": 5,
+                  "startColumn": 25,
+                  "endLine": 8,
+                  "endColumn": 2
+                },
+                "children": [
+                  {
+                    "type": "ParamBlockAst",
+                    "extent": {
+                      "startOffset": 103,
+                      "endOffset": 116,
+                      "startLine": 6,
+                      "startColumn": 5,
+                      "endLine": 6,
+                      "endColumn": 18
+                    },
+                    "children": [
+                      {
+                        "type": "ParameterAst",
+                        "extent": {
+                          "startOffset": 109,
+                          "endOffset": 115,
+                          "startLine": 6,
+                          "startColumn": 11,
+                          "endLine": 6,
+                          "endColumn": 17
+                        },
+                        "children": [
+                          {
+                            "type": "VariableExpressionAst",
+                            "extent": {
+                              "startOffset": 109,
+                              "endOffset": 115,
+                              "startLine": 6,
+                              "startColumn": 11,
+                              "endLine": 6,
+                              "endColumn": 17
+                            },
+                            "children": []
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "NamedBlockAst",
+                    "extent": {
+                      "startOffset": 103,
+                      "endOffset": 143,
+                      "startLine": 6,
+                      "startColumn": 5,
+                      "endLine": 7,
+                      "endColumn": 27
+                    },
+                    "children": [
+                      {
+                        "type": "PipelineAst",
+                        "extent": {
+                          "startOffset": 121,
+                          "endOffset": 143,
+                          "startLine": 7,
+                          "startColumn": 5,
+                          "endLine": 7,
+                          "endColumn": 27
+                        },
+                        "children": [
+                          {
+                            "type": "CommandAst",
+                            "extent": {
+                              "startOffset": 121,
+                              "endOffset": 143,
+                              "startLine": 7,
+                              "startColumn": 5,
+                              "endLine": 7,
+                              "endColumn": 27
+                            },
+                            "children": [
+                              {
+                                "type": "StringConstantExpressionAst",
+                                "extent": {
+                                  "startOffset": 121,
+                                  "endOffset": 129,
+                                  "startLine": 7,
+                                  "startColumn": 5,
+                                  "endLine": 7,
+                                  "endColumn": 13
+                                },
+                                "children": []
+                              },
+                              {
+                                "type": "CommandParameterAst",
+                                "extent": {
+                                  "startOffset": 130,
+                                  "endOffset": 136,
+                                  "startLine": 7,
+                                  "startColumn": 14,
+                                  "endLine": 7,
+                                  "endColumn": 20
+                                },
+                                "children": []
+                              },
+                              {
+                                "type": "VariableExpressionAst",
+                                "extent": {
+                                  "startOffset": 137,
+                                  "endOffset": 143,
+                                  "startLine": 7,
+                                  "startColumn": 21,
+                                  "endLine": 7,
+                                  "endColumn": 27
+                                },
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "FunctionDefinitionAst",
+            "extent": {
+              "startOffset": 147,
+              "endOffset": 192,
+              "startLine": 10,
+              "startColumn": 1,
+              "endLine": 12,
+              "endColumn": 2
+            },
+            "children": [
+              {
+                "type": "ScriptBlockAst",
+                "extent": {
+                  "startOffset": 166,
+                  "endOffset": 192,
+                  "startLine": 10,
+                  "startColumn": 20,
+                  "endLine": 12,
+                  "endColumn": 2
+                },
+                "children": [
+                  {
+                    "type": "NamedBlockAst",
+                    "extent": {
+                      "startOffset": 172,
+                      "endOffset": 190,
+                      "startLine": 11,
+                      "startColumn": 5,
+                      "endLine": 11,
+                      "endColumn": 23
+                    },
+                    "children": [
+                      {
+                        "type": "PipelineAst",
+                        "extent": {
+                          "startOffset": 172,
+                          "endOffset": 190,
+                          "startLine": 11,
+                          "startColumn": 5,
+                          "endLine": 11,
+                          "endColumn": 23
+                        },
+                        "children": [
+                          {
+                            "type": "CommandAst",
+                            "extent": {
+                              "startOffset": 172,
+                              "endOffset": 190,
+                              "startLine": 11,
+                              "startColumn": 5,
+                              "endLine": 11,
+                              "endColumn": 23
+                            },
+                            "children": [
+                              {
+                                "type": "StringConstantExpressionAst",
+                                "extent": {
+                                  "startOffset": 172,
+                                  "endOffset": 180,
+                                  "startLine": 11,
+                                  "startColumn": 5,
+                                  "endLine": 11,
+                                  "endColumn": 13
+                                },
+                                "children": []
+                              },
+                              {
+                                "type": "CommandParameterAst",
+                                "extent": {
+                                  "startOffset": 181,
+                                  "endOffset": 186,
+                                  "startLine": 11,
+                                  "startColumn": 14,
+                                  "endLine": 11,
+                                  "endColumn": 19
+                                },
+                                "children": []
+                              },
+                              {
+                                "type": "StringConstantExpressionAst",
+                                "extent": {
+                                  "startOffset": 187,
+                                  "endOffset": 190,
+                                  "startLine": 11,
+                                  "startColumn": 20,
+                                  "endLine": 11,
+                                  "endColumn": 23
+                                },
+                                "children": []
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": []
+}

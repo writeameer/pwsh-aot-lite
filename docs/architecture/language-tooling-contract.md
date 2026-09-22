@@ -55,10 +55,12 @@ facade and must not acquire executable syntax semantics.
 
 1. **AOT Execution Kernel:** define and test the parser facade's AST/token/
    extent/diagnostic contract. The lowerer consumes it directly.
-2. **Language Compatibility Core:** lexical variables, assignments, and a
-   narrow `if`/`elseif`/`else` AST slice are executable through the shared
-   facade. The same parser tokens/extents remain ready for highlighting; static
-   symbol analysis, functions, and parameters remain future work.
+2. **Language Compatibility Core:** lexical variables, assignments, narrow
+   `if`/`elseif`/`else`, closed-list `foreach`, and a bounded
+   `FunctionDefinitionAst` local-function slice are executable through the
+   shared facade. The same parser tokens/extents remain ready for highlighting;
+   static symbol analysis and advanced function/parameter semantics remain
+   future work.
 3. **Engine Runtime Core:** the contract now drives multiline REPL
    continuation from upstream incomplete-input diagnostics, and completion
    remains catalog-backed. Editable-buffer highlighting is deferred until a

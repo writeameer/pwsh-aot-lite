@@ -8,7 +8,7 @@ point. The connection is deliberately narrow:
 script text
   -> AotScriptParser (upstream AST, tokens, extents, diagnostics)
   -> AotExecutionKernel / AotExecutionPlan
-  -> ScriptBlockAst / AssignmentStatementAst / PipelineAst lowerer
+  -> ScriptBlockAst / AssignmentStatementAst / FunctionDefinitionAst / PipelineAst lowerer
   -> existing AotCmdletRegistry + generated CmdletDescriptor binder
   -> typed IPipelineRecord cmdlet output
   -> explicit AotValue/AotRecord adapter for generic stages
@@ -16,7 +16,8 @@ script text
 
 `UpstreamAstPipelineLowerer` never executes an AST, creates a script block,
 uses the dynamic compiler/binder, `PSObject`, or a runspace. It accepts an
-unnamed top-level statement block containing direct `=` assignments and command
+unnamed top-level statement block containing direct `=` assignments, sequential
+root local-function definitions/direct calls, and command
 pipelines with one native registered source command and up to
 `Where-Object <property> <comparison> <value>` and
 `Select-Object <property>[, <property>...]` stages. The first variable proof is:
@@ -34,6 +35,13 @@ command names, aliases, parameter shapes, and defaults from generated
 `CmdletDescriptor` metadata. No AST-specific binder exists. The exact scope,
 conversion, and deferred syntax boundary is in the
 [Language Compatibility Core](language-compatibility-core.md).
+
+The local-function subset lowers the upstream `FunctionDefinitionAst` once into
+an immutable plan and registers it only when its declaration statement runs.
+Its direct positional call creates a child scope of the caller and forwards
+body output through the existing event sink. This is precompiled plan execution,
+not `ScriptBlock` invocation; advanced function blocks, attributes/defaults,
+named arguments, return flow, and function pipelines remain fail-closed.
 
 Every unsupported or invalid input follows the shared diagnostic contract:
 
