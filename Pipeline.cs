@@ -659,7 +659,8 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 
 internal static class AotCmdletRegistry
 {
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(new SystemProcessCatalog()), new GetUptimeCmdlet(), new GetUICultureCmdlet(new SystemHostCulture()), new GetCultureCmdlet(new SystemHostCulture(), new SystemCultureCatalog()), new GetVerbCmdlet(), new GetTimeZoneCmdlet(new SystemTimeZoneCatalog()), new GetDateCmdlet(new SystemClock()), new GetFileHashCmdlet(new SystemPhysicalFileResolver()), new GetHelpCmdlet(CompositeHelpCatalog.Instance), new GetCommandCmdlet(CompositeHelpCatalog.Instance), new GetModuleCmdlet(CompositeModuleCatalog.Instance), new FindModuleCmdlet(RepositoryCatalog.Instance), new InstallModuleCmdlet(new LocalPackageModuleInstaller(RepositoryCatalog.Instance))];
+    private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -1712,6 +1713,14 @@ internal static class SimpleWildcard
 
 internal sealed class SystemProcessCatalog : IProcessCatalog
 {
+    private readonly IAotHostPlatform _platform;
+    private readonly IProcessOwnerReader _owners;
+
+    internal SystemProcessCatalog(IAotHostPlatform? platform = null, IProcessOwnerReader? owners = null)
+    {
+        _platform = platform ?? new SystemAotHostPlatform();
+        _owners = owners ?? new UnixPsProcessOwnerReader(_platform);
+    }
     public IEnumerable<ProcessRecord> AllProcesses()
     {
         foreach (Process process in Process.GetProcesses())
@@ -1798,34 +1807,7 @@ internal sealed class SystemProcessCatalog : IProcessCatalog
 
     public string? UserName(int id, AotExecutionContext context)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            context.WriteNonTerminatingError("CouldNotRetrieveUserName", "Windows user lookup is not implemented by this AOT port.");
-            return null;
-        }
-
-        try
-        {
-            ProcessStartInfo startInfo = new("/bin/ps")
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            startInfo.ArgumentList.Add("-o");
-            startInfo.ArgumentList.Add("user=");
-            startInfo.ArgumentList.Add("-p");
-            startInfo.ArgumentList.Add(id.ToString(CultureInfo.InvariantCulture));
-            using Process? process = Process.Start(startInfo);
-            string? user = process?.StandardOutput.ReadToEnd().Trim();
-            process?.WaitForExit();
-            return string.IsNullOrWhiteSpace(user) ? null : user;
-        }
-        catch (Exception error) when (error is InvalidOperationException or Win32Exception or System.IO.IOException)
-        {
-            context.WriteNonTerminatingError("CouldNotRetrieveUserName", error.Message);
-            return null;
-        }
+        return _owners.TryGetOwner(id, context);
     }
 
     private static bool TryRead(Process process, out ProcessRecord? row)
@@ -2100,6 +2082,7 @@ internal static class SelfTest
 {
     internal static void Run()
     {
+        AssertHostSubstrate();
         AssertExecutionKernelAndDiagnostics();
         AssertRuntimeEventContract();
         AssertStaticCommonParameterPolicy();
@@ -2722,6 +2705,50 @@ internal static class SelfTest
         if (!quotedTimeZoneName.TryGetValues("Name", out string[] quotedNames) || !quotedNames.SequenceEqual(["Fixture Daylight Time"]))
         {
             throw new InvalidOperationException("Quoted command parameter tokenizer regression.");
+        }
+    }
+
+    private static void AssertHostSubstrate()
+    {
+        AotHostSubstrate local = AotHostSubstrate.CreateLocal();
+        if (local.PhysicalFiles is not SystemPhysicalFileResolver
+            || local.Processes is not SystemProcessCatalog
+            || local.Clock is not SystemClock
+            || local.Culture is not SystemHostCulture
+            || local.Cultures is not SystemCultureCatalog
+            || local.TimeZones is not SystemTimeZoneCatalog
+            || local.Configuration is not ProcessAotHostConfiguration
+            || local.Platform is not SystemAotHostPlatform
+            || local.Credentials.Unavailable is not { Capability: AotUnavailableCapability.Credentials, DiagnosticId: "AOT6101" }
+            || local.Network.Unavailable is not { Capability: AotUnavailableCapability.Network, DiagnosticId: "AOT6102" })
+        {
+            throw new InvalidOperationException("AOT host substrate local composition regression.");
+        }
+
+        IAotHostConfiguration fixtureConfiguration = new FixtureHostConfiguration(
+            (AotHostConfigurationKey.Term, "xterm-256color"),
+            (AotHostConfigurationKey.NoColor, "1"),
+            (AotHostConfigurationKey.WindowsTerminalSession, "fixture"));
+        IAotHostPlatform fixturePlatform = new FixtureHostPlatform(new AotHostPlatformSnapshot(AotHostOperatingSystem.Windows, System.Runtime.InteropServices.Architecture.Arm64));
+        AotTerminalInfo terminal = new SystemTerminalInfoSource(fixtureConfiguration, fixturePlatform).Capture();
+        if (terminal.Term != "xterm-256color" || terminal.NoColor != "1" || !terminal.IsWindows || !terminal.HasWindowsAnsiHost)
+        {
+            throw new InvalidOperationException("AOT host terminal capability injection regression.");
+        }
+
+        AotTerminalInfo conservativePlatformFallback = new SystemTerminalInfoSource(fixtureConfiguration, new ThrowingHostPlatform()).Capture();
+        AotTerminalInfo conservativeConfigurationFallback = new SystemTerminalInfoSource(new ThrowingHostConfiguration(), fixturePlatform).Capture();
+        if (conservativePlatformFallback is not { IsErrorRedirected: true, IsWindows: false, HasWindowsAnsiHost: false, Term: null, NoColor: null }
+            || conservativeConfigurationFallback is not { IsErrorRedirected: true, IsWindows: false, HasWindowsAnsiHost: false, Term: null, NoColor: null })
+        {
+            throw new InvalidOperationException("AOT host terminal failure fallback regression.");
+        }
+
+        AotExecutionContext ownerErrors = new();
+        IProcessOwnerReader unavailableOwner = new UnixPsProcessOwnerReader(new FixtureHostPlatform(new AotHostPlatformSnapshot(AotHostOperatingSystem.Windows, System.Runtime.InteropServices.Architecture.X64)));
+        if (unavailableOwner.TryGetOwner(1, ownerErrors) is not null || ownerErrors.Errors.SingleOrDefault()?.Id != "CouldNotRetrieveUserName")
+        {
+            throw new InvalidOperationException("AOT host process-ownership platform boundary regression.");
         }
     }
 
@@ -4988,6 +5015,13 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             WriteRepositoryIndex(Path.Combine(fixtureRoot, "credential-uri.repository.json"), "RejectedRepo", "Test.Repository.Credentials", "1.0.0", "credential uri", packageUri: "https://user:password@example.invalid/package.nupkg");
             File.WriteAllText(Path.Combine(fixtureRoot, "malformed.repository.json"), "{ this is not valid JSON");
 
+            IAotHostConfiguration injectedConfiguration = new FixtureHostConfiguration((AotHostConfigurationKey.RepositoriesPath, fixtureRoot));
+            IAotHostDiscoveryRoots injectedRoots = new FixtureHostDiscoveryRoots(fixtureRoot, fixtureRoot);
+            if (new RepositoryCatalog(injectedConfiguration, injectedRoots).Find("Test.Repository.*").Select(static entry => entry.Version).ToArray() is not ["2.0.0", "1.0.0"])
+            {
+                throw new InvalidOperationException("Repository catalog did not use injected closed host configuration.");
+            }
+
             Environment.SetEnvironmentVariable("PWSH_AOT_REPOSITORIES_PATH", fixtureRoot);
             RepositoryModuleEntry[] entries = RepositoryCatalog.Instance.Find("Test.Repository.*").ToArray();
             if (entries.Length != 2
@@ -5116,6 +5150,25 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             }
             string destinationLinkPackage = Path.Combine(sourceRoot, "Fixture.DestinationLink", "1.0.0");
             string conflictPackage = Path.Combine(sourceRoot, "Fixture.Conflict", "1.0.0");
+            string injectedDestinationRoot = Path.Combine(fixtureRoot, "injected-extension-root");
+            IAotHostConfiguration injectedConfiguration = new FixtureHostConfiguration(
+                (AotHostConfigurationKey.PackageRoots, sourceRoot),
+                (AotHostConfigurationKey.ExtensionsRoot, injectedDestinationRoot));
+            ModuleInstallResult injectedInstall = new LocalPackageModuleInstaller(new StaticRepositoryCatalog(new RepositoryModuleEntry(
+                "Fixture.Cleanup", "1.0.0", "injected configuration", "FixtureRepo", "https://example.invalid/fixture/", new Uri(cleanupPackage).AbsoluteUri,
+                LocalPackageModuleInstaller.CalculateContentSha256(cleanupPackage), "legacy-pwsh-sidecar", "isolated-sidecar-import")), configuration: injectedConfiguration)
+                .Install("Fixture.Cleanup", "FixtureRepo");
+            if (injectedInstall.Status != "installed" || !injectedInstall.PackagePath.StartsWith(injectedDestinationRoot, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Install-Module did not use the injected closed host configuration roots.");
+            }
+            IAotHostDiscoveryRoots injectedDiscoveryRoots = new FixtureHostDiscoveryRoots(fixtureRoot, fixtureRoot);
+            if (new CompositeHelpCatalog(injectedConfiguration, injectedDiscoveryRoots).Find("Get-FixtureCleanup").SingleOrDefault() is not { Synopsis: "cleanup fixture" }
+                || new CompositeModuleCatalog(injectedConfiguration, injectedDiscoveryRoots).Find("Fixture.Cleanup").SingleOrDefault() is not { PackagePath: var injectedPackagePath }
+                || !injectedPackagePath.StartsWith(injectedDestinationRoot, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Extension help/module catalogs did not use injected host configuration and discovery roots.");
+            }
             WriteInstallRepositoryIndex(
                 Path.Combine(repositoryRoot, "installer.repository.json"),
                 ("Fixture.Safe", "1.0.0", safePackage, LocalPackageModuleInstaller.CalculateContentSha256(safePackage)),
@@ -5798,5 +5851,32 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
         public IEnumerable<TimeZoneInfo> AllTimeZones() => _zones;
         public TimeZoneInfo FindById(string id) => _zones.SingleOrDefault(zone => zone.Id.Equals(id, StringComparison.OrdinalIgnoreCase))
             ?? throw new TimeZoneNotFoundException($"Fixture time zone '{id}' was not found.");
+    }
+
+    private sealed class FixtureHostConfiguration(params (AotHostConfigurationKey Key, string? Value)[] values) : IAotHostConfiguration
+    {
+        private readonly IReadOnlyDictionary<AotHostConfigurationKey, string?> _values = values.ToDictionary(static value => value.Key, static value => value.Value);
+        public string? Read(AotHostConfigurationKey key) => _values.TryGetValue(key, out string? value) ? value : null;
+    }
+
+    private sealed class FixtureHostPlatform(AotHostPlatformSnapshot snapshot) : IAotHostPlatform
+    {
+        public AotHostPlatformSnapshot Snapshot { get; } = snapshot;
+    }
+
+    private sealed class FixtureHostDiscoveryRoots(string currentDirectory, string applicationBaseDirectory) : IAotHostDiscoveryRoots
+    {
+        public string CurrentDirectory { get; } = currentDirectory;
+        public string ApplicationBaseDirectory { get; } = applicationBaseDirectory;
+    }
+
+    private sealed class ThrowingHostConfiguration : IAotHostConfiguration
+    {
+        public string? Read(AotHostConfigurationKey key) => throw new InvalidOperationException("fixture configuration probe failure");
+    }
+
+    private sealed class ThrowingHostPlatform : IAotHostPlatform
+    {
+        public AotHostPlatformSnapshot Snapshot => throw new InvalidOperationException("fixture platform probe failure");
     }
 }

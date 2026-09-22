@@ -13,27 +13,7 @@ internal sealed record AotTerminalInfo(
     bool HasWindowsAnsiHost,
     int? ErrorWidth)
 {
-    internal static AotTerminalInfo Capture()
-    {
-        try
-        {
-            bool isErrorRedirected = Console.IsErrorRedirected;
-            string? term = Environment.GetEnvironmentVariable("TERM");
-            string? noColor = Environment.GetEnvironmentVariable("NO_COLOR");
-            bool isWindows = OperatingSystem.IsWindows();
-            bool windowsAnsiHost = isWindows && (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WT_SESSION"))
-                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ANSICON"))
-                || string.Equals(Environment.GetEnvironmentVariable("ConEmuANSI"), "ON", StringComparison.OrdinalIgnoreCase));
-            int? width = isErrorRedirected || Console.WindowWidth < 20 ? null : Console.WindowWidth;
-            return new AotTerminalInfo(isErrorRedirected, term, noColor, isWindows, windowsAnsiHost, width);
-        }
-        catch (Exception)
-        {
-            // Console capability checks are advisory. A host failure must not
-            // obscure the original diagnostic or affect AOT portability.
-            return new AotTerminalInfo(true, null, null, OperatingSystem.IsWindows(), false, null);
-        }
-    }
+    internal static AotTerminalInfo Capture() => AotHostComposition.Substrate.Terminal.Capture();
 }
 
 internal static class AotTerminalColorPolicy
@@ -50,9 +30,9 @@ internal static class AotTerminalColorPolicy
         _ => false,
     };
 
-    internal static AotDiagnosticRenderOptions RendererOptions(AotColorMode mode)
+    internal static AotDiagnosticRenderOptions RendererOptions(AotColorMode mode, IAotTerminalInfoSource? terminalSource = null)
     {
-        AotTerminalInfo terminal = AotTerminalInfo.Capture();
+        AotTerminalInfo terminal = (terminalSource ?? AotHostComposition.Substrate.Terminal).Capture();
         return new AotDiagnosticRenderOptions(AotTerminalColorPolicy.Resolve(mode, terminal), terminal.ErrorWidth);
     }
 

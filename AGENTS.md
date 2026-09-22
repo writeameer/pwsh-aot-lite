@@ -38,6 +38,9 @@ The runner must remain Native-AOT safe:
    block-plan, lexical-scope, expression, and delayed-binder boundary.
 10. `docs/architecture/terminal-presentation.md` — ANSI policy, sanitization,
     and the shared-parser boundary for future interactive highlighting.
+11. `docs/architecture/provider-host-substrate.md` — capability authority map
+    for physical files, process inspection, host/platform state, and explicit
+    unavailable credential/network boundaries.
 
 ## Mandatory independent review process
 
@@ -140,6 +143,9 @@ names a single support claim.
   output shape.
 - Put operating-system access behind an interface, as `IProcessCatalog` does.
   This permits fixture testing and isolates platform differences.
+- Consume only a direct, typed `AotHostSubstrate` capability. Do not introduce
+  a provider, runspace, `IHost`, service locator, arbitrary environment access,
+  process runner, credential store, or network fallback as a shortcut.
 - Prefer shared validation, wildcard, conversion, output, and error services
   when the variance ledger shows a pattern repeated across ports.
 - Do not turn an existing dynamic PowerShell feature into a fake no-op. Reject

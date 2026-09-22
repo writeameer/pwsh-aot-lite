@@ -87,17 +87,20 @@ internal sealed class LocalPackageModuleInstaller : IModuleInstaller
     private readonly IPackageStager _stager;
     private readonly IStagingAreaCleaner _cleaner;
     private readonly IActivationVolumeVerifier _volumeVerifier;
+    private readonly IAotHostConfiguration _configuration;
 
     internal LocalPackageModuleInstaller(
         IRepositoryCatalog repositories,
         IPackageStager? stager = null,
         IStagingAreaCleaner? cleaner = null,
-        IActivationVolumeVerifier? volumeVerifier = null)
+        IActivationVolumeVerifier? volumeVerifier = null,
+        IAotHostConfiguration? configuration = null)
     {
         _repositories = repositories;
         _stager = stager ?? new PhysicalPackageStager();
         _cleaner = cleaner ?? new PhysicalStagingAreaCleaner();
         _volumeVerifier = volumeVerifier ?? new SystemActivationVolumeVerifier();
+        _configuration = configuration ?? new ProcessAotHostConfiguration();
     }
 
     // Used by fixture authors to produce the same declared content digest the
@@ -133,14 +136,14 @@ internal sealed class LocalPackageModuleInstaller : IModuleInstaller
         }
 
         string source = CanonicalDirectory(packageUri.LocalPath, "InstallSourceNotFound");
-        source = EnsureContainedByConfiguredRoots(source);
+        source = EnsureContainedByConfiguredRoots(source, _configuration);
         PackageScan scan = ScanPackage(source);
         if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(entry.PackageSha256!), scan.Sha256))
         {
             throw new ScriptException("InstallHashMismatch: Package content did not match the repository-declared SHA-256; nothing was activated.");
         }
 
-        string extensionRoot = ExplicitExtensionRoot();
+        string extensionRoot = ExplicitExtensionRoot(_configuration);
         // Repository identity, rather than caller casing, determines the
         // activation path so `fixture.safe` cannot create a second package
         // beside an advertised `Fixture.Safe` on a case-sensitive filesystem.
@@ -287,9 +290,9 @@ internal sealed class LocalPackageModuleInstaller : IModuleInstaller
         ? $"1-{parsed.Major:D10}.{parsed.Minor:D10}.{Math.Max(0, parsed.Build):D10}.{Math.Max(0, parsed.Revision):D10}"
         : "0-" + version;
 
-    private static string ExplicitExtensionRoot()
+    private static string ExplicitExtensionRoot(IAotHostConfiguration configuration)
     {
-        string? configured = Environment.GetEnvironmentVariable("PWSH_AOT_EXTENSIONS_ROOT");
+        string? configured = configuration.Read(AotHostConfigurationKey.ExtensionsRoot);
         if (string.IsNullOrWhiteSpace(configured))
         {
             throw new ScriptException("InstallDestinationRootRequired: Set PWSH_AOT_EXTENSIONS_ROOT before installing; discovery-only ancestor paths are never write targets.");
@@ -351,9 +354,9 @@ internal sealed class LocalPackageModuleInstaller : IModuleInstaller
         }
     }
 
-    private static string EnsureContainedByConfiguredRoots(string source)
+    private static string EnsureContainedByConfiguredRoots(string source, IAotHostConfiguration configuration)
     {
-        string? configured = Environment.GetEnvironmentVariable("PWSH_AOT_PACKAGE_ROOTS");
+        string? configured = configuration.Read(AotHostConfigurationKey.PackageRoots);
         if (string.IsNullOrWhiteSpace(configured))
         {
             throw new ScriptException("InstallSourceRootRequired: Set PWSH_AOT_PACKAGE_ROOTS; a repository file URI alone is not authority to read arbitrary local files.");

@@ -113,6 +113,11 @@ stream/error policy.
    retained behavior, replacement, subset, deferral, blocker, and unknown.
    Entries are structured so we can later cluster repeated variances into a
    shared runtime service or generator rule instead of repeating hand work.
+7. Host/platform access is a reviewed, fixed capability boundary. Ports consume
+   `AotHostSubstrate` services directly; they must not add a generic provider,
+   service locator, runspace/host façade, arbitrary environment access,
+   process-launch API, credential store, or network fallback. See
+   [provider and host substrate](docs/architecture/provider-host-substrate.md).
 
 ## What is intentionally not automated
 

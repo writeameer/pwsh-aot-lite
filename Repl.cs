@@ -131,7 +131,7 @@ internal static class Repl
 
             if (!input.HasPending && line.StartsWith("complete ", StringComparison.OrdinalIgnoreCase))
             {
-                CompletionWriter.Write(CompletionService.Instance.Suggest(line[9..]));
+                CompletionWriter.Write(AotHostComposition.Completion.Suggest(line[9..]));
                 continue;
             }
 

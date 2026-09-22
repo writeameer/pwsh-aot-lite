@@ -123,15 +123,17 @@ internal static class HostControlPlaneCatalog
     };
 }
 
-internal sealed class CompositeHelpCatalog : IHelpCatalog
+internal sealed class CompositeHelpCatalog(IAotHostConfiguration? configuration = null, IAotHostDiscoveryRoots? discoveryRoots = null) : IHelpCatalog
 {
     internal static CompositeHelpCatalog Instance { get; } = new();
+    private readonly IAotHostConfiguration _configuration = configuration ?? new ProcessAotHostConfiguration();
+    private readonly IAotHostDiscoveryRoots _discoveryRoots = discoveryRoots ?? new ProcessAotHostDiscoveryRoots();
 
     public IReadOnlyList<HelpTopic> Find(string pattern)
     {
         List<HelpTopic> topics = BuiltIns()
             .Concat(HostControlPlaneCatalog.Topics)
-            .Concat(ExtensionPackageCatalog.LoadActive().SelectMany(ExtensionHelpCatalog.ToTopics))
+            .Concat(ExtensionPackageCatalog.LoadActive(_configuration, _discoveryRoots).SelectMany(ExtensionHelpCatalog.ToTopics))
             .Where(topic => SimpleWildcard.IsMatch(pattern, topic.Name))
             .OrderBy(topic => topic.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(topic => topic.Origin, StringComparer.OrdinalIgnoreCase)
@@ -213,12 +215,14 @@ internal static class ExtensionPackageCatalog
 {
     private const string ExtensionSchema = "https://pwsh-aot-lite.dev/schemas/extension/v1";
 
-    internal static IReadOnlyList<ExtensionPackage> LoadAll()
+    internal static IReadOnlyList<ExtensionPackage> LoadAll(IAotHostConfiguration? configuration = null, IAotHostDiscoveryRoots? discoveryRoots = null)
     {
+        IAotHostConfiguration hostConfiguration = configuration ?? new ProcessAotHostConfiguration();
+        IAotHostDiscoveryRoots hostDiscoveryRoots = discoveryRoots ?? new ProcessAotHostDiscoveryRoots();
         HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
         List<ExtensionPackage> packages = [];
-        string[] stagingRoots = GlobalStagingRoots().ToArray();
-        foreach (string root in ExtensionRoots())
+        string[] stagingRoots = GlobalStagingRoots(hostConfiguration).ToArray();
+        foreach (string root in ExtensionRoots(hostConfiguration, hostDiscoveryRoots))
         {
             if (!Directory.Exists(root))
             {
@@ -256,7 +260,7 @@ internal static class ExtensionPackageCatalog
         return packages;
     }
 
-    internal static IReadOnlyList<ExtensionPackage> LoadActive() => LoadAll()
+    internal static IReadOnlyList<ExtensionPackage> LoadActive(IAotHostConfiguration? configuration = null, IAotHostDiscoveryRoots? discoveryRoots = null) => LoadAll(configuration, discoveryRoots)
         .GroupBy(package => package.Manifest.Extension!.DisplayName!, StringComparer.OrdinalIgnoreCase)
         .Select(SelectActiveVersion)
         .OrderBy(package => package.Manifest.Extension!.DisplayName!, StringComparer.OrdinalIgnoreCase)
@@ -445,15 +449,15 @@ internal static class ExtensionPackageCatalog
         }
     }
 
-    private static IEnumerable<string> ExtensionRoots()
+    private static IEnumerable<string> ExtensionRoots(IAotHostConfiguration configuration, IAotHostDiscoveryRoots discoveryRoots)
     {
-        string? configuredRoot = Environment.GetEnvironmentVariable("PWSH_AOT_EXTENSIONS_ROOT");
+        string? configuredRoot = configuration.Read(AotHostConfigurationKey.ExtensionsRoot);
         if (!string.IsNullOrWhiteSpace(configuredRoot))
         {
             yield return configuredRoot;
         }
 
-        string? configuredPath = Environment.GetEnvironmentVariable("PWSH_AOT_EXTENSIONS_PATH");
+        string? configuredPath = configuration.Read(AotHostConfigurationKey.ExtensionsPath);
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
             foreach (string value in configuredPath.Split(Path.PathSeparator, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
@@ -462,12 +466,12 @@ internal static class ExtensionPackageCatalog
             }
         }
 
-        foreach (string root in AncestorExtensionRoots(Directory.GetCurrentDirectory()))
+        foreach (string root in AncestorExtensionRoots(discoveryRoots.CurrentDirectory))
         {
             yield return root;
         }
 
-        foreach (string root in AncestorExtensionRoots(AppContext.BaseDirectory))
+        foreach (string root in AncestorExtensionRoots(discoveryRoots.ApplicationBaseDirectory))
         {
             yield return root;
         }
@@ -494,9 +498,9 @@ internal static class ExtensionPackageCatalog
     // PWSH_AOT_EXTENSIONS_PATH, and development roots. Build one physical
     // exclusion set and apply it to every scan; deriving an exclusion from the
     // currently scanned root leaks staged manifests through a parent root.
-    private static IEnumerable<string> GlobalStagingRoots()
+    private static IEnumerable<string> GlobalStagingRoots(IAotHostConfiguration configuration)
     {
-        string? configuredRoot = Environment.GetEnvironmentVariable("PWSH_AOT_EXTENSIONS_ROOT");
+        string? configuredRoot = configuration.Read(AotHostConfigurationKey.ExtensionsRoot);
         if (string.IsNullOrWhiteSpace(configuredRoot))
         {
             yield break;
@@ -771,19 +775,21 @@ internal sealed record ModuleCatalogEntry(
     string Trust,
     string Provenance);
 
-internal sealed class CompositeModuleCatalog : IModuleCatalog
+internal sealed class CompositeModuleCatalog(IAotHostConfiguration? configuration = null, IAotHostDiscoveryRoots? discoveryRoots = null) : IModuleCatalog
 {
     internal static CompositeModuleCatalog Instance { get; } = new();
+    private readonly IAotHostConfiguration _configuration = configuration ?? new ProcessAotHostConfiguration();
+    private readonly IAotHostDiscoveryRoots _discoveryRoots = discoveryRoots ?? new ProcessAotHostDiscoveryRoots();
 
     public IReadOnlyList<ModuleCatalogEntry> Find(string pattern) => BuiltIns()
-        .Concat(ExtensionPackageCatalog.LoadAll().Select(ToEntry))
+        .Concat(ExtensionPackageCatalog.LoadAll(_configuration, _discoveryRoots).Select(ToEntry))
         .Where(module => SimpleWildcard.IsMatch(pattern, module.Name))
         .OrderBy(module => module.Name, StringComparer.OrdinalIgnoreCase)
         .ThenBy(module => module.Version, StringComparer.OrdinalIgnoreCase)
         .ToArray();
 
     public IReadOnlyList<ModuleCatalogEntry> FindActive(string pattern) => BuiltIns()
-        .Concat(ExtensionPackageCatalog.LoadActive().Select(ToEntry))
+        .Concat(ExtensionPackageCatalog.LoadActive(_configuration, _discoveryRoots).Select(ToEntry))
         .Where(module => SimpleWildcard.IsMatch(pattern, module.Name))
         .OrderBy(module => module.Name, StringComparer.OrdinalIgnoreCase)
         .ThenBy(module => module.Version, StringComparer.OrdinalIgnoreCase)
@@ -920,15 +926,17 @@ internal sealed record RepositoryModuleEntry(
     string Compatibility,
     string RegistrationMode);
 
-internal sealed class RepositoryCatalog : IRepositoryCatalog
+internal sealed class RepositoryCatalog(IAotHostConfiguration? configuration = null, IAotHostDiscoveryRoots? discoveryRoots = null) : IRepositoryCatalog
 {
     private const string RepositorySchema = "https://pwsh-aot-lite.dev/schemas/repository/v1";
     private const int MaximumIndexBytes = 1024 * 1024;
     private const int MaximumJsonDepth = 16;
 
     internal static RepositoryCatalog Instance { get; } = new();
+    private readonly IAotHostConfiguration _configuration = configuration ?? new ProcessAotHostConfiguration();
+    private readonly IAotHostDiscoveryRoots _discoveryRoots = discoveryRoots ?? new ProcessAotHostDiscoveryRoots();
 
-    public IReadOnlyList<RepositoryModuleEntry> Find(string namePattern, string? repositoryPattern = null) => LoadAll()
+    public IReadOnlyList<RepositoryModuleEntry> Find(string namePattern, string? repositoryPattern = null) => LoadAll(_configuration, _discoveryRoots)
         .Where(entry => SimpleWildcard.IsMatch(namePattern, entry.Name))
         .Where(entry => repositoryPattern is null || SimpleWildcard.IsMatch(repositoryPattern, entry.Repository))
         .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
@@ -938,11 +946,11 @@ internal sealed class RepositoryCatalog : IRepositoryCatalog
         .ThenBy(entry => entry.Repository, StringComparer.OrdinalIgnoreCase)
         .ToArray();
 
-    private static IReadOnlyList<RepositoryModuleEntry> LoadAll()
+    private static IReadOnlyList<RepositoryModuleEntry> LoadAll(IAotHostConfiguration configuration, IAotHostDiscoveryRoots discoveryRoots)
     {
         List<RepositoryModuleEntry> entries = [];
         HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string indexPath in IndexPaths())
+        foreach (string indexPath in IndexPaths(configuration, discoveryRoots))
         {
             string fullPath;
             try
@@ -1092,9 +1100,9 @@ internal sealed class RepositoryCatalog : IRepositoryCatalog
         return $"{version.Major:D10}.{version.Minor:D10}.{Math.Max(version.Build, 0):D10}.{Math.Max(version.Revision, 0):D10}";
     }
 
-    private static IEnumerable<string> IndexPaths()
+    private static IEnumerable<string> IndexPaths(IAotHostConfiguration configuration, IAotHostDiscoveryRoots discoveryRoots)
     {
-        string? configured = Environment.GetEnvironmentVariable("PWSH_AOT_REPOSITORIES_PATH");
+        string? configured = configuration.Read(AotHostConfigurationKey.RepositoriesPath);
         if (!string.IsNullOrWhiteSpace(configured))
         {
             foreach (string configuredPath in configured.Split(Path.PathSeparator, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
@@ -1111,7 +1119,7 @@ internal sealed class RepositoryCatalog : IRepositoryCatalog
             yield break;
         }
 
-        foreach (string directory in AncestorRepositoryDirectories(Directory.GetCurrentDirectory()))
+        foreach (string directory in AncestorRepositoryDirectories(discoveryRoots.CurrentDirectory))
         {
             foreach (string path in EnumerateIndexFiles(directory))
             {
@@ -1119,7 +1127,7 @@ internal sealed class RepositoryCatalog : IRepositoryCatalog
             }
         }
 
-        foreach (string directory in AncestorRepositoryDirectories(AppContext.BaseDirectory))
+        foreach (string directory in AncestorRepositoryDirectories(discoveryRoots.ApplicationBaseDirectory))
         {
             foreach (string path in EnumerateIndexFiles(directory))
             {
