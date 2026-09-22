@@ -16,6 +16,7 @@ An experiment may continue only when it is visibly labelled non-production.
 | **Native AOT Boundary Sentinel** | Project/package/reference change; parser extraction; value-plane work; extension bridge | Diff; project files; dependency graph; publish output; tooling call paths where applicable | Forbidden-API scan; no reachability to SMA, `PSObject`, `Runspace`, `PowerShell`, expression compilation, Reflection.Emit, runtime assembly loading, or code generation; tooling is parse-only; Native AOT publish and run | A dynamic runtime dependency crosses into the AOT executable path, or a tooling path executes/evaluates/imports source to inspect it. |
 | **Static Data-Plane & Binder Guardian** | `AotValue`; pipeline adapters; generic verbs; cmdlet/metadata/binding work | Diff; generated metadata; source command contract; variance entry | Value invariant and pipeline tests; explicit typed adapter; proof aliases and parameter sets remain from generated metadata | A second binder emerges; `object`/reflection fallback appears; typed semantics are flattened; or an unsupported semantic is hidden. |
 | **Compatibility Proof Adversary** | Before a command, syntax, pipeline stage, or milestone is described as supported | Feature inventory; native artifact; test matrix; variance documentation | Positive, negative, malformed-input, and unsupported-feature tests; native executable evidence; declared variances | Unsupported behavior is presented as support, negative cases are absent, or compatibility has not been verified. |
+| **Upstream Reuse & Format-Contract Reviewer** | Every cmdlet port; any emitted-field, default-column, or rendering change | Per-cmdlet upstream-reuse matrix; pinned cmdlet/base sources; upstream format/type data; target services and variance entries | Exact producer and format/view provenance per field/column; generated-metadata proof; existing-service search; approved AOT exceptions; repeatable normal-`pwsh` versus Native-AOT oracle output with controlled fixture and documented narrow normalization | An upstream behavior was clean-room reimplemented without evidence; a reusable target/upstream abstraction was duplicated; an output field/column lacks producer/view provenance; an invented display is claimed as compatible; an oracle/normalization is missing or hides drift; or a replacement lacks a concrete why-not-copy and fail-closed variance. |
 
 ## Dispatch matrix
 
@@ -26,6 +27,7 @@ An experiment may continue only when it is visibly labelled non-production.
 | Execution-kernel, binding, pipeline, cmdlet/runtime error, or unsupported-feature diagnostic | Diagnostic Experience Guardian; add the applicable Grammar Steward, Data-Plane & Binder Guardian, and Native AOT Boundary Sentinel reviewers |
 | Pipeline, `AotValue`, generic data cmdlet, or binder | Native AOT Boundary Sentinel + Static Data-Plane & Binder Guardian |
 | New port or cross-cutting control-plane feature | Static Data-Plane & Binder Guardian; add Native AOT Boundary Sentinel whenever dependencies/execution change |
+| Cmdlet port, emitted record fields, default table columns, or rendering | Upstream Reuse & Format-Contract Reviewer + Static Data-Plane & Binder Guardian; add Native AOT Boundary Sentinel for a new dependency/capability and Diagnostic Experience Guardian for public error changes |
 | Any "supported" or milestone claim | All three guardians + Compatibility Proof Adversary |
 
 The owner may resolve a `BLOCK` only by changing the implementation, narrowing
@@ -43,6 +45,14 @@ Every dispatched reviewer receives:
 4. exact build, test, differential-test, and Native AOT evidence; and
 5. the instruction to report `PASS` or `BLOCK`, findings with file/line
    evidence, and the smallest corrective action.
+
+For a cmdlet port or output/rendering change, the dispatch additionally includes
+the completed matrix required by
+[upstream reuse governance](upstream-reuse-governance.md), the relevant pinned
+upstream cmdlet/base/format locations, the result of the existing-target-service
+search, and every proposed AOT exception. The reviewer must use the BLOCK
+criteria in that document; an implementation cannot substitute a prose claim
+that reuse was considered.
 
 ## Review ledger
 

@@ -118,6 +118,15 @@ stream/error policy.
    service locator, runspace/host façade, arbitrary environment access,
    process-launch API, credential store, or network fallback. See
    [provider and host substrate](docs/architecture/provider-host-substrate.md).
+8. A port must complete the [upstream reuse and format-contract evidence
+   matrix](docs/architecture/upstream-reuse-governance.md) before implementation.
+   Copy/adapt upstream business logic and static formatting data whenever the
+   AOT boundary permits it. A replacement is legal only as a documented,
+   reviewed exception with an existing-service search, narrow reusable/static
+   target, fail-closed behavior, and structured variance. Every output field
+   and default display column needs upstream producer/view provenance or an
+   explicit temporary display variance; no convenient AOT projection may be
+   presented as PowerShell formatting compatibility.
 
 ## What is intentionally not automated
 

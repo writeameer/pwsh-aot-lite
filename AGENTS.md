@@ -44,6 +44,9 @@ The runner must remain Native-AOT safe:
 12. `docs/campaign/phase10-built-in-cmdlets.md` — checked 290-declaration
     campaign classification; do not port outside its prerequisites or silently
     reclassify a row.
+13. `docs/architecture/upstream-reuse-governance.md` — mandatory anti-NIH
+    evidence matrix, output/format-contract provenance, permitted AOT
+    replacement exceptions, and reviewer BLOCK criteria.
 
 ## Mandatory independent review process
 
@@ -110,32 +113,48 @@ names a single support claim.
 
 ## Port workflow
 
-1. Run `eng/Restore-Upstream.ps1`, then find the original `[Cmdlet]`
+1. Before research or implementation, create `docs/cmdlets/<command-name>.md`
+   from `docs/cmdlets/TEMPLATE.md` and add an `in progress` row to
+   `docs/cmdlets/port-timing.md`. Record the UTC start at that moment. At
+   integration, record the UTC end and end-minus-start wall-clock duration in
+   both places. Duration includes elapsed review/build time, not just active
+   engineering time. Historical values that were not recorded stay
+   `unavailable (not recorded)`; never estimate them.
+2. Run `eng/Restore-Upstream.ps1`, then find the original `[Cmdlet]`
    implementation under `.upstream/PowerShell/src`.
-2. Build this project once. Inspect the generated contract beneath
+3. Build this project once. Inspect the generated contract beneath
    `obj/Generated/.../GeneratedCmdletPorts.g.cs`; it preserves command metadata,
    parameter-set bindings, aliases, lifecycle, base types, outputs, validation,
    and engine blockers.
-3. Review the original cmdlet's base classes before copying logic. Shared
-   behavior belongs in a reusable AOT service or `AotCmdletBase`, not in a new
-   command-specific helper.
-4. Add a `IAotCmdlet` implementation, normally derived from `AotCmdletBase`.
+4. Before writing target behavior, complete the upstream-reuse evidence matrix
+   in the cmdlet note as specified by
+   `docs/architecture/upstream-reuse-governance.md`. It must identify exact
+   upstream source and format/type-data evidence for business logic, every
+   emitted field, and default display columns, then prove each admitted output
+   surface against a controlled normal-`pwsh` versus Native-AOT runtime oracle
+   comparison with documented normalization. Shared behavior belongs in a
+   reusable AOT service or `AotCmdletBase`, not in a new command-specific
+   helper.
+5. Add a `IAotCmdlet` implementation, normally derived from `AotCmdletBase`.
    Put command-specific behavior in `ProcessRecord`; keep lifecycle, stream,
    cancellation, and error policy shared.
-5. Construct the active `CmdletDescriptor` from generated metadata with
+6. Construct the active `CmdletDescriptor` from generated metadata with
    `CreateAotDescriptor(...)`. Include only parameters actually implemented.
    The parser must reject unsupported parameters rather than accept-and-ignore.
-6. Replace every generated migration blocker with one of:
+7. Replace every generated migration blocker with one of:
    - a shared AOT runtime service;
    - a narrow platform/host interface; or
    - an explicit deferred/out-of-scope decision.
-7. Add fixture tests to `SelfTest` for parameter binding, aliases, parameter
+8. Add fixture tests to `SelfTest` for parameter binding, aliases, parameter
    sets, output, error behavior, and pipeline input. Add a real native test for
    platform behavior.
-8. Add a complete entry to `port-variances.json`. Record preserved behavior,
-   replacements, subsets, deferrals, blockers, and whether each difference can
-   become shared automation later.
-9. Only then mark the cmdlet ported in user-facing status documentation.
+9. Add a complete entry to `port-variances.json`. Record preserved behavior,
+   replacements, subsets, deferrals, blockers, a concrete why-not-copy
+   rationale, and whether each difference can become shared automation later.
+   An AOT replacement needs the approved-exception evidence in the reuse
+   governance document; it is not justified merely by convenience.
+10. Only then mark the cmdlet ported in user-facing status documentation and
+    complete the timing record after verified integration.
 
 ## Reuse patterns
 

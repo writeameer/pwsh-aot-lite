@@ -8,6 +8,7 @@ namespace PwshAotLite;
 // service locator, session state, or host-object compatibility facade.
 internal sealed record AotHostSubstrate(
     IPhysicalFileResolver PhysicalFiles,
+    IPhysicalChildItemCatalog PhysicalChildItems,
     IProcessCatalog Processes,
     IClock Clock,
     IAotDelay Delay,
@@ -25,8 +26,10 @@ internal sealed record AotHostSubstrate(
     {
         IAotHostConfiguration configuration = new ProcessAotHostConfiguration();
         IAotHostPlatform platform = new SystemAotHostPlatform();
+        IAotHostDiscoveryRoots discoveryRoots = new ProcessAotHostDiscoveryRoots();
         return new AotHostSubstrate(
             new SystemPhysicalFileResolver(),
+            new SystemPhysicalChildItemCatalog(discoveryRoots, platform),
             new SystemProcessCatalog(platform),
             new SystemClock(),
             new CancellationTokenDelay(),
@@ -34,7 +37,7 @@ internal sealed record AotHostSubstrate(
             new SystemCultureCatalog(),
             new SystemTimeZoneCatalog(),
             configuration,
-            new ProcessAotHostDiscoveryRoots(),
+            discoveryRoots,
             platform,
             new SystemTerminalInfoSource(configuration, platform),
             UnavailableCredentialCapability.Instance,

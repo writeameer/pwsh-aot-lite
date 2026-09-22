@@ -51,7 +51,8 @@ helper closure before accepting a subset.
    v7 and generated `-Empty` only; `InputObject`, positional, and pipeline
    behavior remain deferred. `Measure-Command` remains W1/W6 until its typed
    composition/timing contract is designed.
-4. **W3:** physical filesystem reads only (`Get-ChildItem`, `Get-Item`,
+4. **W3:** physical filesystem reads only (`Get-ChildItem` is complete for its
+   bounded captured-root direct-path macOS-arm64 slice; `Get-Item`,
    `Test-Path`, `Resolve-Path`, `Join-Path`, `Split-Path`, `Convert-Path`,
    `Get-Content`) through the Phase 9 substrate—never PS providers/drives.
 5. **W4:** filesystem mutation only after reviewed `ShouldProcess`,

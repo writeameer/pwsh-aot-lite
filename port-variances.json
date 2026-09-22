@@ -214,6 +214,62 @@
       ]
     },
     {
+      "command": "Get-ChildItem",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/GetChildrenCommand.cs",
+      "state": "in-progress-wave3-captured-root-direct-physical-slice",
+      "variances": [
+        {
+          "id": "childitem-captured-direct-physical-catalog",
+          "sourceFeature": "CoreCommandBase delegates path resolution and child-item operations to live SessionState providers and dynamic parameters",
+          "targetDecision": "A distinct immutable IPhysicalChildItemCatalog captures the host discovery root at composition and serves only canonical direct OS paths, exact file/dir classification, and FileSystemProvider.Dir's directories-then-files/current-culture-case-insensitive immediate ordering",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "childitem-path-subset-and-provider-rejection",
+          "sourceFeature": "Path and LiteralPath support providers, PS drives, wildcard/literal semantics, aliases, pipeline input, filters, include/exclude, recursion/depth, force, and dynamic parameters",
+          "targetDecision": "Only generated Path is admitted as default positional or named direct input. LiteralPath/PSPath/LP and every other parameter remain outside the descriptor; provider-qualified paths, wildcard syntax, hidden entries, and symbolic-link traversal fail closed or are excluded",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "childitem-closed-output-record",
+          "sourceFeature": "The provider emits FileSystemInfo/PSObject objects with provider-specific properties, ETS type data, and formatting",
+          "targetDecision": "PhysicalChildItemRecord is a closed adapter with upstream Unix display facts UnixMode/User/Group/LastWriteTime/Size/Name plus explicitly named direct-path structural fields (Path/FullName/ParentPath/Type/Kind/Length/IsDirectory/LastWriteTimeUtc), registered explicitly in PipelineValueAdapter",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "childitem-unix-format-static-extraction",
+          "sourceFeature": "FileSystem_format_ps1xml childrenWithUnixStat dynamically selects a grouped Unix table through the PowerShell format/type system",
+          "targetDecision": "Compile the source-backed PSParentPath grouping and UnixMode/User/Group/LastWriteTime/Size/Name columns, headers, alignments, widths, and LastWriteTime format into one fixed AotTableLayout; apply it only to a direct untransformed Get-ChildItem result",
+          "status": "static-data-extracted",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "childitem-macos-unixstat-bridge",
+          "sourceFeature": "CorePsPlatform.Unix obtains mode, uid, gid, and size through libpsl-native and TypeTable script properties resolve user/group names",
+          "targetDecision": "MacOsPhysicalMetadata uses a reviewed macOS-arm64 descriptor walk from /: each component is observed with fstatat(AT_SYMLINK_NOFOLLOW) and acquired from its already-open parent with openat(O_NOFOLLOW), then final descriptor fstat supplies facts; getpwuid/getgrgid use an explicit uid/gid name cache. A final or ancestor link fails closed with AOT6205. Non-reviewed platforms/architectures fail closed with AOT6209 and other no-follow acquisition or metadata failures fail closed with AOT6210",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "childitem-stable-direct-path-diagnostics",
+          "sourceFeature": "Provider failures arrive as localized ErrorRecord variants and can have provider-specific category/target metadata",
+          "targetDecision": "The direct catalog emits source-spanned nonterminating AOT6201-AOT6208 diagnostics for provider syntax, wildcard use, invalid/not-found paths, hidden/link policy, access, and I/O boundaries",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "childitem-filehash-policy-separation",
+          "sourceFeature": "Both Get-ChildItem and Get-FileHash eventually use filesystem/provider paths but have independent source command contracts",
+          "targetDecision": "Do not widen IPhysicalFileResolver or alter Get-FileHash terminal-wildcard behavior. Child enumeration has a separately injected fixed capability so policy cannot leak across ports",
+          "status": "preserved",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Get-FileHash",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetHash.cs",
       "state": "complete-direct-physical-file-target",
