@@ -79,9 +79,14 @@ $groups = 'Common', 'Data'
 Get-FirstVerb $groups
 ```
 
-Advanced functions, `param` blocks, typed/default/named parameters, root
-`return`, value/pipeline `return`, recursion, and function pipelines remain
+Advanced functions, body `param` blocks, typed parameters, root `return`,
+value/pipeline `return`, recursion, and general function pipelines remain
 explicitly unsupported.
+
+Local-function headers also support exact case-insensitive names and trailing
+literal defaults. A function can be a pipeline source only when its body is
+one direct native source command, followed outside the function by the existing
+`Where-Object`/`Select-Object` tail; it is not a general pipeline stage.
 
 Diagnostics are plain by default in redirected output. In an interactive
 terminal, choose `--color auto` (default), `--color always`, or `--color never`:

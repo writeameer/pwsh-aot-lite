@@ -163,11 +163,12 @@ internal static class UpstreamAstPipelineLowerer
 
         List<AotLocalFunctionParameter> parameters = [];
         HashSet<string> parameterNames = new(StringComparer.OrdinalIgnoreCase);
+        bool sawOptionalParameter = false;
         foreach (ParameterAst parameter in function.Parameters ?? [])
         {
-            if (parameter.Attributes.Count != 0 || parameter.DefaultValue is not null)
+            if (parameter.Attributes.Count != 0)
             {
-                throw Unsupported("function parameter attributes, type constraints, or defaults", parameter.Extent);
+                throw Unsupported("function parameter attributes or type constraints", parameter.Extent);
             }
 
             string parameterName = GetFunctionParameterName(parameter.Name);
@@ -176,7 +177,23 @@ internal static class UpstreamAstPipelineLowerer
                 throw Unsupported("duplicate local function parameters", parameter.Name.Extent);
             }
 
-            parameters.Add(new AotLocalFunctionParameter(parameterName, AotScriptParser.ToSpan(parameter.Name.Extent)));
+            AotExpressionPlan? defaultValue = null;
+            if (parameter.DefaultValue is not null)
+            {
+                if (!IsClosedFunctionDefault(parameter.DefaultValue))
+                {
+                    throw Unsupported("function parameter defaults other than direct closed literals or literal lists", parameter.DefaultValue.Extent);
+                }
+
+                defaultValue = LowerExpression(parameter.DefaultValue);
+                sawOptionalParameter = true;
+            }
+            else if (sawOptionalParameter)
+            {
+                throw Unsupported("required function parameters after an optional parameter", parameter.Name.Extent);
+            }
+
+            parameters.Add(new AotLocalFunctionParameter(parameterName, AotScriptParser.ToSpan(parameter.Name.Extent), defaultValue));
         }
 
         return new AotFunctionDefinitionPlan(new AotLocalFunctionPlan(
@@ -590,6 +607,17 @@ internal static class UpstreamAstPipelineLowerer
 
         return path.UserPath;
     }
+
+    private static bool IsClosedFunctionDefault(ExpressionAst expression) => expression switch
+    {
+        StringConstantExpressionAst => true,
+        ConstantExpressionAst => true,
+        VariableExpressionAst variable when variable.VariablePath.UserPath.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || variable.VariablePath.UserPath.Equals("false", StringComparison.OrdinalIgnoreCase)
+            || variable.VariablePath.UserPath.Equals("null", StringComparison.OrdinalIgnoreCase) => true,
+        ArrayLiteralAst array => array.Elements.All(IsClosedFunctionDefault),
+        _ => false,
+    };
 
     private static AotValue ToAotLiteral(object? value, IScriptExtent extent) => value switch
     {

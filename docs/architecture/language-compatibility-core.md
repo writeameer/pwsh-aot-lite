@@ -66,13 +66,28 @@ are local, while an unresolved variable reads through the caller chain. This
 is the deliberately small dynamic-lookup behavior needed for ordinary local
 functions, not a general `SessionState` or closure implementation.
 
-The admitted signature is only unscoped, untyped header parameters with one
-closed positional `AotValue` per parameter and exact arity. Values stay closed
-values—there is no stringification/reparse path. Named/splatted arguments,
-aliases, switches, parameter sets, defaults, type/validation attributes,
-body `param`, `$args`, `$input`, and `$PSBoundParameters` are not supported.
+The admitted signature is unscoped, untyped header parameters with closed
+values only. Values stay closed—there is no stringification/reparse path.
+Splatting, aliases/abbreviations, switches, parameter sets, non-trailing or
+non-closed defaults, type/validation attributes, body `param`, `$args`,
+`$input`, and `$PSBoundParameters` are not supported.
 Direct or indirect recursive re-entry produces `AOT5007` rather than consuming
-the native host stack; a wrong positional arity produces `AOT5008`.
+the native host stack. Local function calls admit exact case-insensitive named
+parameters, positional values before named parameters, and trailing direct
+literal/literal-list defaults. Their header binder works on AST-derived closed
+values only; it is not a cmdlet binder and has no aliases, abbreviations,
+parameter sets, type conversion, attributes, splatting, `$args`, `$input`, or
+`$PSBoundParameters`. Missing/excess values use `AOT5008`; unknown, duplicate,
+missing-named-value, and positional-after-named failures use `AOT5009` through
+`AOT5012` with source spans.
+
+An admitted local function may be the first source of an outer pipeline only
+when its body is exactly one direct native source command. Its one raw typed
+record batch can pass through the existing outer `Where-Object`/`Select-Object`
+tail. Functions cannot be downstream stages, receive pipeline rows, invoke a
+second function as a producer, contain body transforms/multiple statements, or
+feed a native typed-input stage in this slice. This is static output-segment
+composition, not general PowerShell function pipelines.
 
 ## Bare function return
 
@@ -212,7 +227,11 @@ earlier successful statement remains visible if a later statement terminates.
 | `AOT5005` | An `if` condition or comparison uses a value/shape outside the closed condition subset. |
 | `AOT5006` | A `foreach` collection resolves to a non-list closed value. |
 | `AOT5007` | A local function recursively re-enters the active AOT call chain. |
-| `AOT5008` | A local function call has the wrong number of positional closed values. |
+| `AOT5008` | A local function call has missing or excess closed values. |
+| `AOT5009` | A local function named argument does not match an exact declared header parameter. |
+| `AOT5010` | A local function header parameter was supplied more than once. |
+| `AOT5011` | A local function named header parameter has no following closed value. |
+| `AOT5012` | A local function positional value occurs after a named header parameter. |
 
 Static AST forms outside this slice retain `AOT1001`. Every scope/evaluation
 failure points at the source use-site, not a previous assignment or the whole
@@ -230,9 +249,9 @@ parameter-injection resistance, selected/skip/elseif behavior, same-scope
 branch assignment, closed-list foreach source snapshot/order/nesting/final
 scope behavior, output segment streaming, and typed diagnostic snapshots.
 
-The next language increment should be function output/pipeline composition and
-broader static parameter semantics. It must remain a parser-facade plan with
-the same closed value and diagnostic boundary.
+The next language increment should generalize the typed data plane beyond the
+single transparent function-producer segment. It must remain a parser-facade
+plan with the same closed value and diagnostic boundary.
 
 The original variables-only admission is recorded in the
 [Language Compatibility Core review ledger](../reviews/2026-09-22-language-compatibility-core.md).
@@ -244,3 +263,5 @@ Named local functions are admitted separately in the
 [local-function review ledger](../reviews/2026-09-22-named-local-functions.md).
 Bare function return is admitted separately in the
 [function-return review ledger](../reviews/2026-09-22-function-return.md).
+Static function composition and header binding are admitted separately in the
+[function-composition review ledger](../reviews/2026-09-22-static-function-composition.md).

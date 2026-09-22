@@ -74,6 +74,13 @@ Adversary verdicts are recorded in the
 The focused evidence and remaining limits are recorded in
 [the migration note](value-plane-first-migration.md).
 
+Phase 6 additionally permits one transparent local-function producer: its
+body must be exactly one native source command, producing one concrete raw
+typed record batch. The outer pipeline may apply the same existing `Where-Object`/
+`Select-Object` boundary to that segment. The runner does not capture rendered
+tables, concatenate heterogeneous function output, or make a function a
+general object-stream stage; those require a later explicit data-plane design.
+
 ## Non-goals
 
 This initial migration does not:

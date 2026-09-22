@@ -1813,7 +1813,21 @@ internal sealed class PipelinePlan(
                     pipelinePosition: 1,
                     pipelineLength));
         }
-        // Ports retain their strongly typed output records.  The first generic
+        return ApplyTail(context, rows, filter, Columns, projected, projectionSpan);
+    }
+
+    // The sole reusable record-transform seam. Native sources and the Phase 6
+    // transparent local-function producer both hand it concrete typed rows;
+    // no function result is flattened, rendered, or adapted through object.
+    internal static IReadOnlyList<IPipelineRecord> ApplyTail(
+        AotExecutionContext context,
+        IReadOnlyList<IPipelineRecord> rows,
+        Filter? filter,
+        IReadOnlyList<string> columns,
+        bool projected,
+        AotSourceSpan? projectionSpan)
+    {
+        // Ports retain their strongly typed output records. The first generic
         // stage is the explicit, closed crossing into AotValue/AotRecord; no
         // reflection or CLR-member adaptation is available after this point.
         if (filter is null && !projected)
@@ -1829,7 +1843,7 @@ internal sealed class PipelinePlan(
 
         if (projected)
         {
-            values = values.Select(value => Project(value, Columns, projectionSpan));
+            values = values.Select(value => Project(value, columns, projectionSpan));
         }
 
         // Individual command ports own their source ordering. Get-Process
@@ -2073,6 +2087,7 @@ internal static class SelfTest
         AssertLanguageCompatibilityCore();
         AssertNamedLocalFunctions();
         AssertFunctionReturnControlFlow();
+        AssertStaticFunctionComposition();
         AssertControlFlowCore();
         AssertForEachCore();
         AssertTerminalPresentation();
@@ -3571,15 +3586,12 @@ Read-Group $null
 
         AssertFunctionFailure("Before-Definition Common; function Before-Definition($group) { Get-Verb -Group $group }", "function-order.ps1", "AOT2001");
         AssertFunctionFailure("function Needs-One($group) { Get-Verb -Group $group }; Needs-One", "function-arity.ps1", "AOT5008");
-        AssertFunctionFailure("function Positional-Only($group) { Get-Verb -Group $group }; Positional-Only -group Common", "function-named.ps1", "AOT1001");
-        AssertFunctionFailure("function Pipe-Only() { Get-Verb -Verb Add }; Pipe-Only | Select-Object Verb", "function-pipeline.ps1", "AOT1001");
         AssertFunctionFailure("function Loop() { Loop }; Loop", "function-recursion.ps1", "AOT5007");
 
         foreach (string unsupported in new[]
         {
             "if ($true) { function Nested() { Get-Verb -Verb Add } }",
             "function With-BodyParam() { param($group) Get-Verb -Group $group }",
-            "function With-Default($group = 'Common') { Get-Verb -Group $group }",
             "function With-Type([string]$group) { Get-Verb -Group $group }",
             "filter Stream-Verb { Get-Verb -Verb Add }",
         })
@@ -3681,6 +3693,123 @@ Read-Group $null
         catch (OperationCanceledException)
         {
             // Host cancellation remains control flow and wins before any local return.
+        }
+    }
+
+    private static void AssertStaticFunctionComposition()
+    {
+        AotExecutionResult namedAndDefault = AotExecutionKernel.Compile(
+                "function Pick-Verb($group = 'Common', $verb = 'Add') { Get-Verb -Group $group -Verb $verb | Select-Object Verb, Group }; Pick-Verb -GROUP:Common -VERB Add; Pick-Verb",
+                "function-named-default.ps1")
+            .Execute(new AotExecutionContext());
+        if (namedAndDefault.Outputs.Count != 2
+            || namedAndDefault.Outputs.Any(static output => !output.Columns.SequenceEqual(["Verb", "Group"])
+                || output.Rows.SingleOrDefault()?.TextFor("Verb") != "Add"))
+        {
+            throw new InvalidOperationException("Local function named/default parameter binding did not retain the closed body-output contract.");
+        }
+
+        AotExecutionResult producer = AotExecutionKernel.Compile(
+                "function Get-Zones() { Get-TimeZone -ListAvailable }; Get-Zones | Where-Object BaseUtcOffsetMinutes -ge -1000 | Select-Object Id, BaseUtcOffsetMinutes",
+                "function-producer.ps1")
+            .Execute(new AotExecutionContext());
+        if (producer.Outputs.SingleOrDefault() is not { Columns: var producerColumns, Rows: var producerRows }
+            || !producerColumns.SequenceEqual(["Id", "BaseUtcOffsetMinutes"])
+            || producerRows.Count == 0
+            || producerRows.Any(static row => row is not AotPipelineRecord))
+        {
+            throw new InvalidOperationException("A transparent local-function producer did not reuse the typed Where/Select tail.");
+        }
+
+        AssertFunctionFailure("function Needs-One($group) { Get-Verb -Group $group }; Needs-One", "function-missing-required.ps1", "AOT5008");
+        AssertFunctionFailure("function Needs-One($group) { Get-Verb -Group $group }; Needs-One -missing Common", "function-unknown-named.ps1", "AOT5009");
+        AssertFunctionFailure("function Needs-One($group) { Get-Verb -Group $group }; Needs-One -group", "function-named-missing-value.ps1", "AOT5011");
+        AssertFunctionFailure("function Needs-One($group) { Get-Verb -Group $group }; Needs-One Common -group Data", "function-duplicate-named.ps1", "AOT5010");
+        AssertFunctionFailure("function Needs-Two($one, $two) { Get-Verb -Group $one }; Needs-Two -one Common Data", "function-positional-after-named.ps1", "AOT5012");
+        AssertFunctionFailure("function Too-Many($group) { Get-Verb -Group $group }; Too-Many Common Data", "function-extra-positional.ps1", "AOT5008");
+        AssertFunctionFailure("function Not-Transparent() { $group = 'Common'; Get-Verb -Group $group }; Not-Transparent | Select-Object Verb", "function-producer-multiple-statements.ps1", "AOT1001");
+        AssertFunctionFailure("function Nested-Producer() { function Inner() { Get-Verb -Verb Add }; Inner }; Nested-Producer | Select-Object Verb", "function-producer-nested.ps1", "AOT1001");
+        AssertFunctionFailure("function Get-Zones() { Get-TimeZone -ListAvailable }; Get-Zones | Get-Process", "function-producer-native-input.ps1", "AOT1001");
+
+        AssertFunctionDiagnosticSnapshot(
+            "function One($value) { Get-Verb -Verb $value }; One -missing Add",
+            "function-unknown-snapshot.ps1",
+            "AOT5009",
+            """
+error[AOT5009]: Function 'One' does not declare parameter '-missing'.
+  --> function-unknown-snapshot.ps1:1:53
+   |
+1 | function One($value) { Get-Verb -Verb $value }; One -missing Add
+   |                                                     ^^^^^^^^ unknown local-function parameter
+   = help: Use an exact parameter name declared by the local function.
+""");
+        AssertFunctionDiagnosticSnapshot(
+            "function One($value) { Get-Verb -Verb $value }; One -value",
+            "function-missing-value-snapshot.ps1",
+            "AOT5011",
+            """
+error[AOT5011]: Function 'One' parameter '-value' requires a closed value.
+  --> function-missing-value-snapshot.ps1:1:53
+   |
+1 | function One($value) { Get-Verb -Verb $value }; One -value
+   |                                                     ^^^^^^ local-function parameter requires a value
+   = help: Supply one closed value immediately after the named parameter.
+""");
+        AssertFunctionDiagnosticSnapshot(
+            "function Many() { $x = 'Common'; Get-Verb -Group $x }; Many | Select-Object Verb",
+            "function-producer-snapshot.ps1",
+            "AOT1001",
+            """
+error[AOT1001]: a local function with exactly one direct native source pipeline statement is parsed but not executable by the Native AOT structural subset.
+  --> function-producer-snapshot.ps1:1:56
+   |
+1 | function Many() { $x = 'Common'; Get-Verb -Group $x }; Many | Select-Object Verb
+   |                                                        ^^^^ unsupported execution feature
+   = help: Use the function directly, or define one native source command in its body before composing Where-Object or Select-Object outside it.
+""");
+
+        try
+        {
+            _ = AotExecutionKernel.Compile(
+                    "function Get-Zones($ignored = 'closed') { Get-TimeZone -ListAvailable }; Get-Zones -ignored caller | Select-Object Id",
+                    "function-producer-cancelled.ps1")
+                .Execute(new AotExecutionContext(new CancellationToken(canceled: true)));
+            throw new InvalidOperationException("A pre-cancelled local-function producer bound arguments or executed its source.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation remains host control flow and wins before binding.
+        }
+
+        foreach (string unsupported in new[]
+        {
+            "function Dynamic-Default($group = $outer) { Get-Verb -Group $group }",
+            "function NonTrailing($optional = 'Common', $required) { Get-Verb -Group $optional }",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(unsupported, "function-binding-unsupported.ps1");
+                throw new InvalidOperationException($"The kernel accepted deferred local-function binding syntax '{unsupported}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+                // Header syntax remains parser-authoritative but fails closed
+                // until it has a specifically reviewed binding contract.
+            }
+        }
+    }
+
+    private static void AssertFunctionDiagnosticSnapshot(string source, string documentName, string id, string expected)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName).Execute(new AotExecutionContext());
+            throw new InvalidOperationException($"The local-function diagnostic snapshot '{id}' did not fail.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == id)
+        {
+            AssertDiagnosticSnapshot(error.Diagnostic, source, expected);
         }
     }
 

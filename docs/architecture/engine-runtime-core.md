@@ -112,6 +112,10 @@ it from another thread.
    pinned parser's incomplete-input result; one writer-injected terminal
    projector batches completed event segments. Syntax tooling remains a
    projection of the upstream parser, never a second lexer.
+5. **Static local-function composition** — integrated: one transparent
+   function producer may relay one concrete raw typed record batch into the
+   existing outer `Where-Object`/`Select-Object` tail. It does not alter the
+   success-event contract or introduce record-by-record object streaming.
 
 The independent evidence for slice one is in the
 [runtime stream-contract review](../reviews/2026-09-22-runtime-stream-contract.md).

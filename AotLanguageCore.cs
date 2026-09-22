@@ -161,7 +161,7 @@ internal sealed class AotReturnStatementPlan : AotStatementPlan
     }
 }
 
-internal sealed record AotLocalFunctionParameter(string Name, AotSourceSpan Span);
+internal sealed record AotLocalFunctionParameter(string Name, AotSourceSpan Span, AotExpressionPlan? DefaultValue);
 
 // The function plan is immutable and fully lowered ahead of execution. Its
 // invocation creates a child of the *caller* scope, not a closure of the
@@ -180,34 +180,53 @@ internal sealed class AotLocalFunctionPlan(
     internal void Invoke(
         AotExecutionContext context,
         AotScope callerScope,
-        IReadOnlyList<AotValue> arguments,
+        IReadOnlyList<AotCommandArgumentPlan> arguments,
         AotSourceSpan callSpan,
         Action<AotExecutionOutput> emit)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(callerScope);
-        ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(emit);
-
-        if (arguments.Count != Parameters.Count)
-        {
-            throw new ScriptException(AotDiagnostics.Scope(
-                "AOT5008",
-                $"Function '{Name}' requires exactly {Parameters.Count} positional argument(s), but received {arguments.Count}.",
-                callSpan,
-                "unsupported function argument count",
-                "Supply one closed positional value for each declared function parameter."));
-        }
-
         context.ThrowIfCancellationRequested();
         using IDisposable invocation = context.EnterFunction(Name, callSpan);
-        AotScope localScope = new(callerScope);
-        for (int index = 0; index < Parameters.Count; index++)
+        AotScope localScope = BindInvocationScope(callerScope, arguments, callSpan);
+        _ = body.ExecuteInto(context, localScope, emit);
+    }
+
+    // A function may become an outer pipeline source only when its body is a
+    // single, transparent native-source statement. This is deliberately not a
+    // general object/segment stream: the one raw typed segment crosses the
+    // existing value-plane boundary only in the outer Where/Select tail.
+    internal AotExecutionOutput InvokeAsPipelineProducer(
+        AotExecutionContext context,
+        AotScope callerScope,
+        IReadOnlyList<AotCommandArgumentPlan> arguments,
+        AotSourceSpan callSpan)
+    {
+        context.ThrowIfCancellationRequested();
+        using IDisposable invocation = context.EnterFunction(Name, callSpan);
+        AotScope localScope = BindInvocationScope(callerScope, arguments, callSpan);
+        if (body.Statements is not [AotPipelineStatementPlan pipeline])
         {
-            localScope.Set(Parameters[index].Name, arguments[index]);
+            throw new ScriptException(AotDiagnostics.Unsupported(
+                "a local function with exactly one direct native source pipeline statement",
+                callSpan,
+                "Use the function directly, or define one native source command in its body before composing Where-Object or Select-Object outside it."));
         }
 
-        _ = body.ExecuteInto(context, localScope, emit);
+        return pipeline.ExecuteAsFunctionProducer(context, localScope, callSpan);
+    }
+
+    private AotScope BindInvocationScope(
+        AotScope callerScope,
+        IReadOnlyList<AotCommandArgumentPlan> arguments,
+        AotSourceSpan callSpan)
+    {
+        ArgumentNullException.ThrowIfNull(callerScope);
+        ArgumentNullException.ThrowIfNull(arguments);
+        AotScope localScope = new(callerScope);
+        AotLocalFunctionArgumentBinder.Bind(Name, Parameters, arguments, callerScope, localScope, callSpan);
+        return localScope;
     }
 }
 
@@ -225,15 +244,31 @@ internal sealed class AotPipelineStatementPlan(
         context.ThrowIfCancellationRequested();
         if (scope.TryGetFunction(source.Name, out AotLocalFunctionPlan function))
         {
-            if (pipelineLength != 1)
+            if (inputStage is not null)
             {
                 throw new ScriptException(AotDiagnostics.Unsupported(
-                    "local functions as pipeline sources or stages",
+                    "local functions followed by native typed-input pipeline stages",
                     source.CommandSpan,
-                    "Call a local function as a complete statement; compose supported pipelines inside its body."));
+                    "Use a native source command for typed-input stages; local-function composition supports only the existing Where-Object and Select-Object tail."));
             }
 
-            function.Invoke(context, scope, source.ResolveLocalFunctionArguments(scope), source.CommandSpan, emit);
+            if (pipelineLength == 1)
+            {
+                function.Invoke(context, scope, source.Arguments, source.CommandSpan, emit);
+                return AotControlFlow.Continue;
+            }
+
+            AotExecutionOutput seed = function.InvokeAsPipelineProducer(context, scope, source.Arguments, source.CommandSpan);
+            Filter? resolvedFilter = filter?.Resolve(scope);
+            IReadOnlyList<string> outputColumns = projected ? columns! : seed.Columns;
+            IReadOnlyList<IPipelineRecord> rows = PipelinePlan.ApplyTail(
+                context,
+                seed.Rows,
+                resolvedFilter,
+                outputColumns,
+                projected,
+                projectionSpan);
+            emit(new AotExecutionOutput(rows, outputColumns));
             return AotControlFlow.Continue;
         }
 
@@ -274,6 +309,31 @@ internal sealed class AotPipelineStatementPlan(
             projected,
             projectionSpan,
             pipelineLength);
+    }
+
+    internal AotExecutionOutput ExecuteAsFunctionProducer(
+        AotExecutionContext context,
+        AotScope scope,
+        AotSourceSpan callSpan)
+    {
+        if (pipelineLength != 1 || inputStage is not null || filter is not null || projected || columns is not null)
+        {
+            throw new ScriptException(AotDiagnostics.Unsupported(
+                "a local function producer body with transforms or multiple pipeline stages",
+                callSpan,
+                "Use exactly one direct native source command in the function body, then compose Where-Object or Select-Object outside the function."));
+        }
+
+        if (scope.TryGetFunction(source.Name, out _))
+        {
+            throw new ScriptException(AotDiagnostics.Unsupported(
+                "a local function producer body that invokes another local function",
+                callSpan,
+                "Use one direct native source command in the producer body."));
+        }
+
+        PipelinePlan pipeline = BindPipeline(scope);
+        return new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns);
     }
 }
 
@@ -533,27 +593,122 @@ internal sealed class AotCommandPlan(string name, AotSourceSpan commandSpan, IRe
         }
     }
 
-    // Native cmdlets intentionally receive flattened syntax atoms through the
-    // generated-metadata binder. Local-function parameters instead retain one
-    // evaluated closed value per source argument; they never stringify and
-    // reparse values or grow a second general command binder.
-    internal IReadOnlyList<AotValue> ResolveLocalFunctionArguments(AotScope scope)
+}
+
+// Local functions need a small signature binder, but never the cmdlet binder:
+// it binds only parser-derived header names to closed AotValue arguments and
+// does not accept aliases, abbreviations, parameter sets, conversion, splats,
+// or text reparsing. AotCmdletRegistry remains the sole cmdlet binder.
+internal static class AotLocalFunctionArgumentBinder
+{
+    internal static void Bind(
+        string functionName,
+        IReadOnlyList<AotLocalFunctionParameter> parameters,
+        IReadOnlyList<AotCommandArgumentPlan> arguments,
+        AotScope callerScope,
+        AotScope localScope,
+        AotSourceSpan callSpan)
     {
-        List<AotValue> resolved = [];
-        foreach (AotCommandArgumentPlan argument in Arguments)
+        Dictionary<string, AotValue> supplied = new(StringComparer.OrdinalIgnoreCase);
+        int nextPositional = 0;
+        bool sawNamed = false;
+
+        for (int index = 0; index < arguments.Count; index++)
         {
-            if (argument is not AotValueArgumentPlan value)
+            AotCommandArgumentPlan argument = arguments[index];
+            if (argument is AotParameterArgumentPlan named)
             {
-                throw new ScriptException(AotDiagnostics.Unsupported(
-                    "named local-function arguments",
-                    argument.Span,
-                    "Use positional closed values for this Native AOT local-function subset."));
+                sawNamed = true;
+                AotLocalFunctionParameter? parameter = parameters.FirstOrDefault(candidate =>
+                    candidate.Name.Equals(named.Name, StringComparison.OrdinalIgnoreCase));
+                if (parameter is null)
+                {
+                    throw new ScriptException(AotDiagnostics.Scope(
+                        "AOT5009",
+                        $"Function '{functionName}' does not declare parameter '-{named.Name}'.",
+                        named.Span,
+                        "unknown local-function parameter",
+                        "Use an exact parameter name declared by the local function."));
+                }
+
+                if (supplied.ContainsKey(parameter.Name))
+                {
+                    throw new ScriptException(AotDiagnostics.Scope(
+                        "AOT5010",
+                        $"Function '{functionName}' parameter '-{parameter.Name}' was specified more than once.",
+                        named.Span,
+                        "duplicate local-function parameter",
+                        "Supply each local-function parameter at most once."));
+                }
+
+                if (++index >= arguments.Count || arguments[index] is not AotValueArgumentPlan value)
+                {
+                    throw new ScriptException(AotDiagnostics.Scope(
+                        "AOT5011",
+                        $"Function '{functionName}' parameter '-{parameter.Name}' requires a closed value.",
+                        named.Span,
+                        "local-function parameter requires a value",
+                        "Supply one closed value immediately after the named parameter."));
+                }
+
+                supplied.Add(parameter.Name, value.Expression.Evaluate(callerScope));
+                continue;
             }
 
-            resolved.Add(value.Expression.Evaluate(scope));
+            if (argument is not AotValueArgumentPlan positional)
+            {
+                throw new InvalidOperationException("A local-function call contains an unknown pre-lowered argument plan.");
+            }
+
+            if (sawNamed)
+            {
+                throw new ScriptException(AotDiagnostics.Scope(
+                    "AOT5012",
+                    $"Function '{functionName}' does not permit positional values after a named parameter in the AOT subset.",
+                    positional.Span,
+                    "ambiguous local-function argument order",
+                    "Place positional values before named parameters."));
+            }
+
+            while (nextPositional < parameters.Count && supplied.ContainsKey(parameters[nextPositional].Name))
+            {
+                nextPositional++;
+            }
+
+            if (nextPositional >= parameters.Count)
+            {
+                throw new ScriptException(AotDiagnostics.Scope(
+                    "AOT5008",
+                    $"Function '{functionName}' received more positional arguments than its declared parameters.",
+                    positional.Span,
+                    "unsupported function argument count",
+                    "Supply one closed positional value for each declared function parameter."));
+            }
+
+            supplied.Add(parameters[nextPositional++].Name, positional.Expression.Evaluate(callerScope));
         }
 
-        return resolved;
+        foreach (AotLocalFunctionParameter parameter in parameters)
+        {
+            if (supplied.TryGetValue(parameter.Name, out AotValue value))
+            {
+                localScope.Set(parameter.Name, value);
+                continue;
+            }
+
+            if (parameter.DefaultValue is not null)
+            {
+                localScope.Set(parameter.Name, parameter.DefaultValue.Evaluate(localScope));
+                continue;
+            }
+
+            throw new ScriptException(AotDiagnostics.Scope(
+                "AOT5008",
+                $"Function '{functionName}' requires a value for parameter '-{parameter.Name}'.",
+                callSpan,
+                "missing local-function parameter",
+                "Supply one closed positional or exact named value for each required parameter."));
+        }
     }
 }
 
