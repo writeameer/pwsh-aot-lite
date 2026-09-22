@@ -114,7 +114,9 @@ execution rejects the pipeline rather than inventing formatting semantics.
 Terminal presentation is explicit metadata, not a record-type heuristic.
 `AotCmdletBase.TerminalPresentation` declares the default and `PipelinePlan`
 carries it to `AotExecutionOutput`. The only admitted prose producer is a
-direct, untransformed `Get-Help` plan. A typed input stage or any structural
+direct, untransformed `Get-Help` or `New-Guid` plan. `New-Guid` reuses the
+existing closed `TextRecord` terminal shape; it does not imply a generic Guid
+value kind or a typed Guid object pipeline. A typed input stage or any structural
 `Where-Object`/`Select-Object` transform produces a table contract, even when
 the source happened to be help. Direct local-function invocation forwards each
 contained segment's immutable presentation contract unchanged. The terminal

@@ -47,8 +47,10 @@ helper closure before accepting a subset.
 2. **W1:** reusable typed value, pipeline topology, conversion, serialization,
    and projection contracts.
 3. **W2:** low-authority BCL calibration ports only: `New-Guid`,
-   `New-TimeSpan`, and `Start-Sleep`. `Measure-Command` remains W1/W6 until
-   its typed composition/timing contract is designed.
+   `New-TimeSpan`, and `Start-Sleep`. `New-Guid` is integrated for default UUID
+   v7 and generated `-Empty` only; `InputObject`, positional, and pipeline
+   behavior remain deferred. `Measure-Command` remains W1/W6 until its typed
+   composition/timing contract is designed.
 4. **W3:** physical filesystem reads only (`Get-ChildItem`, `Get-Item`,
    `Test-Path`, `Resolve-Path`, `Join-Path`, `Split-Path`, `Convert-Path`,
    `Get-Content`) through the Phase 9 substrate—never PS providers/drives.

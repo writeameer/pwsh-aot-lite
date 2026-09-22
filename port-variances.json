@@ -284,6 +284,41 @@
       ]
     },
     {
+      "command": "New-Guid",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/NewGuidCommand.cs",
+      "state": "complete-empty-switch-calibration-slice",
+      "variances": [
+        {
+          "id": "newguid-static-bcl-generation",
+          "sourceFeature": "ProcessRecord emits Guid.CreateVersion7 by default or Guid.Empty when Empty.ToBool() is true",
+          "targetDecision": "generated descriptor plus static Guid.CreateVersion7/Guid.Empty in AotCmdletBase lifecycle; direct output uses the existing closed TextRecord prose presentation",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "newguid-attached-switch-binding",
+          "sourceFeature": "SwitchParameter accepts an attached Boolean value such as -Empty:$false",
+          "targetDecision": "the shared AST-derived binder preserves CommandParameterAst.Argument attachment and accepts only a direct Boolean literal; strings, null, variables, and other attached values fail closed",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "newguid-inputobject-deferred",
+          "sourceFeature": "InputObject string parameter set, positional GUID parsing, ValueFromPipeline binding, WriteError(StringNotRecognizedAsGuid), and null output behavior",
+          "targetDecision": "InputObject is intentionally absent from the executable descriptor. Named input, positional input, and Empty plus InputObject fail at generated binding rather than introducing pseudo-string/null behavior or a generic Guid value layer",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "newguid-output-object",
+          "sourceFeature": "Guid object output and PowerShell type/formatting behavior",
+          "targetDecision": "the current runner writes one canonical D-format UUID line through existing TextRecord prose. A typed Guid pipeline value/record is deferred until it can be consumed without generic CLR-object adaptation",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Get-Help",
       "source": "src/System.Management.Automation/help/HelpCommands.cs",
       "state": "static-catalog-and-extension-discovery-complete",
