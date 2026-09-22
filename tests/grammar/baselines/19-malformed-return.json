@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "fixture": "19-malformed-return.ps1",
+  "sourceSha256": "c4abb1a9d07a32bdce0b1a4a40fdca7186a6beb42bb6afeb666645d545ad9a8e",
+  "tokens": [
+    {
+      "kind": "Function",
+      "text": "function",
+      "flags": "Keyword, StatementDoesntSupportAttributes",
+      "extent": {
+        "startOffset": 0,
+        "endOffset": 8,
+        "startLine": 1,
+        "startColumn": 1,
+        "endLine": 1,
+        "endColumn": 9
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Broken-Return",
+      "flags": "None",
+      "extent": {
+        "startOffset": 9,
+        "endOffset": 22,
+        "startLine": 1,
+        "startColumn": 10,
+        "endLine": 1,
+        "endColumn": 23
+      }
+    },
+    {
+      "kind": "LParen",
+      "text": "(",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 22,
+        "endOffset": 23,
+        "startLine": 1,
+        "startColumn": 23,
+        "endLine": 1,
+        "endColumn": 24
+      }
+    },
+    {
+      "kind": "RParen",
+      "text": ")",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 23,
+        "endOffset": 24,
+        "startLine": 1,
+        "startColumn": 24,
+        "endLine": 1,
+        "endColumn": 25
+      }
+    },
+    {
+      "kind": "LCurly",
+      "text": "{",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 25,
+        "endOffset": 26,
+        "startLine": 1,
+        "startColumn": 26,
+        "endLine": 1,
+        "endColumn": 27
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 26,
+        "endOffset": 27,
+        "startLine": 1,
+        "startColumn": 27,
+        "endLine": 2,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Return",
+      "text": "return",
+      "flags": "Keyword, StatementDoesntSupportAttributes",
+      "extent": {
+        "startOffset": 31,
+        "endOffset": 37,
+        "startLine": 2,
+        "startColumn": 5,
+        "endLine": 2,
+        "endColumn": 11
+      }
+    },
+    {
+      "kind": "Pipe",
+      "text": "|",
+      "flags": "SpecialOperator, ParseModeInvariant",
+      "extent": {
+        "startOffset": 38,
+        "endOffset": 39,
+        "startLine": 2,
+        "startColumn": 12,
+        "endLine": 2,
+        "endColumn": 13
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 39,
+        "endOffset": 40,
+        "startLine": 2,
+        "startColumn": 13,
+        "endLine": 3,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "RCurly",
+      "text": "}",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 40,
+        "endOffset": 41,
+        "startLine": 3,
+        "startColumn": 1,
+        "endLine": 3,
+        "endColumn": 2
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 41,
+        "endOffset": 42,
+        "startLine": 3,
+        "startColumn": 2,
+        "endLine": 4,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "EndOfInput",
+      "text": "",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 43,
+        "endOffset": 43,
+        "startLine": 4,
+        "startColumn": 2,
+        "endLine": 4,
+        "endColumn": 2
+      }
+    }
+  ],
+  "ast": {
+    "type": "ScriptBlockAst",
+    "extent": {
+      "startOffset": 0,
+      "endOffset": 42,
+      "startLine": 1,
+      "startColumn": 1,
+      "endLine": 4,
+      "endColumn": 1
+    },
+    "children": [
+      {
+        "type": "NamedBlockAst",
+        "extent": {
+          "startOffset": 0,
+          "endOffset": 41,
+          "startLine": 1,
+          "startColumn": 1,
+          "endLine": 3,
+          "endColumn": 2
+        },
+        "children": [
+          {
+            "type": "FunctionDefinitionAst",
+            "extent": {
+              "startOffset": 0,
+              "endOffset": 41,
+              "startLine": 1,
+              "startColumn": 1,
+              "endLine": 3,
+              "endColumn": 2
+            },
+            "children": [
+              {
+                "type": "ScriptBlockAst",
+                "extent": {
+                  "startOffset": 25,
+                  "endOffset": 41,
+                  "startLine": 1,
+                  "startColumn": 26,
+                  "endLine": 3,
+                  "endColumn": 2
+                },
+                "children": [
+                  {
+                    "type": "NamedBlockAst",
+                    "extent": {
+                      "startOffset": 31,
+                      "endOffset": 37,
+                      "startLine": 2,
+                      "startColumn": 5,
+                      "endLine": 2,
+                      "endColumn": 11
+                    },
+                    "children": [
+                      {
+                        "type": "ReturnStatementAst",
+                        "extent": {
+                          "startOffset": 31,
+                          "endOffset": 37,
+                          "startLine": 2,
+                          "startColumn": 5,
+                          "endLine": 2,
+                          "endColumn": 11
+                        },
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "id": "EmptyPipeElement",
+      "extent": {
+        "startOffset": 38,
+        "endOffset": 39,
+        "startLine": 2,
+        "startColumn": 12,
+        "endLine": 2,
+        "endColumn": 13
+      }
+    }
+  ]
+}

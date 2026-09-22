@@ -41,7 +41,14 @@ an immutable plan and registers it only when its declaration statement runs.
 Its direct positional call creates a child scope of the caller and forwards
 body output through the existing event sink. This is precompiled plan execution,
 not `ScriptBlock` invocation; advanced function blocks, attributes/defaults,
-named arguments, return flow, and function pipelines remain fail-closed.
+named arguments, root/value/pipeline returns, and function pipelines remain
+fail-closed.
+
+The narrow exception is a bare `ReturnStatementAst` inside an admitted local
+function. It lowers to typed function-local control flow and is consumed by
+that invocation; it does not execute a return pipeline or terminate the host.
+Value/pipeline returns remain fail-closed until the typed data-plane can project
+them honestly.
 
 Every unsupported or invalid input follows the shared diagnostic contract:
 

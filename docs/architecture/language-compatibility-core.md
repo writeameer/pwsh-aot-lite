@@ -74,6 +74,21 @@ body `param`, `$args`, `$input`, and `$PSBoundParameters` are not supported.
 Direct or indirect recursive re-entry produces `AOT5007` rather than consuming
 the native host stack; a wrong positional arity produces `AOT5008`.
 
+## Bare function return
+
+Inside an admitted local-function body, bare `return` is a typed,
+function-local control-flow result. It emits no output, preserves output
+segments already emitted by earlier statements, and suppresses the remaining
+body and enclosing closed `if`/`foreach` work. The invoked function consumes
+that result, so its caller continues normally. Cancellation remains host-owned
+control flow and is checked before every statement; it is not swallowed by a
+pending return.
+
+`return <value>` and `return <pipeline>` remain rejected. Stock PowerShell
+writes those values into the current output pipeline, but this runner has not
+yet admitted the required closed-value-to-typed-record projection. Root returns
+are also rejected rather than being allowed to terminate the native host.
+
 Supported RHS values are null, Boolean, finite integer/decimal/floating-point
 numbers, non-interpolated string constants, direct variable references, and
 comma-array literals of those values. Variable names are case-insensitive.
@@ -147,14 +162,16 @@ automatic variables, splatting, compound assignment, multi-target assignment,
 interpolated strings/subexpressions, `@(...)`, hashtables, casts, member/index
 access, operator expressions, assignment from commands/pipelines, redirection,
 backgrounding, advanced/nested/conditional functions, general loops,
-flow-control statements, script blocks, and
+flow-control statements other than bare local-function `return`, script blocks, and
 named PowerShell blocks. Conditional `-and`, `-or`, `-not`, invocation or
 pipeline conditions, and all expressions beyond the direct condition matrix
 above remain excluded. They need a dedicated reviewed plan; they must never
 fall through to the dynamic PowerShell runtime.
 
-Within the admitted foreach shape, labels, `-parallel`, `-throttlelimit`,
-pipeline/range sources, `break`, `continue`, and `return` remain excluded.
+Within the admitted root/non-function `foreach` shape, labels, `-parallel`,
+`-throttlelimit`, pipeline/range sources, `break`, `continue`, and `return`
+remain excluded. A bare `return` inside an admitted local-function `foreach`
+body follows the function-return contract above.
 `foreach`'s upstream automatic enumerator variable is not implemented; `$foreach`
 remains reserved by the lexical-scope policy.
 
@@ -213,9 +230,9 @@ parameter-injection resistance, selected/skip/elseif behavior, same-scope
 branch assignment, closed-list foreach source snapshot/order/nesting/final
 scope behavior, output segment streaming, and typed diagnostic snapshots.
 
-The next language increment should be explicit `return`/function-flow
-semantics before any broader function parameter or pipeline contract. It must
-remain a parser-facade plan with the same closed value and diagnostic boundary.
+The next language increment should be function output/pipeline composition and
+broader static parameter semantics. It must remain a parser-facade plan with
+the same closed value and diagnostic boundary.
 
 The original variables-only admission is recorded in the
 [Language Compatibility Core review ledger](../reviews/2026-09-22-language-compatibility-core.md).
@@ -225,3 +242,5 @@ Closed-list foreach is admitted separately in the
 [foreach review ledger](../reviews/2026-09-22-foreach-closed-list.md).
 Named local functions are admitted separately in the
 [local-function review ledger](../reviews/2026-09-22-named-local-functions.md).
+Bare function return is admitted separately in the
+[function-return review ledger](../reviews/2026-09-22-function-return.md).

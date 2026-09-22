@@ -75,6 +75,10 @@ internal sealed class AotExecutionResult(IReadOnlyList<AotExecutionOutput> outpu
     internal IReadOnlyList<AotExecutionOutput> Outputs { get; } = outputs;
 }
 
+// Function-local control flow is an explicit plan result, never an exception
+// that could be mistaken for a runtime failure or escape into the host.
+internal enum AotControlFlow { Continue, Return }
+
 internal sealed class AotBlockPlan(IReadOnlyList<AotStatementPlan> statements)
 {
     internal IReadOnlyList<AotStatementPlan> Statements { get; } = statements;
@@ -97,33 +101,42 @@ internal sealed class AotBlockPlan(IReadOnlyList<AotStatementPlan> statements)
                 onOutput?.Invoke(output);
             }
         });
-        ExecuteInto(context, scope, context.WriteOutput);
+        if (ExecuteInto(context, scope, context.WriteOutput) is not AotControlFlow.Continue)
+        {
+            throw new InvalidOperationException("A local-function return escaped a root AOT block.");
+        }
 
         return new AotExecutionResult(outputs);
     }
 
     // Nested statement blocks use their caller's sink so branch output keeps
     // its original order and table shape. A branch is not a synthetic pipeline.
-    internal void ExecuteInto(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    internal AotControlFlow ExecuteInto(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         foreach (AotStatementPlan statement in Statements)
         {
             context.ThrowIfCancellationRequested();
-            statement.Execute(context, scope, emit);
+            if (statement.Execute(context, scope, emit) is AotControlFlow.Return)
+            {
+                return AotControlFlow.Return;
+            }
         }
+
+        return AotControlFlow.Continue;
     }
 }
 
 internal abstract class AotStatementPlan
 {
-    internal abstract void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit);
+    internal abstract AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit);
 }
 
 internal sealed class AotAssignmentPlan(string name, AotExpressionPlan value) : AotStatementPlan
 {
-    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         scope.Set(name, value.Evaluate(scope));
+        return AotControlFlow.Continue;
     }
 }
 
@@ -132,8 +145,20 @@ internal sealed class AotAssignmentPlan(string name, AotExpressionPlan value) : 
 // behavior without pre-scanning or installing a dynamic command table.
 internal sealed class AotFunctionDefinitionPlan(AotLocalFunctionPlan function) : AotStatementPlan
 {
-    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit) =>
+    internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    {
         scope.DefineFunction(function);
+        return AotControlFlow.Continue;
+    }
+}
+
+internal sealed class AotReturnStatementPlan : AotStatementPlan
+{
+    internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    {
+        context.ThrowIfCancellationRequested();
+        return AotControlFlow.Return;
+    }
 }
 
 internal sealed record AotLocalFunctionParameter(string Name, AotSourceSpan Span);
@@ -182,7 +207,7 @@ internal sealed class AotLocalFunctionPlan(
             localScope.Set(Parameters[index].Name, arguments[index]);
         }
 
-        body.ExecuteInto(context, localScope, emit);
+        _ = body.ExecuteInto(context, localScope, emit);
     }
 }
 
@@ -195,7 +220,7 @@ internal sealed class AotPipelineStatementPlan(
     AotSourceSpan? projectionSpan,
     int pipelineLength) : AotStatementPlan
 {
-    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         context.ThrowIfCancellationRequested();
         if (scope.TryGetFunction(source.Name, out AotLocalFunctionPlan function))
@@ -209,12 +234,13 @@ internal sealed class AotPipelineStatementPlan(
             }
 
             function.Invoke(context, scope, source.ResolveLocalFunctionArguments(scope), source.CommandSpan, emit);
-            return;
+            return AotControlFlow.Continue;
         }
 
         PipelinePlan pipeline = BindPipeline(scope);
         context.ThrowIfCancellationRequested();
         emit(new AotExecutionOutput(pipeline.Execute(context), pipeline.Columns));
+        return AotControlFlow.Continue;
     }
 
     internal PipelinePlan BindPipeline(AotScope scope)
@@ -255,7 +281,7 @@ internal sealed class AotIfStatementPlan(
     IReadOnlyList<AotIfClausePlan> clauses,
     AotBlockPlan? elseBlock) : AotStatementPlan
 {
-    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         foreach (AotIfClausePlan clause in clauses)
         {
@@ -264,12 +290,11 @@ internal sealed class AotIfStatementPlan(
                 // Unlike invoked scriptblocks/functions, PowerShell's if
                 // braces do not form a scope. A selected branch can update
                 // variables used by following top-level statements.
-                clause.Body.ExecuteInto(context, scope, emit);
-                return;
+                return clause.Body.ExecuteInto(context, scope, emit);
             }
         }
 
-        elseBlock?.ExecuteInto(context, scope, emit);
+        return elseBlock?.ExecuteInto(context, scope, emit) ?? AotControlFlow.Continue;
     }
 }
 
@@ -285,7 +310,7 @@ internal sealed class AotForEachStatementPlan(
     AotExpressionPlan collection,
     AotBlockPlan body) : AotStatementPlan
 {
-    internal override void Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
+    internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         AotValue value = collection.Evaluate(scope);
         if (!value.TryGetItems(out IReadOnlyList<AotValue>? items))
@@ -297,8 +322,13 @@ internal sealed class AotForEachStatementPlan(
         {
             context.ThrowIfCancellationRequested();
             scope.Set(variableName, item);
-            body.ExecuteInto(context, scope, emit);
+            if (body.ExecuteInto(context, scope, emit) is AotControlFlow.Return)
+            {
+                return AotControlFlow.Return;
+            }
         }
+
+        return AotControlFlow.Continue;
     }
 }
 
