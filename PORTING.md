@@ -1,5 +1,11 @@
 # Cmdlet porting recipe
 
+Before selecting another built-in cmdlet, consult the checked
+[Phase 10 campaign manifest](docs/campaign/phase10-built-in-cmdlets.md). It
+classifies every source declaration, records its prerequisite wave, and is
+verified against the generated source contract. Classification is planning
+evidence, not authorization to claim execution compatibility.
+
 This is a mechanical path for moving a cmdlet into the AOT runner without
 bringing `System.Management.Automation` along.
 
