@@ -9,7 +9,7 @@ immediate-child behavior and fixed Unix default view.
 
 - Original: `src/Microsoft.PowerShell.Commands.Management/commands/management/GetChildrenCommand.cs`, `GetChildItemCommand` over `CoreCommandBase`.
 - Generated contract: `GeneratedCmdletPorts.GetChildItem`.
-- Target: `PhysicalChildItemCatalog.cs`: `IPhysicalChildItemCatalog`, `SystemPhysicalChildItemCatalog`, `MacOsPhysicalMetadata`, and `PhysicalChildItemRecord`; `Pipeline.cs`: `GetChildItemCmdlet` and its closed `AotTableLayout`.
+- Target: `PhysicalChildItemCatalog.cs`: `IPhysicalChildItemCatalog`, `SystemPhysicalChildItemCatalog`, `MacOsPhysicalMetadata`, `PhysicalChildItemRecord`, and shared `PhysicalItemPresentation`; `Pipeline.cs`: thin `GetChildItemCmdlet` adapter.
 - Review ledger: [get-childitem-wave3.md](../reviews/get-childitem-wave3.md).
 
 ## Port timing
@@ -41,6 +41,8 @@ includes review and build waiting, not just active coding time.
   Unix `childrenWithUnixStat` table: `UnixMode`, `User`, `Group`,
   `LastWriteTime`, `Size`, and `Name`, grouped as `Directory: <ParentPath>`.
   `LastWriteTime` follows the upstream `'{0:d} {0:HH}:{0:mm}'` projection.
+  The descriptor now has one shared owner, `PhysicalItemPresentation`, so
+  direct `Get-Item` reuses it rather than independently transcribing it.
 - `MacOsPhysicalMetadata` supplies only mode, owner, group, size, and
   last-write facts required by that source view. The reviewed macOS-arm64
   bridge performs an all-components descriptor walk from `/`: each component

@@ -878,7 +878,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -2465,6 +2465,14 @@ internal static class SelfTest
             throw new InvalidOperationException("Get-Help did not render the generated built-in contract.");
         }
 
+        PipelinePlan getItemHelpPlan = ScriptParser.Parse("Get-Help Get-Item");
+        if (getItemHelpPlan.Execute(new AotExecutionContext()).SingleOrDefault() is not HelpRecord { Content: var getItemHelp }
+            || !getItemHelp.Contains("native-aot (implemented current scope)", StringComparison.Ordinal)
+            || !getItemHelp.Contains("-Path <string[]>", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Get-Help did not render the Get-Item generated contract.");
+        }
+
         PipelinePlan extensionHelpPlan = ScriptParser.Parse("Get-Help -Name Start-ThreadJob");
         IReadOnlyList<IPipelineRecord> extensionHelpRows = extensionHelpPlan.Execute(new AotExecutionContext());
         if (extensionHelpRows.SingleOrDefault() is not HelpRecord { Content: var extensionHelp }
@@ -2500,6 +2508,15 @@ internal static class SelfTest
             })
         {
             throw new InvalidOperationException("Get-Command did not query the built-in source catalog.");
+        }
+
+        PipelinePlan getItemCommandPlan = ScriptParser.Parse("Get-Command Get-Item");
+        if (getItemCommandPlan.Execute(new AotExecutionContext()).SingleOrDefault() is not CommandInfoRecord
+            {
+                Name: "Get-Item", CommandType: "Cmdlet", ModuleName: "PowerShell.BuiltIn", Availability: "native-aot",
+            })
+        {
+            throw new InvalidOperationException("Get-Command did not query the native Get-Item adapter.");
         }
 
         PipelinePlan nativeCommandPlan = ScriptParser.Parse("Get-Command Get-Command");
@@ -2893,6 +2910,94 @@ internal static class SelfTest
             {
                 _ = AotCmdletRegistry.ParseSource($"Get-ChildItem -Recurse '{childItemFixtureDirectory}'");
                 throw new InvalidOperationException("Get-ChildItem accepted unsupported Recurse.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
+            {
+            }
+
+            SourceCmdletMetadata getItemContract = GeneratedCmdletPorts.GetItem;
+            if (!getItemContract.BaseTypeChain.Take(2).SequenceEqual(["CoreCommandWithCredentialsBase", "CoreCommandBase"])
+                || getItemContract.Parameters.Single(parameter => parameter.Name == "Path").ParameterSets.Single() is not { Position: 0, Mandatory: true }
+                || !getItemContract.Parameters.Single(parameter => parameter.Name == "LiteralPath").Aliases.SequenceEqual(["PSPath", "LP"]))
+            {
+                throw new InvalidOperationException("Generated Get-Item contract regression.");
+            }
+
+            GetItemCmdlet getItem = new(new SystemPhysicalChildItemCatalog(new FixtureDiscoveryRoots(childItemFixtureDirectory), macOsChildItemPlatform));
+            PhysicalChildItemRecord[] directFile = getItem.Invoke(
+                new CommandInvocation(getItem.Descriptor, new Dictionary<string, string[]> { ["Path"] = [childAlphaPath] }),
+                new AotExecutionContext()).Cast<PhysicalChildItemRecord>().ToArray();
+            PhysicalChildItemRecord[] directDirectory = getItem.Invoke(
+                new CommandInvocation(getItem.Descriptor, new Dictionary<string, string[]> { ["Path"] = [childDirectoryPath] }),
+                new AotExecutionContext()).Cast<PhysicalChildItemRecord>().ToArray();
+            if (directFile is not [var directFileItem]
+                || directFileItem is not { Name: "alpha.txt", Path: var directFilePath, Kind: PhysicalChildItemKind.File, Length: 5 }
+                || directFilePath != childAlphaPath
+                || directDirectory is not [var directDirectoryItem]
+                || directDirectoryItem is not { Name: "folder", Path: var directDirectoryPath, Kind: PhysicalChildItemKind.Directory, Length: null }
+                || directDirectoryPath != childDirectoryPath
+                || directDirectory.Any(item => item.Name is "alpha.txt" or "beta.txt")
+                || !getItem.DefaultColumns.SequenceEqual(childItems.DefaultColumns)
+                || !ReferenceEquals(getItem.DefaultTableLayout, childItems.DefaultTableLayout))
+            {
+                throw new InvalidOperationException("Get-Item direct file-or-directory/no-enumeration/presentation reuse regression.");
+            }
+
+            using (CancellationTokenSource cancelledDirectItem = new())
+            {
+                cancelledDirectItem.Cancel();
+                AotExecutionContext cancelledDirectContext = new(cancelledDirectItem.Token);
+                AssertCancellation(() => ((IPhysicalChildItemCatalog)new SystemPhysicalChildItemCatalog(
+                    new FixtureDiscoveryRoots(childItemFixtureDirectory), macOsChildItemPlatform))
+                    .GetDirectPhysicalItem(childAlphaPath, cancelledDirectContext, span: null));
+                if (cancelledDirectContext.Errors.Count != 0 || cancelledDirectContext.Events.Count != 0)
+                {
+                    throw new InvalidOperationException("Get-Item direct catalog cancellation leaked output or an error event.");
+                }
+            }
+
+            AotExecutionContext getItemProviderContext = new();
+            _ = getItem.Invoke(new CommandInvocation(getItem.Descriptor, new Dictionary<string, string[]>
+            {
+                ["Path"] = ["FileSystem::/tmp"],
+            }, childItemSpan, new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [childItemSpan] }), getItemProviderContext).ToArray();
+            if (getItemProviderContext.Errors.SingleOrDefault()?.Diagnostic is not { Id: "AOT6201", Span: var getItemProviderSpan }
+                || !ReferenceEquals(getItemProviderSpan, childItemSpan))
+            {
+                throw new InvalidOperationException("Get-Item shared provider rejection/source-span regression.");
+            }
+
+            AotExecutionContext getItemLinkContext = new();
+            if (getItem.Invoke(new CommandInvocation(getItem.Descriptor, new Dictionary<string, string[]>
+                { ["Path"] = [Path.Combine(linkedAncestor, "descendant.txt")] }), getItemLinkContext).Any()
+                || getItemLinkContext.Errors.SingleOrDefault()?.Id != "AOT6205")
+            {
+                throw new InvalidOperationException("Get-Item shared no-follow ancestor-link regression.");
+            }
+
+            (_, CommandInvocation positionalGetItem) = AotCmdletRegistry.ParseSource($"Get-Item '{childAlphaPath}'");
+            (_, CommandInvocation namedGetItem) = AotCmdletRegistry.ParseSource($"Get-Item -Path '{childDirectoryPath}'");
+            if (!positionalGetItem.TryGetValues("Path", out string[] positionalGetItemPaths)
+                || !positionalGetItemPaths.SequenceEqual([childAlphaPath])
+                || !namedGetItem.TryGetValues("Path", out string[] namedGetItemPaths)
+                || !namedGetItemPaths.SequenceEqual([childDirectoryPath]))
+            {
+                throw new InvalidOperationException("Get-Item generated Path positional/named binding regression.");
+            }
+
+            try
+            {
+                _ = ScriptParser.Parse("Get-Item").Execute(new AotExecutionContext());
+                throw new InvalidOperationException("Get-Item accepted a missing generated mandatory Path.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT6211")
+            {
+            }
+
+            try
+            {
+                _ = AotCmdletRegistry.ParseSource($"Get-Item -LP '{childAlphaPath}'");
+                throw new InvalidOperationException("Get-Item accepted unsupported LiteralPath.");
             }
             catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
             {
@@ -3731,6 +3836,36 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
 1 | Get-Process -Id 2147483647
    | ^^^^^^^^^^^ command reported an error
 """);
+
+        // Get-Item deliberately preserves the source-mandatory Path metadata,
+        // but this noninteractive static host does not invent PowerShell's
+        // mandatory-parameter prompt. Keep the intentional AOT6211 variance
+        // source-spanned and snapshot its user-facing terminal contract.
+        try
+        {
+            _ = AotExecutionKernel.Compile("Get-Item", "getitem-missing-path.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("Get-Item accepted a missing mandatory Path.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT6211",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "getitem-missing-path.ps1", StartLine: 1, StartColumn: 1, EndLine: 1, EndColumn: 9 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Get-Item",
+                """
+error[AOT6211]: Get-Item requires a direct physical -Path value in the current Native AOT slice.
+  --> getitem-missing-path.ps1:1:1
+   |
+1 | Get-Item
+   | ^^^^^^^^ required direct path missing
+   = help: Supply one existing direct physical file or directory path.
+""");
+        }
 
         AotExecutionPlan successPlan = AotExecutionKernel.Compile("Get-Verb -Group Common", "success.ps1");
         AotExecutionContext successContext = new();

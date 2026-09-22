@@ -10,6 +10,11 @@ namespace PwshAotLite;
 internal interface IPhysicalChildItemCatalog
 {
     IEnumerable<PhysicalChildItem> GetImmediateChildren(string path, AotExecutionContext context, AotSourceSpan? span);
+
+    // Deliberately returns one already-acquired physical item.  Consumers such
+    // as Get-Item must never implement "item" lookup by enumerating a
+    // directory, since that changes a directory argument into its children.
+    PhysicalChildItem? GetDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span);
 }
 
 internal enum PhysicalChildItemKind { File, Directory }
@@ -39,42 +44,12 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
 
     public IEnumerable<PhysicalChildItem> GetImmediateChildren(string path, AotExecutionContext context, AotSourceSpan? span)
     {
-        // The source Unix display contract depends on the UnixStat native
-        // bridge. This first static extraction implements its macOS ABI only;
-        // accepting a non-macOS result with invented/missing User and Group
-        // values would be false compatibility.
-        if (_platform.Snapshot is not { OperatingSystem: AotHostOperatingSystem.MacOS, Architecture: Architecture.Arm64 }
-            || !OperatingSystem.IsMacOS()
-            || RuntimeInformation.ProcessArchitecture != Architecture.Arm64)
-        {
-            WriteError(context, "AOT6209", "Get-ChildItem Unix display metadata is currently supported only on reviewed macOS arm64 hosts.", span,
-                "unsupported filesystem display platform", "Use the macOS arm64 direct-physical slice or wait for a reviewed Linux/Windows metadata adapter.");
-            return [];
-        }
-
-        context.ThrowIfCancellationRequested();
-
-        if (IsProviderQualified(path))
-        {
-            WriteError(context, "AOT6201", $"Get-ChildItem does not support provider-qualified path '{path}'.", span,
-                "provider-qualified path rejected", "Use a direct operating-system path without '::'.");
-            return [];
-        }
-
-        if (ContainsWildcard(path))
-        {
-            WriteError(context, "AOT6202", $"Get-ChildItem does not support wildcard path '{path}' in the current Native AOT slice.", span,
-                "wildcard path rejected", "Use one direct file or directory path.");
-            return [];
-        }
-
-        string? canonicalPath = TryCanonicalize(path, context, span);
-        if (canonicalPath is null)
+        if (!TryResolveDirectPhysicalPath(path, context, span, out string? canonicalPath))
         {
             return [];
         }
 
-        PhysicalChildItem? exact = TryDescribe(canonicalPath, context, span, emitMissing: true);
+        PhysicalChildItem? exact = TryDescribe(canonicalPath!, context, span, emitMissing: true);
         if (exact is null)
         {
             return [];
@@ -85,7 +60,53 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
             return [exact];
         }
 
-        return EnumerateDirectoryNoFollow(canonicalPath, context, span);
+        return EnumerateDirectoryNoFollow(canonicalPath!, context, span);
+    }
+
+    public PhysicalChildItem? GetDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span)
+    {
+        if (!TryResolveDirectPhysicalPath(path, context, span, out string? canonicalPath))
+        {
+            return null;
+        }
+
+        return TryDescribe(canonicalPath!, context, span, emitMissing: true);
+    }
+
+    private bool TryResolveDirectPhysicalPath(string path, AotExecutionContext context, AotSourceSpan? span, out string? canonicalPath)
+    {
+        canonicalPath = null;
+        // The source Unix display contract depends on the UnixStat native
+        // bridge. This first static extraction implements its macOS ABI only;
+        // accepting a non-macOS result with invented/missing User and Group
+        // values would be false compatibility.
+        if (_platform.Snapshot is not { OperatingSystem: AotHostOperatingSystem.MacOS, Architecture: Architecture.Arm64 }
+            || !OperatingSystem.IsMacOS()
+            || RuntimeInformation.ProcessArchitecture != Architecture.Arm64)
+        {
+            WriteError(context, "AOT6209", "Direct physical Unix display metadata is currently supported only on reviewed macOS arm64 hosts.", span,
+                "unsupported filesystem display platform", "Use the macOS arm64 direct-physical slice or wait for a reviewed Linux/Windows metadata adapter.");
+            return false;
+        }
+
+        context.ThrowIfCancellationRequested();
+
+        if (IsProviderQualified(path))
+        {
+            WriteError(context, "AOT6201", $"Direct physical item access does not support provider-qualified path '{path}'.", span,
+                "provider-qualified path rejected", "Use a direct operating-system path without '::'.");
+            return false;
+        }
+
+        if (ContainsWildcard(path))
+        {
+            WriteError(context, "AOT6202", $"Direct physical item access does not support wildcard path '{path}' in the current Native AOT slice.", span,
+                "wildcard path rejected", "Use one direct file or directory path.");
+            return false;
+        }
+
+        canonicalPath = TryCanonicalize(path, context, span);
+        return canonicalPath is not null;
     }
 
     private string? TryCanonicalize(string path, AotExecutionContext context, AotSourceSpan? span)
@@ -813,17 +834,16 @@ internal sealed record PhysicalChildItemRecord(
     };
 }
 
-// Port boundary for Microsoft.PowerShell.Commands.GetChildItemCommand. The
-// source delegates all behavior to SessionState providers; this adapter admits
-// only a captured-root, direct OS file/directory subset through the dedicated
-// child-item catalog above. It intentionally does not reuse Get-FileHash's
-// terminal-wildcard resolver contract.
-internal sealed class GetChildItemCmdlet(IPhysicalChildItemCatalog childItems) : AotCmdletBase
+// Static transcription of the source FileSystemInfo Unix default view.  This
+// is presentation owned by the shared physical-item record, not by one
+// particular cmdlet: both Get-ChildItem and Get-Item emit precisely that
+// record shape and therefore share the same source-attributed display
+// contract.
+internal static class PhysicalItemPresentation
 {
-    private static readonly CmdletDescriptor GetChildItemDescriptor = CreateDescriptor();
-    // Static transcription of FileSystem_format_ps1xml.cs childrenWithUnixStat:
-    // UnixMode/User/Group/LastWriteTime/Size/Name and PSParentPath grouping.
-    private static readonly AotTableLayout UnixDefaultTable = new(
+    internal static IReadOnlyList<string> UnixDefaultColumns { get; } = ["UnixMode", "User", "Group", "LastWriteTime", "Size", "Name"];
+
+    internal static AotTableLayout UnixDefaultTable { get; } = new(
         [
             new("UnixMode", "UnixMode", AotTableAlignment.Left, 10),
             new("User", "User", AotTableAlignment.Right, 10),
@@ -833,19 +853,41 @@ internal sealed class GetChildItemCmdlet(IPhysicalChildItemCatalog childItems) :
             new("Name", "Name"),
         ],
         new AotTableGroup("ParentPath", "Directory"),
-        // TableControl's fixed column gap is one literal space. This is part
-        // of the extracted FileSystem format contract, not a generic renderer
-        // preference; generic tables retain their existing two-space default.
+        // The upstream TableControl has one literal-column gap. This is not
+        // the generic renderer default.
         columnSeparator: " ");
-
-    public override CmdletDescriptor Descriptor => GetChildItemDescriptor;
-    public override IReadOnlyList<string> DefaultColumns { get; } = ["UnixMode", "User", "Group", "LastWriteTime", "Size", "Name"];
-    public override AotTableLayout DefaultTableLayout => UnixDefaultTable;
 
     private static int UnixLastWriteTimeColumnWidth => string.Format(
         CultureInfo.CurrentCulture,
         "{0:d} {0:HH}:{0:mm}",
         CultureInfo.CurrentCulture.Calendar.MaxSupportedDateTime).Length;
+
+    internal static PhysicalChildItemRecord ToRecord(PhysicalChildItem item) => new(
+        item.Name,
+        item.FullPath,
+        item.ParentPath,
+        item.Kind,
+        item.Length,
+        item.LastWriteTimeUtc,
+        item.UnixMode,
+        item.User,
+        item.Group,
+        item.LastWriteTime,
+        item.Size);
+}
+
+// Port boundary for Microsoft.PowerShell.Commands.GetChildItemCommand. The
+// source delegates all behavior to SessionState providers; this adapter admits
+// only a captured-root, direct OS file/directory subset through the dedicated
+// child-item catalog above. It intentionally does not reuse Get-FileHash's
+// terminal-wildcard resolver contract.
+internal sealed class GetChildItemCmdlet(IPhysicalChildItemCatalog childItems) : AotCmdletBase
+{
+    private static readonly CmdletDescriptor GetChildItemDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => GetChildItemDescriptor;
+    public override IReadOnlyList<string> DefaultColumns => PhysicalItemPresentation.UnixDefaultColumns;
+    public override AotTableLayout DefaultTableLayout => PhysicalItemPresentation.UnixDefaultTable;
 
     protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
     {
@@ -857,18 +899,7 @@ internal sealed class GetChildItemCmdlet(IPhysicalChildItemCatalog childItems) :
                 ? invocation.GetValueSpan("Path", index)
                 : invocation.SourceSpan;
             output.AddRange(childItems.GetImmediateChildren(paths[index], context, span)
-                .Select(static item => (IPipelineRecord)new PhysicalChildItemRecord(
-                    item.Name,
-                    item.FullPath,
-                    item.ParentPath,
-                    item.Kind,
-                    item.Length,
-                    item.LastWriteTimeUtc,
-                    item.UnixMode,
-                    item.User,
-                    item.Group,
-                    item.LastWriteTime,
-                    item.Size)));
+                .Select(static item => (IPipelineRecord)PhysicalItemPresentation.ToRecord(item)));
         }
 
         return output;
@@ -879,4 +910,50 @@ internal sealed class GetChildItemCmdlet(IPhysicalChildItemCatalog childItems) :
         CmdletDescriptor generated = GeneratedCmdletPorts.GetChildItem.CreateAotDescriptor("Path");
         return new CmdletDescriptor(generated.Name, generated.Parameters, "Path");
     }
+}
+
+// Port boundary for Microsoft.PowerShell.Commands.GetItemCommand. The source
+// routes through the dynamic provider engine; this admitted Path-only subset
+// uses the shared direct lookup and therefore returns exactly one existing
+// physical file or directory rather than enumerating directory children.
+internal sealed class GetItemCmdlet(IPhysicalChildItemCatalog childItems) : AotCmdletBase
+{
+    private static readonly CmdletDescriptor GetItemDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => GetItemDescriptor;
+    public override IReadOnlyList<string> DefaultColumns => PhysicalItemPresentation.UnixDefaultColumns;
+    public override AotTableLayout DefaultTableLayout => PhysicalItemPresentation.UnixDefaultTable;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("Path", out string[] paths))
+        {
+            // The extracted descriptor preserves source-mandatory metadata,
+            // but the intentionally small static binder does not synthesize
+            // PowerShell's interactive mandatory-parameter prompt. Keep the
+            // noninteractive boundary explicit rather than treating a missing
+            // source-required Path as an empty item result.
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6211",
+                "Get-Item requires a direct physical -Path value in the current Native AOT slice.",
+                invocation.SourceSpan,
+                "required direct path missing",
+                "Supply one existing direct physical file or directory path."));
+        }
+
+        List<IPipelineRecord> output = [];
+        for (int index = 0; index < paths.Length; index++)
+        {
+            PhysicalChildItem? item = childItems.GetDirectPhysicalItem(paths[index], context, invocation.GetValueSpan("Path", index));
+            if (item is not null)
+            {
+                output.Add(PhysicalItemPresentation.ToRecord(item));
+            }
+        }
+
+        return output;
+    }
+
+    private static CmdletDescriptor CreateDescriptor() =>
+        GeneratedCmdletPorts.GetItem.CreateAotDescriptor("Path");
 }

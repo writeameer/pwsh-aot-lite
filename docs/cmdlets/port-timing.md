@@ -26,7 +26,7 @@ reuse, review, and verification work—not just target coding.
 | `New-TimeSpan` | unavailable (not recorded) | unavailable (not recorded) | unavailable (not recorded) | Wave 2 calibration: direct component-construction subset. | integrated |
 | `Start-Sleep` | unavailable (not recorded) | unavailable (not recorded) | unavailable (not recorded) | Wave 2 calibration: `-Milliseconds` / `-ms` subset. | integrated |
 | `Get-ChildItem` | 2026-09-22T09:59:17.2280730Z | 2026-09-22T11:09:30.2144590Z | 01:10:12 | Wave 3 macOS-arm64 captured-root direct physical immediate-child/default-`Path` slice. | integrated |
-| `Get-Item` | 2026-09-22T22:25:55.0487520Z | — | — | Wave 3 captured-root direct physical file-or-directory lookup slice; no provider, wildcard, or dynamic-parameter support. | in progress |
+| `Get-Item` | 2026-09-22T22:25:55.0487520Z | 2026-09-22T22:45:15.0000000Z | 00:19:19.9512480 | Wave 3 captured-root direct physical file-or-directory lookup slice; no provider, wildcard, or dynamic-parameter support. | integrated |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
