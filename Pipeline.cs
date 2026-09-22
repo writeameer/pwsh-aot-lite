@@ -531,6 +531,18 @@ internal sealed record TextRecord(string Value) : IPipelineRecord
         : throw new ScriptException($"Select-Object does not support column '{column}' for string values.");
 }
 
+// A scalar Boolean remains a typed pipeline value. It is separate from
+// TextRecord so Test-Path does not stringify a result merely to reach the
+// terminal; the one-field closed record is also reusable by later boolean
+// cmdlets without introducing an object/ETS boundary.
+internal sealed record BooleanRecord(bool Value) : IPipelineRecord
+{
+    public double NumberFor(string property) => throw new ScriptException($"Where-Object does not support property '{property}' for Boolean values.");
+    public string TextFor(string column) => column == "Value"
+        ? Value.ToString()
+        : throw new ScriptException($"Select-Object does not support column '{column}' for Boolean values.");
+}
+
 // Port boundary for Microsoft.PowerShell.Commands.NewGuidCommand. The
 // upstream process body is one BCL decision after generated binding: emit a
 // UUID v7 normally, or Guid.Empty when -Empty is true. The existing closed
@@ -878,7 +890,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -2985,6 +2997,154 @@ internal static class SelfTest
                 throw new InvalidOperationException("Get-Item generated Path positional/named binding regression.");
             }
 
+            SourceCmdletMetadata testPathContract = GeneratedCmdletPorts.TestPath;
+            if (!testPathContract.BaseTypeChain.Take(2).SequenceEqual(["CoreCommandWithCredentialsBase", "CoreCommandBase"])
+                || testPathContract.Parameters.Single(parameter => parameter.Name == "Path").ParameterSets.Single() is not { Position: 0, Mandatory: true }
+                || !testPathContract.Parameters.Single(parameter => parameter.Name == "PathType").Aliases.SequenceEqual(["Type"])
+                || !testPathContract.OutputTypes.SequenceEqual(["typeof(bool)"]))
+            {
+                throw new InvalidOperationException("Generated Test-Path contract regression.");
+            }
+
+            IPhysicalChildItemCatalog testPathCatalog = new SystemPhysicalChildItemCatalog(
+                new FixtureDiscoveryRoots(childItemFixtureDirectory), macOsChildItemPlatform);
+            TestPathCmdlet testPath = new(testPathCatalog);
+            BooleanRecord[] anyResults = testPath.Invoke(new CommandInvocation(testPath.Descriptor, new Dictionary<string, string[]>
+            {
+                ["Path"] = [childAlphaPath, childDirectoryPath, Path.Combine(childItemFixtureDirectory, "missing.txt"), "  "],
+            }), new AotExecutionContext()).Cast<BooleanRecord>().ToArray();
+            if (!anyResults.Select(static row => row.Value).SequenceEqual([true, true, false, false]))
+            {
+                throw new InvalidOperationException("Test-Path direct Any/missing/whitespace regression.");
+            }
+
+            BooleanRecord[] containerResults = testPath.Invoke(new CommandInvocation(testPath.Descriptor, new Dictionary<string, string[]>
+            {
+                ["Path"] = [childAlphaPath, childDirectoryPath],
+                ["PathType"] = ["container"],
+            }), new AotExecutionContext()).Cast<BooleanRecord>().ToArray();
+            BooleanRecord[] leafResults = testPath.Invoke(new CommandInvocation(testPath.Descriptor, new Dictionary<string, string[]>
+            {
+                ["Path"] = [childAlphaPath, childDirectoryPath],
+                ["PathType"] = ["Leaf"],
+            }), new AotExecutionContext()).Cast<BooleanRecord>().ToArray();
+            if (!containerResults.Select(static row => row.Value).SequenceEqual([false, true])
+                || !leafResults.Select(static row => row.Value).SequenceEqual([true, false])
+                || testPath.TerminalPresentation != AotTerminalPresentation.Prose
+                || !testPath.DefaultColumns.SequenceEqual(["Value"]))
+            {
+                throw new InvalidOperationException("Test-Path closed PathType/Boolean presentation regression.");
+            }
+
+            PhysicalItemProbeResult missingProbe = testPathCatalog.ProbeDirectPhysicalItem(
+                Path.Combine(childItemFixtureDirectory, "missing.txt"), new AotExecutionContext(), span: null);
+            if (missingProbe != PhysicalItemProbeResult.Missing)
+            {
+                throw new InvalidOperationException("Test-Path catalog missing probe regression.");
+            }
+
+            AotExecutionContext testPathProviderContext = new();
+            if (testPath.Invoke(new CommandInvocation(testPath.Descriptor, new Dictionary<string, string[]>
+                { ["Path"] = ["FileSystem::/tmp"] }, childItemSpan, new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [childItemSpan] }), testPathProviderContext).Any()
+                || testPathProviderContext.Errors.SingleOrDefault()?.Diagnostic is not { Id: "AOT6201", Span: var testPathProviderSpan }
+                || !ReferenceEquals(testPathProviderSpan, childItemSpan))
+            {
+                throw new InvalidOperationException("Test-Path rejected provider/source-span regression.");
+            }
+
+            // A rejected value must retain its own source span and must not
+            // suppress successfully probed sibling values. Exercise every
+            // closed catalog rejection class that Test-Path claims here rather
+            // than letting the single-value cases hide cardinality regressions.
+            AotSourceSpan testPathAcceptedFirstSpan = new("testpath-mixed.ps1", 15, 31, 1, 16, 1, 32);
+            AotSourceSpan testPathProviderValueSpan = new("testpath-mixed.ps1", 33, 51, 1, 34, 1, 52);
+            AotSourceSpan testPathAcceptedLastSpan = new("testpath-mixed.ps1", 53, 72, 1, 54, 1, 73);
+            AotExecutionContext testPathMixedProviderContext = new();
+            BooleanRecord[] testPathMixedProviderResults = testPath.Invoke(new CommandInvocation(testPath.Descriptor,
+                new Dictionary<string, string[]> { ["Path"] = [childAlphaPath, "FileSystem::/tmp", childDirectoryPath] },
+                childItemSpan,
+                new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [testPathAcceptedFirstSpan, testPathProviderValueSpan, testPathAcceptedLastSpan] }),
+                testPathMixedProviderContext).Cast<BooleanRecord>().ToArray();
+            if (!testPathMixedProviderResults.Select(static result => result.Value).SequenceEqual([true, true])
+                || testPathMixedProviderContext.Errors.SingleOrDefault()?.Diagnostic is not { Id: "AOT6201", Span: var mixedProviderSpan }
+                || !ReferenceEquals(mixedProviderSpan, testPathProviderValueSpan))
+            {
+                throw new InvalidOperationException("Test-Path mixed provider rejection lost per-value span or Boolean cardinality.");
+            }
+
+            AotSourceSpan testPathWildcardValueSpan = new("testpath-mixed.ps1", 74, 92, 1, 75, 1, 93);
+            AotExecutionContext testPathMixedWildcardContext = new();
+            BooleanRecord[] testPathMixedWildcardResults = testPath.Invoke(new CommandInvocation(testPath.Descriptor,
+                new Dictionary<string, string[]> { ["Path"] = [childAlphaPath, Path.Combine(childItemFixtureDirectory, "*.txt")] },
+                childItemSpan,
+                new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [testPathAcceptedFirstSpan, testPathWildcardValueSpan] }),
+                testPathMixedWildcardContext).Cast<BooleanRecord>().ToArray();
+            if (!testPathMixedWildcardResults.Select(static result => result.Value).SequenceEqual([true])
+                || testPathMixedWildcardContext.Errors.SingleOrDefault()?.Diagnostic is not { Id: "AOT6202", Span: var mixedWildcardSpan }
+                || !ReferenceEquals(mixedWildcardSpan, testPathWildcardValueSpan))
+            {
+                throw new InvalidOperationException("Test-Path mixed wildcard rejection lost per-value span or Boolean cardinality.");
+            }
+
+            AotExecutionContext testPathLinkContext = new();
+            if (testPath.Invoke(new CommandInvocation(testPath.Descriptor, new Dictionary<string, string[]>
+                { ["Path"] = [Path.Combine(linkedAncestor, "descendant.txt")] }), testPathLinkContext).Any()
+                || testPathLinkContext.Errors.SingleOrDefault()?.Id != "AOT6205")
+            {
+                throw new InvalidOperationException("Test-Path no-follow ancestor-link regression.");
+            }
+
+            AotSourceSpan testPathLinkValueSpan = new("testpath-mixed.ps1", 94, 117, 1, 95, 1, 118);
+            AotExecutionContext testPathMixedLinkContext = new();
+            BooleanRecord[] testPathMixedLinkResults = testPath.Invoke(new CommandInvocation(testPath.Descriptor,
+                new Dictionary<string, string[]> { ["Path"] = [childDirectoryPath, Path.Combine(linkedAncestor, "descendant.txt")] },
+                childItemSpan,
+                new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [testPathAcceptedLastSpan, testPathLinkValueSpan] }),
+                testPathMixedLinkContext).Cast<BooleanRecord>().ToArray();
+            if (!testPathMixedLinkResults.Select(static result => result.Value).SequenceEqual([true])
+                || testPathMixedLinkContext.Errors.SingleOrDefault()?.Diagnostic is not { Id: "AOT6205", Span: var mixedLinkSpan }
+                || !ReferenceEquals(mixedLinkSpan, testPathLinkValueSpan))
+            {
+                throw new InvalidOperationException("Test-Path mixed link rejection lost per-value span or Boolean cardinality.");
+            }
+
+            (_, CommandInvocation positionalTestPath) = AotCmdletRegistry.ParseSource($"Test-Path '{childAlphaPath}' -Type Leaf");
+            if (!positionalTestPath.TryGetValues("Path", out string[] positionalTestPaths)
+                || !positionalTestPaths.SequenceEqual([childAlphaPath])
+                || !positionalTestPath.TryGetValues("PathType", out string[] testPathTypes)
+                || !testPathTypes.SequenceEqual(["Leaf"]))
+            {
+                throw new InvalidOperationException("Test-Path generated Path/Type binding regression.");
+            }
+
+            try
+            {
+                _ = testPath.Invoke(new CommandInvocation(testPath.Descriptor, new Dictionary<string, string[]>
+                    { ["Path"] = [childAlphaPath], ["PathType"] = ["Invalid"] }), new AotExecutionContext()).ToArray();
+                throw new InvalidOperationException("Test-Path accepted an unsupported PathType.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT6212")
+            {
+            }
+
+            try
+            {
+                _ = AotCmdletRegistry.ParseSource($"Test-Path -LP '{childAlphaPath}'");
+                throw new InvalidOperationException("Test-Path accepted unsupported LiteralPath.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
+            {
+            }
+
+            try
+            {
+                _ = AotCmdletRegistry.ParseSource($"Test-Path -IsValid '{childAlphaPath}'");
+                throw new InvalidOperationException("Test-Path accepted unsupported IsValid.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
+            {
+            }
+
             try
             {
                 _ = ScriptParser.Parse("Get-Item").Execute(new AotExecutionContext());
@@ -3864,6 +4024,35 @@ error[AOT6211]: Get-Item requires a direct physical -Path value in the current N
 1 | Get-Item
    | ^^^^^^^^ required direct path missing
    = help: Supply one existing direct physical file or directory path.
+""");
+        }
+
+        // Test-Path has the same source-mandatory metadata. The static host
+        // deliberately declines an interactive prompt, so retain the exact
+        // command-specific AOT6211 rendering as a compatibility variance.
+        try
+        {
+            _ = AotExecutionKernel.Compile("Test-Path", "testpath-missing-path.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("Test-Path accepted a missing mandatory Path.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT6211",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "testpath-missing-path.ps1", StartLine: 1, StartColumn: 1, EndLine: 1, EndColumn: 10 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Test-Path",
+                """
+error[AOT6211]: Test-Path requires a direct physical -Path value in the current Native AOT slice.
+  --> testpath-missing-path.ps1:1:1
+   |
+1 | Test-Path
+   | ^^^^^^^^^ required direct path missing
+   = help: Supply one direct physical file or directory path.
 """);
         }
 

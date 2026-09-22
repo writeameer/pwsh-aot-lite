@@ -30,6 +30,7 @@ internal static class PipelineValueAdapter
             or DateRecord
             or TimeSpanRecord
             or TextRecord
+            or BooleanRecord
             or FileHashRecord
             or PhysicalChildItemRecord
             or CommandInfoRecord
@@ -125,6 +126,7 @@ internal static class PipelineValueAdapter
                 Field("TotalSeconds", Floating(value.TotalSeconds)),
                 Field("TotalMilliseconds", Floating(value.TotalMilliseconds))),
             TextRecord value => Record(Field("Value", Text(value.Value))),
+            BooleanRecord value => Record(Field("Value", Boolean(value.Value))),
             FileHashRecord value => Record(
                 Field("Algorithm", Text(value.Algorithm)),
                 Field("Hash", Text(value.Hash)),

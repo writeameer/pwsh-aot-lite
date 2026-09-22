@@ -15,9 +15,28 @@ internal interface IPhysicalChildItemCatalog
     // as Get-Item must never implement "item" lookup by enumerating a
     // directory, since that changes a directory argument into its children.
     PhysicalChildItem? GetDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span);
+
+    // This is intentionally narrower than GetDirectPhysicalItem. Test-Path
+    // only needs an existence/kind fact; acquiring display metadata or making
+    // an item record would be needless policy and would risk turning a probe
+    // into a second lookup contract.
+    PhysicalItemProbeResult ProbeDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span);
 }
 
 internal enum PhysicalChildItemKind { File, Directory }
+
+// The physical probe is a closed substrate result, not a Boolean plus an
+// out-of-band errno. Missing is the one non-error outcome. Every boundary
+// rejection has already emitted the catalog-owned diagnostic, so callers must
+// never translate Rejected into false.
+internal enum PhysicalItemProbeStatus { Found, Missing, Rejected }
+
+internal readonly record struct PhysicalItemProbeResult(PhysicalItemProbeStatus Status, PhysicalChildItemKind? Kind = null)
+{
+    internal static PhysicalItemProbeResult Found(PhysicalChildItemKind kind) => new(PhysicalItemProbeStatus.Found, kind);
+    internal static PhysicalItemProbeResult Missing { get; } = new(PhysicalItemProbeStatus.Missing);
+    internal static PhysicalItemProbeResult Rejected { get; } = new(PhysicalItemProbeStatus.Rejected);
+}
 
 // This is deliberately a small, public-to-the-substrate result rather than
 // leaking errno values into cmdlet policy.  In particular, a link in *any*
@@ -71,6 +90,16 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
         }
 
         return TryDescribe(canonicalPath!, context, span, emitMissing: true);
+    }
+
+    public PhysicalItemProbeResult ProbeDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span)
+    {
+        if (!TryResolveDirectPhysicalPath(path, context, span, out string? canonicalPath))
+        {
+            return PhysicalItemProbeResult.Rejected;
+        }
+
+        return ProbeCanonicalDirectPhysicalItem(canonicalPath!, context, span);
     }
 
     private bool TryResolveDirectPhysicalPath(string path, AotExecutionContext context, AotSourceSpan? span, out string? canonicalPath)
@@ -220,6 +249,61 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
             }
 
             return null;
+        }
+    }
+
+    // Test-Path deliberately consumes the descriptor acquisition fact rather
+    // than TryDescribe/GetDirectPhysicalItem. It must not acquire Unix display
+    // metadata, create a physical item record, or enumerate a directory just
+    // to answer an existence question.
+    private PhysicalItemProbeResult ProbeCanonicalDirectPhysicalItem(string canonicalPath, AotExecutionContext context, AotSourceSpan? span)
+    {
+        context.ThrowIfCancellationRequested();
+        try
+        {
+            if (!MacOsPhysicalMetadata.TryAcquireNoFollow(canonicalPath, out MacOsPhysicalStat acquired, out MacOsNoFollowPathFailure failure))
+            {
+                if (failure == MacOsNoFollowPathFailure.Missing)
+                {
+                    return PhysicalItemProbeResult.Missing;
+                }
+
+                WriteNoFollowFailure(context, canonicalPath, failure, span);
+                return PhysicalItemProbeResult.Rejected;
+            }
+
+            string name = Path.GetFileName(canonicalPath.TrimEnd(Path.DirectorySeparatorChar));
+            if (IsHidden(name, acquired.Flags))
+            {
+                WriteError(context, "AOT6204", $"Hidden direct physical path '{canonicalPath}' requires unsupported -Force behavior.", span,
+                    "hidden path rejected", "Use a non-hidden path in the current Native AOT slice.");
+                return PhysicalItemProbeResult.Rejected;
+            }
+
+            context.ThrowIfCancellationRequested();
+            return PhysicalItemProbeResult.Found(acquired.IsDirectory ? PhysicalChildItemKind.Directory : PhysicalChildItemKind.File);
+        }
+        catch (FileNotFoundException)
+        {
+            // A race after canonicalization is still a missing no-follow
+            // physical target, never an invented provider error.
+            return PhysicalItemProbeResult.Missing;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return PhysicalItemProbeResult.Missing;
+        }
+        catch (UnauthorizedAccessException error)
+        {
+            WriteError(context, "AOT6207", $"Cannot read direct physical path '{canonicalPath}': {error.Message}", span,
+                "physical path access denied", "Choose a readable direct physical file or directory.");
+            return PhysicalItemProbeResult.Rejected;
+        }
+        catch (IOException error)
+        {
+            WriteError(context, "AOT6208", $"Cannot read direct physical path '{canonicalPath}': {error.Message}", span,
+                "physical path read failed", "Choose an accessible direct physical file or directory.");
+            return PhysicalItemProbeResult.Rejected;
         }
     }
 
@@ -956,4 +1040,105 @@ internal sealed class GetItemCmdlet(IPhysicalChildItemCatalog childItems) : AotC
 
     private static CmdletDescriptor CreateDescriptor() =>
         GeneratedCmdletPorts.GetItem.CreateAotDescriptor("Path");
+}
+
+// Port boundary for Microsoft.PowerShell.Commands.TestPathCommand. The source
+// calls provider Exists/IsContainer; this bounded adapter asks the existing
+// captured-root catalog for one closed no-follow fact and projects it as a
+// typed Boolean. Missing is the sole false/no-error result. A rejected
+// capability boundary has already written its source-spanned diagnostic and
+// deliberately yields no Boolean value.
+internal sealed class TestPathCmdlet(IPhysicalChildItemCatalog childItems) : AotCmdletBase
+{
+    private static readonly CmdletDescriptor TestPathDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => TestPathDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("Path", out string[] paths))
+        {
+            // Preserve mandatory source metadata but do not fabricate the
+            // interactive parameter prompt that belongs to a future host
+            // contract. This is the same noninteractive boundary as Get-Item.
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6211",
+                "Test-Path requires a direct physical -Path value in the current Native AOT slice.",
+                invocation.SourceSpan,
+                "required direct path missing",
+                "Supply one direct physical file or directory path."));
+        }
+
+        DirectPhysicalPathType pathType = ParsePathType(invocation);
+        List<IPipelineRecord> output = [];
+        for (int index = 0; index < paths.Length; index++)
+        {
+            string path = paths[index];
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                // Upstream's non-null empty/whitespace input is an existence
+                // miss. Do not let the catalog's dot canonicalization turn it
+                // into a query for the captured root.
+                output.Add(new BooleanRecord(false));
+                continue;
+            }
+
+            PhysicalItemProbeResult probe = childItems.ProbeDirectPhysicalItem(path, context, invocation.GetValueSpan("Path", index));
+            if (probe.Status == PhysicalItemProbeStatus.Rejected)
+            {
+                continue;
+            }
+
+            bool result = probe.Status == PhysicalItemProbeStatus.Found
+                && pathType switch
+                {
+                    DirectPhysicalPathType.Any => true,
+                    DirectPhysicalPathType.Container => probe.Kind == PhysicalChildItemKind.Directory,
+                    DirectPhysicalPathType.Leaf => probe.Kind == PhysicalChildItemKind.File,
+                    _ => throw new InvalidOperationException("Unexpected validated Test-Path type."),
+                };
+            output.Add(new BooleanRecord(result));
+        }
+
+        return output;
+    }
+
+    private static DirectPhysicalPathType ParsePathType(CommandInvocation invocation)
+    {
+        if (!invocation.TryGetValues("PathType", out string[] values))
+        {
+            return DirectPhysicalPathType.Any;
+        }
+
+        if (values.Length != 1)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6212",
+                "Test-Path -PathType accepts exactly one static value: Any, Container, or Leaf.",
+                invocation.GetValueSpan("PathType", 0),
+                "invalid direct physical path type",
+                "Use Any, Container, or Leaf."));
+        }
+
+        if (values[0].Equals("Any", StringComparison.OrdinalIgnoreCase)) return DirectPhysicalPathType.Any;
+        if (values[0].Equals("Container", StringComparison.OrdinalIgnoreCase)) return DirectPhysicalPathType.Container;
+        if (values[0].Equals("Leaf", StringComparison.OrdinalIgnoreCase)) return DirectPhysicalPathType.Leaf;
+
+        throw new ScriptException(AotDiagnostics.Runtime(
+            "AOT6212",
+            $"Test-Path -PathType value '{values[0]}' is outside the Native AOT subset.",
+            invocation.GetValueSpan("PathType", 0),
+            "unsupported direct physical path type",
+            "Use Any, Container, or Leaf."));
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor generated = GeneratedCmdletPorts.TestPath.CreateAotDescriptor("Path", "PathType");
+        return new CmdletDescriptor(generated.Name, generated.Parameters, "Path");
+    }
+
+    private enum DirectPhysicalPathType { Any, Container, Leaf }
 }
