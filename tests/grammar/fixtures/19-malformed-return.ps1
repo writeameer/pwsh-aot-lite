@@ -1,0 +1,3 @@
+function Broken-Return() {
+    return |
+}

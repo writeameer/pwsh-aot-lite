@@ -37,7 +37,7 @@ Upstream commit: `1e53f6bbab4b8791eae782474d21889f9e5d6038`
 
 ## Outcome
 
-`PASS — integrated` — this claim excludes filters/workflows, nested or conditional
+`PASS — integrated` — this Phase 4 claim excludes filters/workflows, nested or conditional
 definitions, attributes/types/defaults/body `param`, named/splatted arguments,
-`$args`, `$input`, `$PSBoundParameters`, `return`, recursion, function
+`$args`, `$input`, `$PSBoundParameters`, value/pipeline or root `return`, recursion, function
 pipelines, and control-plane discovery through `Get-Command` or `Get-Help`.

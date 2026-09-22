@@ -63,8 +63,25 @@ function Get-CommonVerb($group) {
 Get-CommonVerb Common
 ```
 
-Advanced functions, `param` blocks, typed/default/named parameters, `return`,
-recursion, and function pipelines remain explicitly unsupported.
+Bare `return` is supported only inside an admitted local function. It exits
+that function without emitting a value, including from its admitted `if` and
+`foreach` bodies:
+
+```powershell
+function Get-FirstVerb($groups) {
+    foreach ($group in $groups) {
+        Get-Verb -Group $group | Select-Object Verb
+        return
+    }
+}
+
+$groups = 'Common', 'Data'
+Get-FirstVerb $groups
+```
+
+Advanced functions, `param` blocks, typed/default/named parameters, root
+`return`, value/pipeline `return`, recursion, and function pipelines remain
+explicitly unsupported.
 
 Diagnostics are plain by default in redirected output. In an interactive
 terminal, choose `--color auto` (default), `--color always`, or `--color never`:

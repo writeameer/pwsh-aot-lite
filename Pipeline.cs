@@ -198,9 +198,9 @@ internal sealed class AotExecutionContext(CancellationToken cancellationToken = 
             pipelineLength,
             _activeInvocation));
 
-    // The first local-function slice deliberately rejects recursive re-entry.
-    // It prevents a static-AOT host stack overflow while return semantics and
-    // a reviewed recursive control-flow contract remain outside the subset.
+    // Local functions deliberately reject recursive re-entry. It prevents a
+    // static-AOT host stack overflow while recursive control flow remains
+    // outside the reviewed subset; bare local-function return is supported.
     internal IDisposable EnterFunction(string name, AotSourceSpan callSpan)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -2072,6 +2072,7 @@ internal static class SelfTest
         AssertCancellationLifecycle();
         AssertLanguageCompatibilityCore();
         AssertNamedLocalFunctions();
+        AssertFunctionReturnControlFlow();
         AssertControlFlowCore();
         AssertForEachCore();
         AssertTerminalPresentation();
@@ -3581,7 +3582,6 @@ Read-Group $null
             "function With-Default($group = 'Common') { Get-Verb -Group $group }",
             "function With-Type([string]$group) { Get-Verb -Group $group }",
             "filter Stream-Verb { Get-Verb -Verb Add }",
-            "function With-Return() { return; Get-Verb -Verb Add }",
         })
         {
             try
@@ -3607,6 +3607,80 @@ Read-Group $null
         catch (ScriptException error) when (error.Diagnostic.Id == diagnosticId)
         {
             // The test names the stable boundary without accepting a raw host exception.
+        }
+    }
+
+    private static void AssertFunctionReturnControlFlow()
+    {
+        AotExecutionResult directReturn = AotExecutionKernel.Compile(
+                "function Early() { Get-Verb -Verb Add | Select-Object Verb; return; Get-Date | Select-Object DateTime }; Early; Get-Verb -Verb Get | Select-Object Verb",
+                "return-direct.ps1")
+            .Execute(new AotExecutionContext());
+        if (directReturn.Outputs.Count != 2
+            || !directReturn.Outputs[0].Columns.SequenceEqual(["Verb"])
+            || !directReturn.Outputs[1].Columns.SequenceEqual(["Verb"]))
+        {
+            throw new InvalidOperationException("A bare local-function return did not retain earlier output, suppress its tail, and continue the caller.");
+        }
+
+        AotExecutionResult conditionalReturn = AotExecutionKernel.Compile(
+                "function Pick($enabled) { if ($enabled) { return }; Get-Verb -Verb Add | Select-Object Verb }; Pick $true; Pick $false",
+                "return-if.ps1")
+            .Execute(new AotExecutionContext());
+        if (conditionalReturn.Outputs.Count != 1 || !conditionalReturn.Outputs[0].Rows.Any(row => row.TextFor("Verb") == "Add"))
+        {
+            throw new InvalidOperationException("A return from a selected local-function if branch did not stay local or the false branch did not fall through.");
+        }
+
+        AotExecutionResult foreachReturn = AotExecutionKernel.Compile(
+                "function First($values) { foreach ($value in $values) { Get-Verb -Verb $value | Select-Object Verb; return }; Get-Date | Select-Object DateTime }; $values = 'Add', 'Get'; First $values",
+                "return-foreach.ps1")
+            .Execute(new AotExecutionContext());
+        if (foreachReturn.Outputs.Count != 1
+            || !foreachReturn.Outputs[0].Rows.Any(row => row.TextFor("Verb") == "Add"))
+        {
+            throw new InvalidOperationException("A return from a local-function foreach body did not exit the function and suppress later iterations/tail output.");
+        }
+
+        AotExecutionResult calleeReturn = AotExecutionKernel.Compile(
+                "function Inner() { return }; function Outer() { Inner; Get-Verb -Verb Add | Select-Object Verb }; Outer",
+                "return-callee.ps1")
+            .Execute(new AotExecutionContext());
+        if (calleeReturn.Outputs.Count != 1 || !calleeReturn.Outputs[0].Rows.Any(row => row.TextFor("Verb") == "Add"))
+        {
+            throw new InvalidOperationException("A local-function return escaped into its caller instead of being consumed by the callee invocation.");
+        }
+
+        foreach (string unsupported in new[]
+        {
+            "return",
+            "if ($true) { return }",
+            "foreach ($value in 'Add', 'Get') { return }",
+            "function Value() { return 'value' }",
+            "function Pipeline() { return Get-Verb -Verb Add }",
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(unsupported, "return-unsupported.ps1");
+                throw new InvalidOperationException($"The kernel accepted unsupported return shape '{unsupported}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == "AOT1001")
+            {
+                // Return values need the later typed value-to-output contract;
+                // root returns are never allowed to escape into the host.
+            }
+        }
+
+        try
+        {
+            _ = AotExecutionKernel.Compile("function Stop() { return }; Stop", "return-cancelled.ps1")
+                .Execute(new AotExecutionContext(new CancellationToken(canceled: true)));
+            throw new InvalidOperationException("A pre-cancelled local function ran its return plan.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Host cancellation remains control flow and wins before any local return.
         }
     }
 

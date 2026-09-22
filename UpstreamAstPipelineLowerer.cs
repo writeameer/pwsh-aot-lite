@@ -8,6 +8,7 @@ namespace PwshAotLite;
 // Parser acceptance never implies execution support.
 internal static class UpstreamAstPipelineLowerer
 {
+    private readonly record struct AotLoweringContext(bool AllowRootFunctionDefinitions, bool AllowLocalFunctionReturn);
     // Compatibility entry points used by established cmdlet tests. They retain
     // the old one-pipeline shape, while the host itself compiles a block plan.
     internal static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindSingleCommand(string script)
@@ -34,7 +35,7 @@ internal static class UpstreamAstPipelineLowerer
     {
         ScriptBlockAst ast = parseResult.Ast;
         ValidateTopLevelBlock(ast);
-        return LowerStatements(ast.EndBlock!.Statements, ast.EndBlock.Traps, ast.EndBlock.Extent, allowRootFunctionDefinitions: true);
+        return LowerStatements(ast.EndBlock!.Statements, ast.EndBlock.Traps, ast.EndBlock.Extent, new AotLoweringContext(AllowRootFunctionDefinitions: true, AllowLocalFunctionReturn: false));
     }
 
     private static void ValidateTopLevelBlock(ScriptBlockAst ast)
@@ -86,14 +87,14 @@ internal static class UpstreamAstPipelineLowerer
         return new AotAssignmentPlan(name, LowerExpression(expression));
     }
 
-    private static AotBlockPlan LowerStatementBlock(StatementBlockAst block) =>
-        LowerStatements(block.Statements, block.Traps, block.Extent, allowRootFunctionDefinitions: false);
+    private static AotBlockPlan LowerStatementBlock(StatementBlockAst block, AotLoweringContext parentContext) =>
+        LowerStatements(block.Statements, block.Traps, block.Extent, parentContext with { AllowRootFunctionDefinitions = false });
 
     private static AotBlockPlan LowerStatements(
         IEnumerable<StatementAst> source,
         IEnumerable<TrapStatementAst>? traps,
         IScriptExtent extent,
-        bool allowRootFunctionDefinitions)
+        AotLoweringContext context)
     {
         if (traps?.Any() == true)
         {
@@ -103,29 +104,49 @@ internal static class UpstreamAstPipelineLowerer
         List<AotStatementPlan> statements = [];
         foreach (StatementAst statement in source)
         {
-            statements.Add(LowerStatement(statement, allowRootFunctionDefinitions));
+            statements.Add(LowerStatement(statement, context));
         }
 
         return new AotBlockPlan(statements);
     }
 
-    private static AotStatementPlan LowerStatement(StatementAst statement, bool allowRootFunctionDefinitions)
+    private static AotStatementPlan LowerStatement(StatementAst statement, AotLoweringContext context)
     {
         if (statement is FunctionDefinitionAst function)
         {
-            return allowRootFunctionDefinitions
+            return context.AllowRootFunctionDefinitions
                 ? LowerFunctionDefinition(function)
                 : throw Unsupported("function definitions outside the root script block", function.Extent);
+        }
+
+        if (statement is ReturnStatementAst @return)
+        {
+            return LowerReturn(@return, context);
         }
 
         return statement switch
         {
             AssignmentStatementAst assignment => LowerAssignment(assignment),
             PipelineAst pipeline => LowerPipeline(pipeline),
-            IfStatementAst conditional => LowerIf(conditional),
-            ForEachStatementAst forEach => LowerForEach(forEach),
+            IfStatementAst conditional => LowerIf(conditional, context),
+            ForEachStatementAst forEach => LowerForEach(forEach, context),
             _ => throw Unsupported($"statement '{statement.GetType().Name}'", statement.Extent),
         };
+    }
+
+    private static AotReturnStatementPlan LowerReturn(ReturnStatementAst @return, AotLoweringContext context)
+    {
+        if (!context.AllowLocalFunctionReturn)
+        {
+            throw Unsupported("return statements outside a local function", @return.Extent);
+        }
+
+        if (@return.Pipeline is not null)
+        {
+            throw Unsupported("return values or pipelines", @return.Pipeline.Extent);
+        }
+
+        return new AotReturnStatementPlan();
     }
 
     private static AotFunctionDefinitionPlan LowerFunctionDefinition(FunctionDefinitionAst function)
@@ -181,22 +202,22 @@ internal static class UpstreamAstPipelineLowerer
             throw Unsupported("advanced local function blocks or body param declarations", body.Extent);
         }
 
-        return LowerStatements(body.EndBlock.Statements, body.EndBlock.Traps, body.EndBlock.Extent, allowRootFunctionDefinitions: false);
+        return LowerStatements(body.EndBlock.Statements, body.EndBlock.Traps, body.EndBlock.Extent, new AotLoweringContext(AllowRootFunctionDefinitions: false, AllowLocalFunctionReturn: true));
     }
 
-    private static AotIfStatementPlan LowerIf(IfStatementAst conditional)
+    private static AotIfStatementPlan LowerIf(IfStatementAst conditional, AotLoweringContext context)
     {
         List<AotIfClausePlan> clauses = [];
         foreach (Tuple<PipelineBaseAst, StatementBlockAst> clause in conditional.Clauses)
         {
-            clauses.Add(new AotIfClausePlan(LowerCondition(clause.Item1), LowerStatementBlock(clause.Item2)));
+            clauses.Add(new AotIfClausePlan(LowerCondition(clause.Item1), LowerStatementBlock(clause.Item2, context)));
         }
 
-        AotBlockPlan? elseBlock = conditional.ElseClause is null ? null : LowerStatementBlock(conditional.ElseClause);
+        AotBlockPlan? elseBlock = conditional.ElseClause is null ? null : LowerStatementBlock(conditional.ElseClause, context);
         return new AotIfStatementPlan(clauses, elseBlock);
     }
 
-    private static AotForEachStatementPlan LowerForEach(ForEachStatementAst forEach)
+    private static AotForEachStatementPlan LowerForEach(ForEachStatementAst forEach, AotLoweringContext context)
     {
         if (!string.IsNullOrEmpty(forEach.Label))
         {
@@ -216,7 +237,7 @@ internal static class UpstreamAstPipelineLowerer
         return new AotForEachStatementPlan(
             GetAssignableVariableName(forEach.Variable),
             LowerExpression(command.Expression),
-            LowerStatementBlock(forEach.Body));
+            LowerStatementBlock(forEach.Body, context));
     }
 
     private static AotConditionPlan LowerCondition(PipelineBaseAst condition)
