@@ -10,6 +10,7 @@ internal sealed record AotHostSubstrate(
     IPhysicalFileResolver PhysicalFiles,
     IProcessCatalog Processes,
     IClock Clock,
+    IAotDelay Delay,
     IHostCulture Culture,
     ICultureCatalog Cultures,
     ITimeZoneCatalog TimeZones,
@@ -28,6 +29,7 @@ internal sealed record AotHostSubstrate(
             new SystemPhysicalFileResolver(),
             new SystemProcessCatalog(platform),
             new SystemClock(),
+            new CancellationTokenDelay(),
             new SystemHostCulture(),
             new SystemCultureCatalog(),
             new SystemTimeZoneCatalog(),
@@ -37,6 +39,29 @@ internal sealed record AotHostSubstrate(
             new SystemTerminalInfoSource(configuration, platform),
             UnavailableCredentialCapability.Instance,
             OfflineNetworkCapability.Instance);
+    }
+}
+
+// A deliberate, one-way host wait seam for the small set of reviewed ports
+// that need elapsed time.  It is not a scheduler, timer facility, callback
+// registry, task factory, or general-purpose host execution API.  The caller
+// supplies the execution context's host-owned token; the implementation waits
+// on that token's existing wait handle and rethrows cancellation immediately.
+internal interface IAotDelay
+{
+    void DelayMilliseconds(int milliseconds, CancellationToken cancellationToken);
+}
+
+internal sealed class CancellationTokenDelay : IAotDelay
+{
+    public void DelayMilliseconds(int milliseconds, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(milliseconds);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (cancellationToken.WaitHandle.WaitOne(milliseconds))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
     }
 }
 

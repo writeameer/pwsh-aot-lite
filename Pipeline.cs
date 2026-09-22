@@ -625,6 +625,69 @@ internal sealed class NewTimeSpanCmdlet : AotCmdletBase
     }
 }
 
+// Port boundary for Microsoft.PowerShell.Commands.StartSleepCommand. The W2
+// slice intentionally admits only the generated Milliseconds parameter (and
+// its generated ms alias). Waiting remains a host capability: this adapter
+// neither owns a cancellation source nor creates a timer/scheduler.
+internal sealed class StartSleepCmdlet(IAotDelay delay) : AotCmdletBase
+{
+    private static readonly CmdletDescriptor StartSleepDescriptor =
+        GeneratedCmdletPorts.StartSleep.CreateAotDescriptor("Milliseconds");
+
+    public override CmdletDescriptor Descriptor => StartSleepDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = [];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("Milliseconds", out string[] values))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3007",
+                "Start-Sleep requires generated parameter '-Milliseconds <non-negative invariant integer>'.",
+                invocation.SourceSpan,
+                "missing sleep duration",
+                "Use -Milliseconds followed by a whole number from 0 through 2147483647."));
+        }
+
+        if (values.Length != 1)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3008",
+                "Start-Sleep -Milliseconds accepts exactly one invariant integer value.",
+                invocation.GetValueSpan("Milliseconds", 0),
+                "invalid sleep duration",
+                "Use one whole number from 0 through 2147483647."));
+        }
+
+        string text = values[0];
+        if (!long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3008",
+                $"Start-Sleep -Milliseconds expects an invariant integer, got '{text}'.",
+                invocation.GetValueSpan("Milliseconds", 0),
+                "invalid sleep duration",
+                "Use one whole number from 0 through 2147483647."));
+        }
+
+        if (parsed < 0 || parsed > int.MaxValue)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT3009",
+                $"Start-Sleep -Milliseconds must be between 0 and {int.MaxValue.ToString(CultureInfo.InvariantCulture)}, got '{text}'.",
+                invocation.GetValueSpan("Milliseconds", 0),
+                "sleep duration outside supported range",
+                "Use a non-negative whole number no larger than 2147483647."));
+        }
+
+        context.ThrowIfCancellationRequested();
+        delay.DelayMilliseconds((int)parsed, context.StopToken);
+        context.ThrowIfCancellationRequested();
+        return [];
+    }
+}
+
 // Static equivalent of Microsoft.PowerShell.Commands.FileHashInfo.  It keeps
 // the source command's public data (Algorithm, Hash, Path) without requiring
 // PSObject formatting/type data at runtime.
@@ -813,7 +876,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -2268,6 +2331,7 @@ internal static class SelfTest
         AssertHostSubstrate();
         AssertNewGuidPort();
         AssertNewTimeSpanPort();
+        AssertStartSleepPort();
         AssertExecutionKernelAndDiagnostics();
         AssertRuntimeEventContract();
         AssertStaticCommonParameterPolicy();
@@ -3029,12 +3093,90 @@ internal static class SelfTest
         }
     }
 
+    private static void AssertStartSleepPort()
+    {
+        SourceCmdletMetadata contract = GeneratedCmdletPorts.StartSleep;
+        SourceParameterMetadata milliseconds = contract.Parameters.Single(parameter => parameter.Name == "Milliseconds");
+        if (!contract.BaseTypeChain.Take(2).SequenceEqual(["PSCmdlet", "Cmdlet"])
+            || contract.OutputTypes.Count != 0
+            || milliseconds is not { TypeName: "int", Shape: AotParameterShape.Scalar, Aliases: var aliases }
+            || !aliases.SequenceEqual(["ms"])
+            || !milliseconds.ParameterSets.Any(set => set is { Name: "Milliseconds", Mandatory: true }))
+        {
+            throw new InvalidOperationException("Generated Start-Sleep contract regression.");
+        }
+
+        FixtureDelay delay = new();
+        StartSleepCmdlet cmdlet = new(delay);
+        (_, CommandInvocation aliasInvocation) = AotCmdletRegistry.ParseSource("Start-Sleep -ms 17");
+        AotExecutionContext context = new();
+        if (cmdlet.Invoke(aliasInvocation, context).Any()
+            || delay is not { Calls: 1, LastMilliseconds: 17, LastTokenCanBeCanceled: false }
+            || context.Events.Count != 0
+            || context.Errors.Count != 0)
+        {
+            throw new InvalidOperationException("Start-Sleep did not invoke the injected delay exactly once without producing output or stream events.");
+        }
+
+        using CancellationTokenSource cancellationSource = new();
+        FixtureDelay cancellingDelay = new(cancellationSource);
+        StartSleepCmdlet cancellingCmdlet = new(cancellingDelay);
+        (_, CommandInvocation cancellationInvocation) = AotCmdletRegistry.ParseSource("Start-Sleep -Milliseconds 5");
+        AotExecutionContext cancellationContext = new(cancellationSource.Token);
+        AssertCancellation(() => cancellingCmdlet.Invoke(cancellationInvocation, cancellationContext).ToArray());
+        if (cancellingDelay is not { Calls: 1, LastMilliseconds: 5, LastTokenCanBeCanceled: true }
+            || cancellationContext.Events.Count != 0
+            || cancellationContext.Errors.Count != 0)
+        {
+            throw new InvalidOperationException("Start-Sleep cancellation did not remain host-token-owned and stream-silent.");
+        }
+
+        using CancellationTokenSource hostCancellation = new();
+        hostCancellation.Cancel();
+        if (ScriptRunner.Execute("Start-Sleep -Milliseconds 0", cancellationToken: hostCancellation.Token) != ScriptRunner.CancellationExitCode)
+        {
+            throw new InvalidOperationException("Start-Sleep did not retain the host cancellation exit contract.");
+        }
+
+        if (ScriptParser.Parse("Start-Sleep -Milliseconds 0").TerminalPresentation is not AotTerminalPresentation.Prose)
+        {
+            throw new InvalidOperationException("Start-Sleep did not retain the no-output prose terminal contract.");
+        }
+
+        AssertStartSleepFailure("Start-Sleep", "start-sleep-missing.ps1", "AOT3007", 1);
+        AssertStartSleepFailure("Start-Sleep -Milliseconds", "start-sleep-missing-value.ps1", "AOT2004", 1);
+        AssertStartSleepFailure("Start-Sleep -Milliseconds nope", "start-sleep-invalid.ps1", "AOT3008", 27);
+        AssertStartSleepFailure("Start-Sleep -Milliseconds -1", "start-sleep-negative.ps1", "AOT3009", 27);
+        AssertStartSleepFailure("Start-Sleep -Milliseconds 2147483648", "start-sleep-too-large.ps1", "AOT3009", 27);
+        AssertStartSleepFailure("Start-Sleep -Milliseconds 1 -ms 2", "start-sleep-duplicate.ps1", "AOT2003", 29);
+        AssertStartSleepFailure("Start-Sleep 1", "start-sleep-positional.ps1", "AOT2005", 13);
+        AssertStartSleepFailure("Start-Sleep -Seconds 1", "start-sleep-seconds.ps1", "AOT2002", 13);
+        AssertStartSleepFailure("Start-Sleep -Duration 00:00:01", "start-sleep-duration.ps1", "AOT2002", 13);
+        AssertStartSleepFailure("Start-Sleep -ts 00:00:01", "start-sleep-duration-alias.ps1", "AOT2002", 13);
+        AssertStartSleepFailure("sleep -Milliseconds 1", "start-sleep-command-alias.ps1", "AOT2001", 1);
+        AssertStartSleepFailure("Get-Date | Start-Sleep -Milliseconds 0", "start-sleep-pipeline.ps1", "AOT1001", 12);
+    }
+
+    private static void AssertStartSleepFailure(string source, string documentName, string diagnosticId, int startColumn)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName).Execute(new AotExecutionContext());
+            throw new InvalidOperationException($"Expected {diagnosticId} for Start-Sleep source '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is { Id: var id, Span: { DocumentName: var document, StartColumn: var column } }
+            && id == diagnosticId && document == documentName && column == startColumn)
+        {
+        }
+    }
+
     private static void AssertHostSubstrate()
     {
         AotHostSubstrate local = AotHostSubstrate.CreateLocal();
         if (local.PhysicalFiles is not SystemPhysicalFileResolver
             || local.Processes is not SystemProcessCatalog
             || local.Clock is not SystemClock
+            || local.Delay is not CancellationTokenDelay
             || local.Culture is not SystemHostCulture
             || local.Cultures is not SystemCultureCatalog
             || local.TimeZones is not SystemTimeZoneCatalog
@@ -6154,6 +6296,22 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
     private sealed class FixtureClock(DateTime now) : IClock
     {
         public DateTime Now { get; } = now;
+    }
+
+    private sealed class FixtureDelay(CancellationTokenSource? cancellationSource = null) : IAotDelay
+    {
+        internal int Calls { get; private set; }
+        internal int? LastMilliseconds { get; private set; }
+        internal bool? LastTokenCanBeCanceled { get; private set; }
+
+        public void DelayMilliseconds(int milliseconds, CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastMilliseconds = milliseconds;
+            LastTokenCanBeCanceled = cancellationToken.CanBeCanceled;
+            cancellationSource?.Cancel();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
     }
 
     private sealed class FixtureCultureCatalog(IEnumerable<CultureInfo> cultures) : ICultureCatalog

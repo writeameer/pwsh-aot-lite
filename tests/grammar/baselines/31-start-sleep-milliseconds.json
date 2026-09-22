@@ -1,0 +1,1644 @@
+{
+  "schemaVersion": 1,
+  "fixture": "31-start-sleep-milliseconds.ps1",
+  "sourceSha256": "4b6e76e9ab46a2552ad426c2df1e25e0d1b6bce7608e7bd75e6382e60a75e1f8",
+  "tokens": [
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 0,
+        "endOffset": 11,
+        "startLine": 1,
+        "startColumn": 1,
+        "endLine": 1,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 12,
+        "endOffset": 25,
+        "startLine": 1,
+        "startColumn": 13,
+        "endLine": 1,
+        "endColumn": 26
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "0",
+      "flags": "None",
+      "extent": {
+        "startOffset": 26,
+        "endOffset": 27,
+        "startLine": 1,
+        "startColumn": 27,
+        "endLine": 1,
+        "endColumn": 28
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 27,
+        "endOffset": 28,
+        "startLine": 1,
+        "startColumn": 28,
+        "endLine": 2,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 28,
+        "endOffset": 39,
+        "startLine": 2,
+        "startColumn": 1,
+        "endLine": 2,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-ms",
+      "flags": "None",
+      "extent": {
+        "startOffset": 40,
+        "endOffset": 43,
+        "startLine": 2,
+        "startColumn": 13,
+        "endLine": 2,
+        "endColumn": 16
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "1",
+      "flags": "None",
+      "extent": {
+        "startOffset": 44,
+        "endOffset": 45,
+        "startLine": 2,
+        "startColumn": 17,
+        "endLine": 2,
+        "endColumn": 18
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 45,
+        "endOffset": 46,
+        "startLine": 2,
+        "startColumn": 18,
+        "endLine": 3,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 46,
+        "endOffset": 57,
+        "startLine": 3,
+        "startColumn": 1,
+        "endLine": 3,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 58,
+        "endOffset": 71,
+        "startLine": 3,
+        "startColumn": 13,
+        "endLine": 3,
+        "endColumn": 26
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "-1",
+      "flags": "None",
+      "extent": {
+        "startOffset": 72,
+        "endOffset": 74,
+        "startLine": 3,
+        "startColumn": 27,
+        "endLine": 3,
+        "endColumn": 29
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 74,
+        "endOffset": 75,
+        "startLine": 3,
+        "startColumn": 29,
+        "endLine": 4,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 75,
+        "endOffset": 86,
+        "startLine": 4,
+        "startColumn": 1,
+        "endLine": 4,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 87,
+        "endOffset": 100,
+        "startLine": 4,
+        "startColumn": 13,
+        "endLine": 4,
+        "endColumn": 26
+      }
+    },
+    {
+      "kind": "Identifier",
+      "text": "nope",
+      "flags": "None",
+      "extent": {
+        "startOffset": 101,
+        "endOffset": 105,
+        "startLine": 4,
+        "startColumn": 27,
+        "endLine": 4,
+        "endColumn": 31
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 105,
+        "endOffset": 106,
+        "startLine": 4,
+        "startColumn": 31,
+        "endLine": 5,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 106,
+        "endOffset": 117,
+        "startLine": 5,
+        "startColumn": 1,
+        "endLine": 5,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 118,
+        "endOffset": 131,
+        "startLine": 5,
+        "startColumn": 13,
+        "endLine": 5,
+        "endColumn": 26
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "2147483648",
+      "flags": "None",
+      "extent": {
+        "startOffset": 132,
+        "endOffset": 142,
+        "startLine": 5,
+        "startColumn": 27,
+        "endLine": 5,
+        "endColumn": 37
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 142,
+        "endOffset": 143,
+        "startLine": 5,
+        "startColumn": 37,
+        "endLine": 6,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 143,
+        "endOffset": 154,
+        "startLine": 6,
+        "startColumn": 1,
+        "endLine": 6,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 155,
+        "endOffset": 168,
+        "startLine": 6,
+        "startColumn": 13,
+        "endLine": 6,
+        "endColumn": 26
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "1",
+      "flags": "None",
+      "extent": {
+        "startOffset": 169,
+        "endOffset": 170,
+        "startLine": 6,
+        "startColumn": 27,
+        "endLine": 6,
+        "endColumn": 28
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-ms",
+      "flags": "None",
+      "extent": {
+        "startOffset": 171,
+        "endOffset": 174,
+        "startLine": 6,
+        "startColumn": 29,
+        "endLine": 6,
+        "endColumn": 32
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "2",
+      "flags": "None",
+      "extent": {
+        "startOffset": 175,
+        "endOffset": 176,
+        "startLine": 6,
+        "startColumn": 33,
+        "endLine": 6,
+        "endColumn": 34
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 176,
+        "endOffset": 177,
+        "startLine": 6,
+        "startColumn": 34,
+        "endLine": 7,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 177,
+        "endOffset": 188,
+        "startLine": 7,
+        "startColumn": 1,
+        "endLine": 7,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 188,
+        "endOffset": 189,
+        "startLine": 7,
+        "startColumn": 12,
+        "endLine": 8,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 189,
+        "endOffset": 200,
+        "startLine": 8,
+        "startColumn": 1,
+        "endLine": 8,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 201,
+        "endOffset": 214,
+        "startLine": 8,
+        "startColumn": 13,
+        "endLine": 8,
+        "endColumn": 26
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 214,
+        "endOffset": 215,
+        "startLine": 8,
+        "startColumn": 26,
+        "endLine": 9,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 215,
+        "endOffset": 226,
+        "startLine": 9,
+        "startColumn": 1,
+        "endLine": 9,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "1",
+      "flags": "None",
+      "extent": {
+        "startOffset": 227,
+        "endOffset": 228,
+        "startLine": 9,
+        "startColumn": 13,
+        "endLine": 9,
+        "endColumn": 14
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 228,
+        "endOffset": 229,
+        "startLine": 9,
+        "startColumn": 14,
+        "endLine": 10,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 229,
+        "endOffset": 240,
+        "startLine": 10,
+        "startColumn": 1,
+        "endLine": 10,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Seconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 241,
+        "endOffset": 249,
+        "startLine": 10,
+        "startColumn": 13,
+        "endLine": 10,
+        "endColumn": 21
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "1",
+      "flags": "None",
+      "extent": {
+        "startOffset": 250,
+        "endOffset": 251,
+        "startLine": 10,
+        "startColumn": 22,
+        "endLine": 10,
+        "endColumn": 23
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 251,
+        "endOffset": 252,
+        "startLine": 10,
+        "startColumn": 23,
+        "endLine": 11,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 252,
+        "endOffset": 263,
+        "startLine": 11,
+        "startColumn": 1,
+        "endLine": 11,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Duration",
+      "flags": "None",
+      "extent": {
+        "startOffset": 264,
+        "endOffset": 273,
+        "startLine": 11,
+        "startColumn": 13,
+        "endLine": 11,
+        "endColumn": 22
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "00:00:01",
+      "flags": "None",
+      "extent": {
+        "startOffset": 274,
+        "endOffset": 282,
+        "startLine": 11,
+        "startColumn": 23,
+        "endLine": 11,
+        "endColumn": 31
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 282,
+        "endOffset": 283,
+        "startLine": 11,
+        "startColumn": 31,
+        "endLine": 12,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 283,
+        "endOffset": 294,
+        "startLine": 12,
+        "startColumn": 1,
+        "endLine": 12,
+        "endColumn": 12
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-ts",
+      "flags": "None",
+      "extent": {
+        "startOffset": 295,
+        "endOffset": 298,
+        "startLine": 12,
+        "startColumn": 13,
+        "endLine": 12,
+        "endColumn": 16
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "00:00:01",
+      "flags": "None",
+      "extent": {
+        "startOffset": 299,
+        "endOffset": 307,
+        "startLine": 12,
+        "startColumn": 17,
+        "endLine": 12,
+        "endColumn": 25
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 307,
+        "endOffset": 308,
+        "startLine": 12,
+        "startColumn": 25,
+        "endLine": 13,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Identifier",
+      "text": "sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 308,
+        "endOffset": 313,
+        "startLine": 13,
+        "startColumn": 1,
+        "endLine": 13,
+        "endColumn": 6
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 314,
+        "endOffset": 327,
+        "startLine": 13,
+        "startColumn": 7,
+        "endLine": 13,
+        "endColumn": 20
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "1",
+      "flags": "None",
+      "extent": {
+        "startOffset": 328,
+        "endOffset": 329,
+        "startLine": 13,
+        "startColumn": 21,
+        "endLine": 13,
+        "endColumn": 22
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 329,
+        "endOffset": 330,
+        "startLine": 13,
+        "startColumn": 22,
+        "endLine": 14,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Get-Date",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 330,
+        "endOffset": 338,
+        "startLine": 14,
+        "startColumn": 1,
+        "endLine": 14,
+        "endColumn": 9
+      }
+    },
+    {
+      "kind": "Pipe",
+      "text": "|",
+      "flags": "SpecialOperator, ParseModeInvariant",
+      "extent": {
+        "startOffset": 339,
+        "endOffset": 340,
+        "startLine": 14,
+        "startColumn": 10,
+        "endLine": 14,
+        "endColumn": 11
+      }
+    },
+    {
+      "kind": "Generic",
+      "text": "Start-Sleep",
+      "flags": "CommandName",
+      "extent": {
+        "startOffset": 341,
+        "endOffset": 352,
+        "startLine": 14,
+        "startColumn": 12,
+        "endLine": 14,
+        "endColumn": 23
+      }
+    },
+    {
+      "kind": "Parameter",
+      "text": "-Milliseconds",
+      "flags": "None",
+      "extent": {
+        "startOffset": 353,
+        "endOffset": 366,
+        "startLine": 14,
+        "startColumn": 24,
+        "endLine": 14,
+        "endColumn": 37
+      }
+    },
+    {
+      "kind": "Number",
+      "text": "0",
+      "flags": "None",
+      "extent": {
+        "startOffset": 367,
+        "endOffset": 368,
+        "startLine": 14,
+        "startColumn": 38,
+        "endLine": 14,
+        "endColumn": 39
+      }
+    },
+    {
+      "kind": "NewLine",
+      "text": "\n",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 368,
+        "endOffset": 369,
+        "startLine": 14,
+        "startColumn": 39,
+        "endLine": 15,
+        "endColumn": 1
+      }
+    },
+    {
+      "kind": "EndOfInput",
+      "text": "",
+      "flags": "ParseModeInvariant",
+      "extent": {
+        "startOffset": 370,
+        "endOffset": 370,
+        "startLine": 15,
+        "startColumn": 2,
+        "endLine": 15,
+        "endColumn": 2
+      }
+    }
+  ],
+  "ast": {
+    "type": "ScriptBlockAst",
+    "extent": {
+      "startOffset": 0,
+      "endOffset": 369,
+      "startLine": 1,
+      "startColumn": 1,
+      "endLine": 15,
+      "endColumn": 1
+    },
+    "children": [
+      {
+        "type": "NamedBlockAst",
+        "extent": {
+          "startOffset": 0,
+          "endOffset": 368,
+          "startLine": 1,
+          "startColumn": 1,
+          "endLine": 14,
+          "endColumn": 39
+        },
+        "children": [
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 0,
+              "endOffset": 27,
+              "startLine": 1,
+              "startColumn": 1,
+              "endLine": 1,
+              "endColumn": 28
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 0,
+                  "endOffset": 27,
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 28
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 0,
+                      "endOffset": 11,
+                      "startLine": 1,
+                      "startColumn": 1,
+                      "endLine": 1,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 12,
+                      "endOffset": 25,
+                      "startLine": 1,
+                      "startColumn": 13,
+                      "endLine": 1,
+                      "endColumn": 26
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 26,
+                      "endOffset": 27,
+                      "startLine": 1,
+                      "startColumn": 27,
+                      "endLine": 1,
+                      "endColumn": 28
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 28,
+              "endOffset": 45,
+              "startLine": 2,
+              "startColumn": 1,
+              "endLine": 2,
+              "endColumn": 18
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 28,
+                  "endOffset": 45,
+                  "startLine": 2,
+                  "startColumn": 1,
+                  "endLine": 2,
+                  "endColumn": 18
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 28,
+                      "endOffset": 39,
+                      "startLine": 2,
+                      "startColumn": 1,
+                      "endLine": 2,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 40,
+                      "endOffset": 43,
+                      "startLine": 2,
+                      "startColumn": 13,
+                      "endLine": 2,
+                      "endColumn": 16
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 44,
+                      "endOffset": 45,
+                      "startLine": 2,
+                      "startColumn": 17,
+                      "endLine": 2,
+                      "endColumn": 18
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 46,
+              "endOffset": 74,
+              "startLine": 3,
+              "startColumn": 1,
+              "endLine": 3,
+              "endColumn": 29
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 46,
+                  "endOffset": 74,
+                  "startLine": 3,
+                  "startColumn": 1,
+                  "endLine": 3,
+                  "endColumn": 29
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 46,
+                      "endOffset": 57,
+                      "startLine": 3,
+                      "startColumn": 1,
+                      "endLine": 3,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 58,
+                      "endOffset": 71,
+                      "startLine": 3,
+                      "startColumn": 13,
+                      "endLine": 3,
+                      "endColumn": 26
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 72,
+                      "endOffset": 74,
+                      "startLine": 3,
+                      "startColumn": 27,
+                      "endLine": 3,
+                      "endColumn": 29
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 75,
+              "endOffset": 105,
+              "startLine": 4,
+              "startColumn": 1,
+              "endLine": 4,
+              "endColumn": 31
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 75,
+                  "endOffset": 105,
+                  "startLine": 4,
+                  "startColumn": 1,
+                  "endLine": 4,
+                  "endColumn": 31
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 75,
+                      "endOffset": 86,
+                      "startLine": 4,
+                      "startColumn": 1,
+                      "endLine": 4,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 87,
+                      "endOffset": 100,
+                      "startLine": 4,
+                      "startColumn": 13,
+                      "endLine": 4,
+                      "endColumn": 26
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 101,
+                      "endOffset": 105,
+                      "startLine": 4,
+                      "startColumn": 27,
+                      "endLine": 4,
+                      "endColumn": 31
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 106,
+              "endOffset": 142,
+              "startLine": 5,
+              "startColumn": 1,
+              "endLine": 5,
+              "endColumn": 37
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 106,
+                  "endOffset": 142,
+                  "startLine": 5,
+                  "startColumn": 1,
+                  "endLine": 5,
+                  "endColumn": 37
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 106,
+                      "endOffset": 117,
+                      "startLine": 5,
+                      "startColumn": 1,
+                      "endLine": 5,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 118,
+                      "endOffset": 131,
+                      "startLine": 5,
+                      "startColumn": 13,
+                      "endLine": 5,
+                      "endColumn": 26
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 132,
+                      "endOffset": 142,
+                      "startLine": 5,
+                      "startColumn": 27,
+                      "endLine": 5,
+                      "endColumn": 37
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 143,
+              "endOffset": 176,
+              "startLine": 6,
+              "startColumn": 1,
+              "endLine": 6,
+              "endColumn": 34
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 143,
+                  "endOffset": 176,
+                  "startLine": 6,
+                  "startColumn": 1,
+                  "endLine": 6,
+                  "endColumn": 34
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 143,
+                      "endOffset": 154,
+                      "startLine": 6,
+                      "startColumn": 1,
+                      "endLine": 6,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 155,
+                      "endOffset": 168,
+                      "startLine": 6,
+                      "startColumn": 13,
+                      "endLine": 6,
+                      "endColumn": 26
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 169,
+                      "endOffset": 170,
+                      "startLine": 6,
+                      "startColumn": 27,
+                      "endLine": 6,
+                      "endColumn": 28
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 171,
+                      "endOffset": 174,
+                      "startLine": 6,
+                      "startColumn": 29,
+                      "endLine": 6,
+                      "endColumn": 32
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 175,
+                      "endOffset": 176,
+                      "startLine": 6,
+                      "startColumn": 33,
+                      "endLine": 6,
+                      "endColumn": 34
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 177,
+              "endOffset": 188,
+              "startLine": 7,
+              "startColumn": 1,
+              "endLine": 7,
+              "endColumn": 12
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 177,
+                  "endOffset": 188,
+                  "startLine": 7,
+                  "startColumn": 1,
+                  "endLine": 7,
+                  "endColumn": 12
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 177,
+                      "endOffset": 188,
+                      "startLine": 7,
+                      "startColumn": 1,
+                      "endLine": 7,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 189,
+              "endOffset": 214,
+              "startLine": 8,
+              "startColumn": 1,
+              "endLine": 8,
+              "endColumn": 26
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 189,
+                  "endOffset": 214,
+                  "startLine": 8,
+                  "startColumn": 1,
+                  "endLine": 8,
+                  "endColumn": 26
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 189,
+                      "endOffset": 200,
+                      "startLine": 8,
+                      "startColumn": 1,
+                      "endLine": 8,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 201,
+                      "endOffset": 214,
+                      "startLine": 8,
+                      "startColumn": 13,
+                      "endLine": 8,
+                      "endColumn": 26
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 215,
+              "endOffset": 228,
+              "startLine": 9,
+              "startColumn": 1,
+              "endLine": 9,
+              "endColumn": 14
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 215,
+                  "endOffset": 228,
+                  "startLine": 9,
+                  "startColumn": 1,
+                  "endLine": 9,
+                  "endColumn": 14
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 215,
+                      "endOffset": 226,
+                      "startLine": 9,
+                      "startColumn": 1,
+                      "endLine": 9,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 227,
+                      "endOffset": 228,
+                      "startLine": 9,
+                      "startColumn": 13,
+                      "endLine": 9,
+                      "endColumn": 14
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 229,
+              "endOffset": 251,
+              "startLine": 10,
+              "startColumn": 1,
+              "endLine": 10,
+              "endColumn": 23
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 229,
+                  "endOffset": 251,
+                  "startLine": 10,
+                  "startColumn": 1,
+                  "endLine": 10,
+                  "endColumn": 23
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 229,
+                      "endOffset": 240,
+                      "startLine": 10,
+                      "startColumn": 1,
+                      "endLine": 10,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 241,
+                      "endOffset": 249,
+                      "startLine": 10,
+                      "startColumn": 13,
+                      "endLine": 10,
+                      "endColumn": 21
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 250,
+                      "endOffset": 251,
+                      "startLine": 10,
+                      "startColumn": 22,
+                      "endLine": 10,
+                      "endColumn": 23
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 252,
+              "endOffset": 282,
+              "startLine": 11,
+              "startColumn": 1,
+              "endLine": 11,
+              "endColumn": 31
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 252,
+                  "endOffset": 282,
+                  "startLine": 11,
+                  "startColumn": 1,
+                  "endLine": 11,
+                  "endColumn": 31
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 252,
+                      "endOffset": 263,
+                      "startLine": 11,
+                      "startColumn": 1,
+                      "endLine": 11,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 264,
+                      "endOffset": 273,
+                      "startLine": 11,
+                      "startColumn": 13,
+                      "endLine": 11,
+                      "endColumn": 22
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 274,
+                      "endOffset": 282,
+                      "startLine": 11,
+                      "startColumn": 23,
+                      "endLine": 11,
+                      "endColumn": 31
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 283,
+              "endOffset": 307,
+              "startLine": 12,
+              "startColumn": 1,
+              "endLine": 12,
+              "endColumn": 25
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 283,
+                  "endOffset": 307,
+                  "startLine": 12,
+                  "startColumn": 1,
+                  "endLine": 12,
+                  "endColumn": 25
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 283,
+                      "endOffset": 294,
+                      "startLine": 12,
+                      "startColumn": 1,
+                      "endLine": 12,
+                      "endColumn": 12
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 295,
+                      "endOffset": 298,
+                      "startLine": 12,
+                      "startColumn": 13,
+                      "endLine": 12,
+                      "endColumn": 16
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 299,
+                      "endOffset": 307,
+                      "startLine": 12,
+                      "startColumn": 17,
+                      "endLine": 12,
+                      "endColumn": 25
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 308,
+              "endOffset": 329,
+              "startLine": 13,
+              "startColumn": 1,
+              "endLine": 13,
+              "endColumn": 22
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 308,
+                  "endOffset": 329,
+                  "startLine": 13,
+                  "startColumn": 1,
+                  "endLine": 13,
+                  "endColumn": 22
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 308,
+                      "endOffset": 313,
+                      "startLine": 13,
+                      "startColumn": 1,
+                      "endLine": 13,
+                      "endColumn": 6
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 314,
+                      "endOffset": 327,
+                      "startLine": 13,
+                      "startColumn": 7,
+                      "endLine": 13,
+                      "endColumn": 20
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 328,
+                      "endOffset": 329,
+                      "startLine": 13,
+                      "startColumn": 21,
+                      "endLine": 13,
+                      "endColumn": 22
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "PipelineAst",
+            "extent": {
+              "startOffset": 330,
+              "endOffset": 368,
+              "startLine": 14,
+              "startColumn": 1,
+              "endLine": 14,
+              "endColumn": 39
+            },
+            "children": [
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 330,
+                  "endOffset": 338,
+                  "startLine": 14,
+                  "startColumn": 1,
+                  "endLine": 14,
+                  "endColumn": 9
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 330,
+                      "endOffset": 338,
+                      "startLine": 14,
+                      "startColumn": 1,
+                      "endLine": 14,
+                      "endColumn": 9
+                    },
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "CommandAst",
+                "extent": {
+                  "startOffset": 341,
+                  "endOffset": 368,
+                  "startLine": 14,
+                  "startColumn": 12,
+                  "endLine": 14,
+                  "endColumn": 39
+                },
+                "children": [
+                  {
+                    "type": "StringConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 341,
+                      "endOffset": 352,
+                      "startLine": 14,
+                      "startColumn": 12,
+                      "endLine": 14,
+                      "endColumn": 23
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "CommandParameterAst",
+                    "extent": {
+                      "startOffset": 353,
+                      "endOffset": 366,
+                      "startLine": 14,
+                      "startColumn": 24,
+                      "endLine": 14,
+                      "endColumn": 37
+                    },
+                    "children": []
+                  },
+                  {
+                    "type": "ConstantExpressionAst",
+                    "extent": {
+                      "startOffset": 367,
+                      "endOffset": 368,
+                      "startLine": 14,
+                      "startColumn": 38,
+                      "endLine": 14,
+                      "endColumn": 39
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": []
+}

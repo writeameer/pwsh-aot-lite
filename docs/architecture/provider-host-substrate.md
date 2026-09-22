@@ -13,6 +13,7 @@ platform dependencies. It is **not** a partial PowerShell provider engine,
 | processes | `IProcessCatalog` / `SystemProcessCatalog` | inspection and existing `Get-Process` data | arbitrary process launch or a process provider |
 | process owner | `IProcessOwnerReader` / `UnixPsProcessOwnerReader` | fixed `/bin/ps` lookup on macOS/Linux only | command lookup, shell invocation, Windows fallback, generic execution API |
 | time and globalization | `IClock`, `IHostCulture`, `ICultureCatalog`, `ITimeZoneCatalog` | BCL time/culture/zone snapshot calls | `PSHost`, user-profile/session state |
+| bounded elapsed wait | `IAotDelay` / `CancellationTokenDelay` | one cancellable integer-millisecond wait using an execution context's supplied host token | timers, tasks, scheduler, callbacks, a cmdlet-owned cancellation source, or general async work |
 | platform | `IAotHostPlatform` / immutable `AotHostPlatformSnapshot` | OS and process architecture selection | implicit foreign P/Invoke fallthrough |
 | configuration | `IAotHostConfiguration` / `ProcessAotHostConfiguration` | closed deployment and terminal key list | `Env:` provider, arbitrary variables, mutation, `PATH`/`HOME` authority |
 | discovery roots | `IAotHostDiscoveryRoots` / `ProcessAotHostDiscoveryRoots` | one captured current directory and application base for declarative catalog scans | session location, provider navigation, repeated ambient root reads |
@@ -58,6 +59,18 @@ implementation. No current adapter consumes either capability. A future port
 that needs credentials or transport must introduce a scoped trust/authority
 design and map the result into a source-aware `AotDiagnostic`; it may not turn
 the unavailable records into a silent no-op or ambient fallback.
+
+## Bounded delay policy
+
+`IAotDelay` is intentionally narrower than a clock or scheduler. Its only
+operation accepts a non-negative integer milliseconds value and the
+`AotExecutionContext` token supplied by the host. `CancellationTokenDelay`
+uses that token's wait handle and checks cancellation before and after the
+wait. It cannot arrange callbacks, enqueue work, create a timer, select a
+thread, or manufacture/cancel a token. The first consumer is the narrow
+`Start-Sleep -Milliseconds` port. A port needing deadlines, periodic work,
+parallelism, or console-signal ownership must introduce a separate reviewed
+host design rather than widening this interface.
 
 ## Porting rule
 

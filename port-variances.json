@@ -354,6 +354,41 @@
       ]
     },
     {
+      "command": "Start-Sleep",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/StartSleepCommand.cs",
+      "state": "complete-milliseconds-calibration-slice",
+      "variances": [
+        {
+          "id": "startsleep-cancellable-delay-substrate",
+          "sourceFeature": "ProcessRecord computes a selected parameter set then blocks through a private ManualResetEvent that StopProcessing signals",
+          "targetDecision": "generated -Milliseconds binds to a static StartSleepCmdlet which delegates exactly one integer-millisecond wait to the fixed IAotDelay substrate using the existing host-owned AotExecutionContext cancellation token",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "startsleep-milliseconds-validation",
+          "sourceFeature": "the source Milliseconds parameter is an int with ValidateRange(0, int.MaxValue) and PowerShell scalar coercion",
+          "targetDecision": "admit exactly one invariant whole-number value in 0..Int32.MaxValue; source-spanned AOT3007/AOT3008/AOT3009 distinguish missing admitted duration, invalid text, and range failure rather than approximating broader coercion",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "startsleep-seconds-duration-pipeline-deferred",
+          "sourceFeature": "the Seconds default parameter set accepts positional/pipeline double input and Duration accepts positional/pipeline TimeSpan input with a maximum-duration terminating error",
+          "targetDecision": "Seconds, Duration/ts, positional input, and all pipeline input—including source Milliseconds ValueFromPipelineByPropertyName—are absent from the executable descriptor or structural pipeline contract and fail closed; no floating-point conversion, typed TimeSpan input, property-name binding, or generic pipeline binder is implied",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "startsleep-cancellation-host-boundary",
+          "sourceFeature": "the source cmdlet coordinates a shell stop thread and private wait handle",
+          "targetDecision": "the existing AotCmdletBase lifecycle observes host cancellation and ScriptRunner maps cancellation to exit 130; the port does not claim Ctrl+C signal wiring, a cmdlet-owned cancellation source, callbacks, timers, or a scheduling API",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Get-Help",
       "source": "src/System.Management.Automation/help/HelpCommands.cs",
       "state": "static-catalog-and-extension-discovery-complete",

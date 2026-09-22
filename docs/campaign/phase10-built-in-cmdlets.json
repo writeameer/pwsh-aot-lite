@@ -3,7 +3,7 @@
   "generatedFrom": "GeneratedCmdletPorts.g.cs after a fresh Release build",
   "upstreamCommit": "1e53f6bbab4b8791eae782474d21889f9e5d6038",
   "generatedContractSha256": "BCD10A049929638B334B1E6622813112EC730C3286DDC57DFCED184BDD68D21C",
-  "classifierSha256": "22881C02F507439E834A2AFCCB148B1FDD009652BDD0517B4D16629003BE9607",
+  "classifierSha256": "663BDB757F21B0732D437198B810534144ED1AAEE9AA1050CBC8CD4392319BBE",
   "declarationCount": 290,
   "logicalCommandCount": 288,
   "categoryValues": [
@@ -4768,12 +4768,12 @@
       "evidence": "StartSleepCommand; base chain: \"PSCmdlet\", \"Cmdlet\", \"InternalCommand\"; source: src/Microsoft.PowerShell.Commands.Utility/commands/utility/StartSleepCommand.cs",
       "requiredPrerequisites": [
         "generated descriptor",
-        "typed record contract",
+        "bounded host-owned cancellable delay capability",
         "direct body/helper review"
       ],
-      "directBodyHelperReview": "required-before-port",
-      "implementedSubset": null,
-      "currentState": "catalogued-only; no execution claim"
+      "directBodyHelperReview": "reviewed-and-integrated-for-milliseconds/ms bounded-delay subset",
+      "implementedSubset": "Integrated: generated -Milliseconds and -ms direct integer wait through IAotDelay; Seconds, Duration/ts, positional, all property-name pipeline input, and command aliases remain rejected.",
+      "currentState": "integrated-reviewed-milliseconds/ms subset; seconds/duration/positional/pipeline behavior remains deferred"
     },
     {
       "declarationId": "src/Microsoft.PowerShell.ConsoleHost/host/msh/StartTranscriptCmdlet.cs|StartTranscriptCommand|1",

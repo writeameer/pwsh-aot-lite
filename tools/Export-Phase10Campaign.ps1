@@ -17,7 +17,13 @@ function Get-Classification {
     # The only W2 candidates are an explicit reviewed calibration allowlist.
     # Identity evidence cannot safely promote any other declaration.
     if ($Command -in @('New-Guid', 'New-TimeSpan', 'Start-Sleep')) {
-        return [pscustomobject]@{ Category = 'native-port-candidate'; Wave = 'W2'; Rationale = 'Reviewed low-authority calibration candidate; direct body/helper review remains mandatory before any adapter is added.'; Required = @('generated descriptor', 'typed record contract', 'direct body/helper review'); Evidence = $evidence }
+        $required = if ($Command -eq 'Start-Sleep') {
+            @('generated descriptor', 'bounded host-owned cancellable delay capability', 'direct body/helper review')
+        }
+        else {
+            @('generated descriptor', 'typed record contract', 'direct body/helper review')
+        }
+        return [pscustomobject]@{ Category = 'native-port-candidate'; Wave = 'W2'; Rationale = 'Reviewed low-authority calibration candidate; direct body/helper review remains mandatory before any adapter is added.'; Required = $required; Evidence = $evidence }
     }
 
     if ($signal -match '(?i)Runspace|Debugger|Debug|Breakpoint|CallStack|StrictMode|Invoke-Expression|Add-Type|Register-ArgumentCompleter|Update-TypeData|Remove-TypeData|New-Object|PSSnapIn|Variable|Alias|History|Assembly|Provider') {
@@ -89,7 +95,7 @@ $declarations = foreach ($match in $matches) {
         requiredPrerequisites = $classification.Required
         directBodyHelperReview = 'required-before-port'
         implementedSubset = $null
-        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -eq 'New-TimeSpan') { 'integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
+        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -eq 'New-TimeSpan') { 'integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred' } elseif ($command -eq 'Start-Sleep') { 'integrated-reviewed-milliseconds/ms subset; seconds/duration/positional/pipeline behavior remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
     }
 }
 
@@ -106,6 +112,11 @@ foreach ($entry in $declarations | Where-Object command -eq 'New-Guid') {
 foreach ($entry in $declarations | Where-Object command -eq 'New-TimeSpan') {
     $entry.directBodyHelperReview = 'reviewed-and-integrated-for-time-components subset'
     $entry.implementedSubset = 'Integrated: no-argument zero duration and generated Days/Hours/Minutes/Seconds/Milliseconds components only; Start/LastWriteTime/End, positional, and pipeline DateTime behavior remain rejected pending a typed DateTime input boundary.'
+}
+
+foreach ($entry in $declarations | Where-Object command -eq 'Start-Sleep') {
+    $entry.directBodyHelperReview = 'reviewed-and-integrated-for-milliseconds/ms bounded-delay subset'
+    $entry.implementedSubset = 'Integrated: generated -Milliseconds and -ms direct integer wait through IAotDelay; Seconds, Duration/ts, positional, all property-name pipeline input, and command aliases remain rejected.'
 }
 
 $duplicateNames = $declarations | Group-Object command | Where-Object Count -gt 1
