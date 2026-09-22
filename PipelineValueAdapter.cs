@@ -8,6 +8,51 @@ namespace PwshAotLite;
 // instead of a CLR-property/reflection fallback.
 internal static class PipelineValueAdapter
 {
+    // This is intentionally a closed registry of declared IPipelineRecord
+    // shapes. AotPipelineRecord is accepted because it was already produced
+    // by this same explicit boundary, not because arbitrary wrappers may
+    // surface their members.
+    internal static AotRecord ToRecord(IPipelineRecord row, AotSourceSpan? boundarySpan = null)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (row is AotPipelineRecord projected)
+        {
+            return projected.Record;
+        }
+
+        if (row is not (ProcessRecord
+            or ProcessModuleRecord
+            or ProcessFileVersionRecord
+            or UptimeRecord
+            or CultureRecord
+            or TimeZoneRecord
+            or VerbRecord
+            or DateRecord
+            or TextRecord
+            or FileHashRecord
+            or CommandInfoRecord
+            or ModuleInfoRecord
+            or RepositoryModuleRecord
+            or HelpRecord
+            or InstallModuleRecord))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT4009",
+                "This pipeline record type is not registered for the Native AOT record boundary.",
+                boundarySpan,
+                "unregistered pipeline record",
+                "Add an explicit reviewed record adapter before using this cmdlet in a structural pipeline."));
+        }
+
+        AotValue value = ToValue(row);
+        if (!value.TryGetRecord(out AotRecord? record))
+        {
+            throw new InvalidOperationException("A declared pipeline record adapter did not produce an AOT record.");
+        }
+
+        return record!;
+    }
+
     internal static AotValue ToValue(IPipelineRecord row)
     {
         ArgumentNullException.ThrowIfNull(row);

@@ -81,13 +81,22 @@ parameter sets, type conversion, attributes, splatting, `$args`, `$input`, or
 missing-named-value, and positional-after-named failures use `AOT5009` through
 `AOT5012` with source spans.
 
-An admitted local function may be the first source of an outer pipeline only
-when its body is exactly one direct native source command. Its one raw typed
-record batch can pass through the existing outer `Where-Object`/`Select-Object`
-tail. Functions cannot be downstream stages, receive pipeline rows, invoke a
-second function as a producer, contain body transforms/multiple statements, or
-feed a native typed-input stage in this slice. This is static output-segment
-composition, not general PowerShell function pipelines.
+An admitted local function may be the first source of an outer pipeline. Its
+already-lowered supported body executes into a private ordered collection of
+known typed output rows, which crosses once into an immutable `AotRecordBatch`.
+Outer pipelines may apply up to four direct `Where-Object`/`Select-Object`
+transforms, including repeated or mixed stages. Functions cannot be downstream
+stages, receive pipeline rows, feed a native typed-input stage, expose rendered
+terminal text, or create an object stream. Heterogeneous producer output needs
+a last direct `Select-Object` to establish one rendering shape; otherwise it
+fails closed. This remains static output-segment composition, not general
+PowerShell function pipelines.
+
+Transform order is semantically material in this subset. A direct
+`Select-Object` narrows the immutable record shape immediately, so a following
+`Where-Object` can use only retained numeric fields. The last direct projection
+sets terminal columns; without one, a function producer uses the same default
+column sequence/casing on every emitted segment or rejects the composition.
 
 ## Bare function return
 

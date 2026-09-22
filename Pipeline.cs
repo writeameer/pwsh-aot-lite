@@ -436,6 +436,7 @@ internal interface IAotCmdlet
 {
     CmdletDescriptor Descriptor { get; }
     IReadOnlyList<string> DefaultColumns { get; }
+    AotTerminalPresentation TerminalPresentation { get; }
     IEnumerable<IPipelineRecord> Invoke(
         CommandInvocation invocation,
         AotExecutionContext context,
@@ -468,6 +469,7 @@ internal abstract class AotCmdletBase : IAotCmdlet
 {
     public abstract CmdletDescriptor Descriptor { get; }
     public abstract IReadOnlyList<string> DefaultColumns { get; }
+    public virtual AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Table;
 
     public IEnumerable<IPipelineRecord> Invoke(
         CommandInvocation invocation,
@@ -1787,14 +1789,47 @@ internal sealed class PipelinePlan(
     IAotCmdlet source,
     CommandInvocation invocation,
     AotPipelineInputStage? inputStage,
-    Filter? filter,
-    IReadOnlyList<string> planColumns,
-    bool projected = false,
-    AotSourceSpan? projectionSpan = null,
+    IReadOnlyList<AotRecordTransform> transforms,
+    AotRecordShape shape,
+    AotSourceSpan? boundarySpan,
     int pipelineLength = 1)
 {
-    internal IReadOnlyList<string> Columns { get; } = planColumns;
+    internal AotRecordShape Shape { get; } = shape;
+    internal IReadOnlyList<string> Columns => Shape.Fields;
+    // Match the previous terminal policy exactly without relying on a record
+    // runtime type: only a direct, untransformed cmdlet may request prose.
+    // A typed input stage or structural transform produces a table contract.
+    internal AotTerminalPresentation TerminalPresentation =>
+        inputStage is null && transforms.Count == 0
+            ? source.TerminalPresentation
+            : AotTerminalPresentation.Table;
 
+    // Production execution carries this canonical batch through the runtime
+    // event; it never creates compatibility rows in the engine.
+    internal AotRecordBatch ExecuteBatch(AotExecutionContext context)
+    {
+        context.ThrowIfCancellationRequested();
+        IReadOnlyList<IPipelineRecord> rows = Materialize(
+            context,
+            source.Invoke(invocation, context, pipelinePosition: 0, pipelineLength));
+        if (inputStage is not null)
+        {
+            context.ThrowIfCancellationRequested();
+            rows = Materialize(
+                context,
+                inputStage.Cmdlet.InvokeWithPipelineInput(
+                    inputStage.Invocation,
+                    rows,
+                    context,
+                    pipelinePosition: 1,
+                    pipelineLength));
+        }
+        return ApplyTransforms(context, rows, transforms, boundarySpan);
+    }
+
+    // Transitional fixture seam retained for pre-Phase-7 port tests. The host
+    // execution path uses ExecuteBatch and terminal projection exclusively.
+    // It preserves raw typed rows when no structural boundary is requested.
     internal IReadOnlyList<IPipelineRecord> Execute(AotExecutionContext context)
     {
         context.ThrowIfCancellationRequested();
@@ -1813,43 +1848,23 @@ internal sealed class PipelinePlan(
                     pipelinePosition: 1,
                     pipelineLength));
         }
-        return ApplyTail(context, rows, filter, Columns, projected, projectionSpan);
+
+        return transforms.Count == 0
+            ? rows
+            : ApplyTransforms(context, rows, transforms, boundarySpan).ToTerminalRows(context);
     }
 
-    // The sole reusable record-transform seam. Native sources and the Phase 6
-    // transparent local-function producer both hand it concrete typed rows;
-    // no function result is flattened, rendered, or adapted through object.
-    internal static IReadOnlyList<IPipelineRecord> ApplyTail(
+    // The sole reusable record-transform seam. Native sources, static input
+    // adapters, and function producers hand it concrete typed rows; no result
+    // is flattened, rendered, or adapted through object.
+    internal static AotRecordBatch ApplyTransforms(
         AotExecutionContext context,
         IReadOnlyList<IPipelineRecord> rows,
-        Filter? filter,
-        IReadOnlyList<string> columns,
-        bool projected,
-        AotSourceSpan? projectionSpan)
+        IReadOnlyList<AotRecordTransform> transforms,
+        AotSourceSpan? boundarySpan = null)
     {
-        // Ports retain their strongly typed output records. The first generic
-        // stage is the explicit, closed crossing into AotValue/AotRecord; no
-        // reflection or CLR-member adaptation is available after this point.
-        if (filter is null && !projected)
-        {
-            return Materialize(context, rows);
-        }
-
-        IEnumerable<AotValue> values = rows.Select(PipelineValueAdapter.ToValue);
-        if (filter is not null)
-        {
-            values = values.Where(filter.Matches);
-        }
-
-        if (projected)
-        {
-            values = values.Select(value => Project(value, columns, projectionSpan));
-        }
-
-        // Individual command ports own their source ordering. Get-Process
-        // retains its original sort in ProcessSelector; this stage only filters
-        // and projects the corresponding immutable AOT values.
-        return Materialize(context, values.Select(ToCompatibilityRecord).Cast<IPipelineRecord>());
+        AotRecordBatch batch = AotRecordBatch.FromTypedRows(context, rows, boundarySpan);
+        return batch.Apply(context, transforms);
     }
 
     private static IReadOnlyList<IPipelineRecord> Materialize(
@@ -1867,60 +1882,6 @@ internal sealed class PipelinePlan(
         return materialized;
     }
 
-    private static AotValue Project(AotValue value, IReadOnlyList<string> columns, AotSourceSpan? projectionSpan)
-    {
-        if (!value.TryGetRecord(out AotRecord? record))
-        {
-            throw new ScriptException(AotDiagnostics.Runtime(
-                "AOT4006",
-                "Select-Object requires a record-shaped AOT pipeline value.",
-                projectionSpan,
-                "projection requires a record",
-                "Select fields from a command that emits record-shaped AOT values."));
-        }
-
-        HashSet<string> selected = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string column in columns)
-        {
-            if (!selected.Add(column))
-            {
-                // AotRecord is immutable and case-insensitive, so preserving
-                // both `id` and `ID` would create an invalid result shape.
-                // Reject rather than silently choosing, renaming, or exposing
-                // a CLR fallback.
-                throw new ScriptException(AotDiagnostics.Runtime(
-                    "AOT4007",
-                    "Select-Object does not permit duplicate fields that differ only by case in the AOT subset.",
-                    projectionSpan,
-                    "duplicate projection field",
-                    "Select each field only once."));
-            }
-        }
-
-        try
-        {
-            return AotValue.FromRecord(record!.Project(columns));
-        }
-        catch (KeyNotFoundException)
-        {
-            throw new ScriptException(AotDiagnostics.Runtime(
-                "AOT4008",
-                "Select-Object requested a column not present on this pipeline value.",
-                projectionSpan,
-                "unknown projection field",
-                "Use a field exposed by the preceding AOT pipeline record."));
-        }
-    }
-
-    private static AotPipelineRecord ToCompatibilityRecord(AotValue value)
-    {
-        if (!value.TryGetRecord(out AotRecord? record))
-        {
-            throw new ScriptException("The AOT table renderer requires a record-shaped pipeline value.");
-        }
-
-        return new AotPipelineRecord(record!);
-    }
 }
 
 internal sealed class Filter(string property, Comparison comparison, AotValue value, AotSourceSpan? propertySpan = null)
@@ -2037,25 +1998,18 @@ internal static class ScriptParser
 
 internal static class TableWriter
 {
-    internal static void Write(IReadOnlyList<IPipelineRecord> rows, IReadOnlyList<string> columns, TextWriter? writer = null)
+    internal static void Write(
+        IReadOnlyList<IPipelineRecord> rows,
+        IReadOnlyList<string> columns,
+        TextWriter? writer = null,
+        AotExecutionContext? projectionContext = null,
+        Action? afterRowRendered = null)
     {
         writer ??= Console.Out;
-        // Help is terminal prose, not a one-column table. Keeping it a typed
-        // pipeline record still lets ScriptRunner share the normal execution
-        // path without adding a special stdout path to Get-Help itself.
-        if (columns.Count == 1 && columns[0] == "Value" && rows.All(static row => row is HelpRecord))
-        {
-            foreach (HelpRecord help in rows.Cast<HelpRecord>())
-            {
-                writer.WriteLine(help.Content);
-            }
-
-            return;
-        }
-
         int[] widths = columns.Select(static column => column.Length).ToArray();
         foreach (IPipelineRecord row in rows)
         {
+            projectionContext?.ThrowIfCancellationRequested();
             for (int index = 0; index < columns.Count; index++)
             {
                 widths[index] = Math.Max(widths[index], row.TextFor(columns[index]).Length);
@@ -2066,8 +2020,12 @@ internal static class TableWriter
         WriteLine(widths.Select(static width => new string('-', width)).ToArray(), widths, writer);
         foreach (IPipelineRecord row in rows)
         {
+            projectionContext?.ThrowIfCancellationRequested();
             WriteLine(columns.Select(row.TextFor).ToArray(), widths, writer);
+            afterRowRendered?.Invoke();
         }
+
+        projectionContext?.ThrowIfCancellationRequested();
     }
 
     private static void WriteLine(IReadOnlyList<string> values, IReadOnlyList<int> widths, TextWriter writer)
@@ -2088,6 +2046,7 @@ internal static class SelfTest
         AssertNamedLocalFunctions();
         AssertFunctionReturnControlFlow();
         AssertStaticFunctionComposition();
+        AssertGeneralTypedDataPipeline();
         AssertControlFlowCore();
         AssertForEachCore();
         AssertTerminalPresentation();
@@ -3036,7 +2995,10 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         // ordering rather than inventing per-record streaming semantics.
         AotExecutionContext mixedContext = new();
         using IDisposable mixedSubscription = mixedContext.Subscribe(static _ => { });
-        AotExecutionOutput output = new([new VerbRecord("Get", "g", "Common", "fixture")], ["Verb"]);
+        AotExecutionOutput output = AotExecutionOutput.FromTypedRows(
+            mixedContext,
+            [new VerbRecord("Get", "g", "Common", "fixture")],
+            ["Verb"]);
         mixedContext.WriteNonTerminatingError(AotDiagnostics.Runtime("FixtureError", "fixture error"));
         mixedContext.WriteOutput(output);
         if (!mixedContext.Events.Select(static runtimeEvent => runtimeEvent.Kind).SequenceEqual(
@@ -3111,7 +3073,7 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         AotExecutionContext processContext = new(processCancellation.Token);
         // This represents a previously completed output segment. Cancellation
         // does not erase transcript history or synthesize an error record.
-        processContext.WriteOutput(new AotExecutionOutput([], ["Value"]));
+        processContext.WriteOutput(new AotExecutionOutput(new AotRecordBatch([]), new AotRecordShape(["Value"])));
         AssertCancellation(() => cancelledDuringProcess.Invoke(invocation, processContext).ToArray());
         if (cancelledDuringProcess.BeginCalls != 1
             || cancelledDuringProcess.ProcessCalls != 1
@@ -3189,7 +3151,7 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
         if (composed.Outputs.SingleOrDefault() is not { Columns: var columns, Rows: var rows }
             || !columns.SequenceEqual(["Name", "Id"])
             || rows.Count == 0
-            || rows.Any(static row => row is not AotPipelineRecord))
+            || rows.Any(static row => row.Fields.Count != 2))
         {
             throw new InvalidOperationException("A registered typed input stage did not compose with the existing source and projection stages.");
         }
@@ -3250,7 +3212,7 @@ error[NoProcessFoundForGivenId]: No process was found with the process identifie
             .Execute(new AotExecutionContext());
         if (listResult.Outputs.SingleOrDefault() is not { Rows: var verbRows, Columns: var verbColumns }
             || !verbColumns.SequenceEqual(["Verb"])
-            || !verbRows.OfType<AotPipelineRecord>().Select(row => row.TextFor("Verb")).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(["Get", "Set"]))
+            || !verbRows.Select(row => row.TextFor("Verb")).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(["Get", "Set"]))
         {
             throw new InvalidOperationException("A variable list did not expand into values for the existing generated-metadata binder.");
         }
@@ -3716,7 +3678,7 @@ Read-Group $null
         if (producer.Outputs.SingleOrDefault() is not { Columns: var producerColumns, Rows: var producerRows }
             || !producerColumns.SequenceEqual(["Id", "BaseUtcOffsetMinutes"])
             || producerRows.Count == 0
-            || producerRows.Any(static row => row is not AotPipelineRecord))
+            || producerRows.Any(static row => row.Fields.Count != 2))
         {
             throw new InvalidOperationException("A transparent local-function producer did not reuse the typed Where/Select tail.");
         }
@@ -3727,7 +3689,6 @@ Read-Group $null
         AssertFunctionFailure("function Needs-One($group) { Get-Verb -Group $group }; Needs-One Common -group Data", "function-duplicate-named.ps1", "AOT5010");
         AssertFunctionFailure("function Needs-Two($one, $two) { Get-Verb -Group $one }; Needs-Two -one Common Data", "function-positional-after-named.ps1", "AOT5012");
         AssertFunctionFailure("function Too-Many($group) { Get-Verb -Group $group }; Too-Many Common Data", "function-extra-positional.ps1", "AOT5008");
-        AssertFunctionFailure("function Not-Transparent() { $group = 'Common'; Get-Verb -Group $group }; Not-Transparent | Select-Object Verb", "function-producer-multiple-statements.ps1", "AOT1001");
         AssertFunctionFailure("function Nested-Producer() { function Inner() { Get-Verb -Verb Add }; Inner }; Nested-Producer | Select-Object Verb", "function-producer-nested.ps1", "AOT1001");
         AssertFunctionFailure("function Get-Zones() { Get-TimeZone -ListAvailable }; Get-Zones | Get-Process", "function-producer-native-input.ps1", "AOT1001");
 
@@ -3755,19 +3716,6 @@ error[AOT5011]: Function 'One' parameter '-value' requires a closed value.
    |                                                     ^^^^^^ local-function parameter requires a value
    = help: Supply one closed value immediately after the named parameter.
 """);
-        AssertFunctionDiagnosticSnapshot(
-            "function Many() { $x = 'Common'; Get-Verb -Group $x }; Many | Select-Object Verb",
-            "function-producer-snapshot.ps1",
-            "AOT1001",
-            """
-error[AOT1001]: a local function with exactly one direct native source pipeline statement is parsed but not executable by the Native AOT structural subset.
-  --> function-producer-snapshot.ps1:1:56
-   |
-1 | function Many() { $x = 'Common'; Get-Verb -Group $x }; Many | Select-Object Verb
-   |                                                        ^^^^ unsupported execution feature
-   = help: Use the function directly, or define one native source command in its body before composing Where-Object or Select-Object outside it.
-""");
-
         try
         {
             _ = AotExecutionKernel.Compile(
@@ -3798,6 +3746,250 @@ error[AOT1001]: a local function with exactly one direct native source pipeline 
                 // until it has a specifically reviewed binding contract.
             }
         }
+    }
+
+    private static void AssertGeneralTypedDataPipeline()
+    {
+        const string repeatedTransforms = "Get-TimeZone -ListAvailable | Where-Object BaseUtcOffsetMinutes -ge -1000 | Select-Object Id, BaseUtcOffsetMinutes | Where-Object BaseUtcOffsetMinutes -ge -1000 | Select-Object Id";
+        AotExecutionResult transformed = AotExecutionKernel.Compile(repeatedTransforms, "typed-record-transforms.ps1")
+            .Execute(new AotExecutionContext());
+        if (transformed.Outputs.SingleOrDefault() is not { Columns: var transformColumns, Rows: var transformRows }
+            || !transformColumns.SequenceEqual(["Id"])
+            || transformRows.Count == 0
+            || transformRows.Any(static row => row.Fields.Count != 1))
+        {
+            throw new InvalidOperationException("Repeated mixed Where-Object/Select-Object transforms did not retain one explicit record shape.");
+        }
+
+        const string producerSource = "function Get-TwoVerbs() { $group = 'Common'; Get-Verb -Verb Add | Select-Object Verb; Get-Verb -Verb Get | Select-Object Verb }; Get-TwoVerbs | Select-Object Verb";
+        AotExecutionResult producer = AotExecutionKernel.Compile(producerSource, "function-record-batch.ps1")
+            .Execute(new AotExecutionContext());
+        if (producer.Outputs.SingleOrDefault() is not { Columns: var producerColumns, Rows: var producerRows }
+            || !producerColumns.SequenceEqual(["Verb"])
+            || !producerRows.Select(row => row.TextFor("Verb")).SequenceEqual(["Add", "Get"]))
+        {
+            throw new InvalidOperationException("Function pipeline composition did not collect ordered typed output into one record batch.");
+        }
+
+        AssertFunctionFailure(
+            "Get-TimeZone -ListAvailable | Where-Object BaseUtcOffsetMinutes -ge -1000 | Select-Object Id | Where-Object Id -ne 0 | Select-Object Id | Where-Object Id -ne 0",
+            "typed-record-transform-cap.ps1",
+            "AOT1001");
+
+        AssertFunctionFailure(
+            "Get-TimeZone -ListAvailable | Select-Object Id | Where-Object BaseUtcOffsetMinutes -ge -1000",
+            "typed-record-dropped-field.ps1",
+            "AOT4005");
+        AssertFunctionFailure(
+            "function Mixed() { Get-Verb -Verb Add | Select-Object Verb; Get-Date | Select-Object DateTime }; Mixed | Where-Object Verb -eq 0",
+            "function-producer-heterogeneous-filter.ps1",
+            "AOT1001");
+
+        AotExecutionResult returnedProducer = AotExecutionKernel.Compile(
+                "function First-Verb() { Get-Verb -Verb Add | Select-Object Verb; return; Get-Verb -Verb Get | Select-Object Verb }; First-Verb | Select-Object Verb",
+                "function-producer-return.ps1")
+            .Execute(new AotExecutionContext());
+        if (returnedProducer.Outputs.SingleOrDefault() is not { Rows: var returnedRows }
+            || !returnedRows.Select(row => row.TextFor("Verb")).SequenceEqual(["Add"]))
+        {
+            throw new InvalidOperationException("A bare return in a function producer did not preserve pre-return typed batch rows.");
+        }
+
+        AssertTerminalPresentationContracts();
+
+        const string shapeContractSource = "Get-Verb | Select-Object Verb";
+        AotSourceSpan shapeContractSpan = new("shape-contract.ps1", 0, 8, 1, 1, 1, 9);
+        try
+        {
+            new AotRecordShape(["Missing"]).ValidateForProjection(
+                new AotRecord([new AotField("Verb", AotValue.FromString("Get"))]),
+                shapeContractSpan);
+            throw new InvalidOperationException("A record shape contract accepted a record without its required field.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT4011")
+        {
+            AssertDiagnosticSnapshot(error.Diagnostic, shapeContractSource, """
+error[AOT4011]: AOT record output does not expose required field 'Missing'.
+  --> shape-contract.ps1:1:1
+   |
+1 | Get-Verb | Select-Object Verb
+   | ^^^^^^^^ record shape contract mismatch
+   = help: Use a last direct Select-Object that names fields emitted by every record.
+""");
+        }
+
+        AssertBatchAndProjectionCancellation();
+
+        const string unregisteredSource = "Get-Unknown | Select-Object Name";
+        AotSourceSpan unregisteredSpan = new("unregistered-record.ps1", 0, 11, 1, 1, 1, 12);
+        try
+        {
+            _ = AotRecordBatch.FromTypedRows(new AotExecutionContext(), [new UnregisteredPipelineRecord()], unregisteredSpan);
+            throw new InvalidOperationException("An unregistered pipeline record crossed the AOT record boundary.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT4009")
+        {
+            AssertDiagnosticSnapshot(error.Diagnostic, unregisteredSource, """
+error[AOT4009]: This pipeline record type is not registered for the Native AOT record boundary.
+  --> unregistered-record.ps1:1:1
+   |
+1 | Get-Unknown | Select-Object Name
+   | ^^^^^^^^^^^ unregistered pipeline record
+   = help: Add an explicit reviewed record adapter before using this cmdlet in a structural pipeline.
+""");
+        }
+    }
+
+    // Terminal prose is a static pipeline-plan contract. These go through the
+    // same ScriptRunner/event/projector path as the CLI rather than calling a
+    // cmdlet renderer or inspecting a HelpRecord at the terminal boundary.
+    private static void AssertTerminalPresentationContracts()
+    {
+        string help = CaptureHostOutput("Get-Help NoSuchTopic");
+        string expectedHelp = $"No help topic matched 'NoSuchTopic'.{Environment.NewLine}";
+        if (help != expectedHelp)
+        {
+            throw new InvalidOperationException("Direct Get-Help did not retain its static terminal-prose contract.");
+        }
+
+        string functionHelp = CaptureHostOutput("function Show-Help { Get-Help NoSuchTopic }; Show-Help");
+        if (functionHelp != expectedHelp)
+        {
+            throw new InvalidOperationException("A direct local function did not retain its contained Get-Help terminal-prose contract.");
+        }
+
+        string transformedHelp = CaptureHostOutput("Get-Help NoSuchTopic | Select-Object Value");
+        if (!HasValueTableHeader(transformedHelp)
+            || !transformedHelp.Contains("No help topic matched 'NoSuchTopic'.", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A structural transform did not reset Get-Help to the table presentation contract.");
+        }
+
+        string ordinaryValue = CaptureHostOutput("Get-Date -UFormat +%Y");
+        if (!HasValueTableHeader(ordinaryValue))
+        {
+            throw new InvalidOperationException("An ordinary Value-shaped cmdlet was incorrectly rendered as terminal prose.");
+        }
+    }
+
+    private static string CaptureHostOutput(string source)
+    {
+        StringWriter output = new(CultureInfo.InvariantCulture);
+        StringWriter error = new(CultureInfo.InvariantCulture);
+        TextWriter originalOutput = Console.Out;
+        TextWriter originalError = Console.Error;
+        try
+        {
+            Console.SetOut(output);
+            Console.SetError(error);
+            if (ScriptRunner.Execute(source, colorMode: AotColorMode.Never) != 0 || error.GetStringBuilder().Length != 0)
+            {
+                throw new InvalidOperationException($"The terminal presentation host fixture failed: {source}");
+            }
+        }
+        finally
+        {
+            Console.SetOut(originalOutput);
+            Console.SetError(originalError);
+        }
+
+        return output.ToString();
+    }
+
+    private static bool HasValueTableHeader(string output)
+    {
+        string[] lines = output.Split([Environment.NewLine], StringSplitOptions.None);
+        return lines.Length >= 2
+            && lines[0].TrimEnd().Equals("Value", StringComparison.Ordinal)
+            && lines[1].TrimEnd().All(static character => character == '-');
+    }
+
+    private static void AssertBatchAndProjectionCancellation()
+    {
+        using CancellationTokenSource conversionCancellation = new();
+        AotExecutionContext conversionContext = new(conversionCancellation.Token);
+        AssertCancellation(() => AotRecordBatch.FromTypedRows(conversionContext, YieldThenCancel(conversionCancellation)));
+        if (conversionContext.Events.Count != 0 || conversionContext.Errors.Count != 0)
+        {
+            throw new InvalidOperationException("Cancelled record-batch conversion emitted a success or error event.");
+        }
+
+        AotRecordBatch batch = new(
+        [
+            new AotRecord([new AotField("Value", AotValue.FromString("first"))]),
+            new AotRecord([new AotField("Value", AotValue.FromString("second"))]),
+        ]);
+        using CancellationTokenSource transformCancellation = new();
+        AotExecutionContext transformContext = new(transformCancellation.Token);
+        CancelAfterFirstTransform transform = new(transformCancellation);
+        AssertCancellation(() => batch.Apply(transformContext, [transform]));
+        if (transform.ApplyCount != 1)
+        {
+            throw new InvalidOperationException("Record-batch transformation did not cancel after its first row.");
+        }
+        if (transformContext.Events.Count != 0 || transformContext.Errors.Count != 0)
+        {
+            throw new InvalidOperationException("Cancelled record-batch transformation emitted a success or error event.");
+        }
+
+        using CancellationTokenSource projectionCancellation = new();
+        AotExecutionContext projectionContext = new(projectionCancellation.Token);
+        StringWriter output = new(CultureInfo.InvariantCulture);
+        StringWriter error = new(CultureInfo.InvariantCulture);
+        int renderedRows = 0;
+        AotTerminalEventProjector projector = new(
+            "Get-Help NoSuchTopic",
+            "projection-cancellation.ps1",
+            new AotDiagnosticRenderOptions(UseAnsi: false),
+            output,
+            error,
+            projectionContext,
+            () =>
+            {
+                renderedRows++;
+                projectionCancellation.Cancel();
+            });
+        AssertCancellation(() => projector.Project(AotRuntimeEvent.Success(
+            1,
+            new AotExecutionOutput(batch, new AotRecordShape(["Value"]), AotTerminalPresentation.Prose))));
+        if (renderedRows != 1)
+        {
+            throw new InvalidOperationException("Terminal projection did not cancel after buffering its first row.");
+        }
+        if (output.GetStringBuilder().Length != 0
+            || error.GetStringBuilder().Length != 0
+            || projectionContext.Events.Count != 0
+            || projectionContext.Errors.Count != 0)
+        {
+            throw new InvalidOperationException("Cancelled terminal projection emitted a success or error result.");
+        }
+
+        static IEnumerable<IPipelineRecord> YieldThenCancel(CancellationTokenSource cancellation)
+        {
+            yield return new TextRecord("first");
+            cancellation.Cancel();
+            yield return new TextRecord("second");
+        }
+    }
+
+    private sealed class CancelAfterFirstTransform(CancellationTokenSource cancellation) : AotRecordTransform(null)
+    {
+        internal int ApplyCount { get; private set; }
+
+        internal override bool TryApply(AotRecord record, out AotRecord? transformed)
+        {
+            ApplyCount++;
+            transformed = record;
+            cancellation.Cancel();
+            return true;
+        }
+    }
+
+    private sealed class UnregisteredPipelineRecord : IPipelineRecord
+    {
+        public double NumberFor(string property) => throw new NotSupportedException();
+
+        public string TextFor(string column) => throw new NotSupportedException();
     }
 
     private static void AssertFunctionDiagnosticSnapshot(string source, string documentName, string id, string expected)
@@ -3832,7 +4024,7 @@ else {
             .Execute(new AotExecutionContext());
         if (selectedBranch.Outputs.SingleOrDefault() is not { Columns: var selectedColumns, Rows: var selectedRows }
             || !selectedColumns.SequenceEqual(["Verb"])
-            || !selectedRows.OfType<AotPipelineRecord>().Any(row => row.TextFor("Verb") == "Add"))
+            || !selectedRows.Any(row => row.TextFor("Verb") == "Add"))
         {
             throw new InvalidOperationException("The selected if branch did not execute through the normal pipeline plan.");
         }
@@ -4312,13 +4504,18 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
 
         StringWriter output = new(CultureInfo.InvariantCulture);
         StringWriter error = new(CultureInfo.InvariantCulture);
+        AotExecutionContext projectionContext = new();
         AotTerminalEventProjector projector = new(
             "Get-Verb",
             "host-projection.ps1",
             new AotDiagnosticRenderOptions(UseAnsi: true),
             output,
-            error);
-        AotExecutionOutput segment = new([new VerbRecord("Get", "g", "Common", "fixture")], ["Verb", "AliasPrefix"]);
+            error,
+            projectionContext);
+        AotExecutionOutput segment = AotExecutionOutput.FromTypedRows(
+            new AotExecutionContext(),
+            [new VerbRecord("Get", "g", "Common", "fixture")],
+            ["Verb", "AliasPrefix"]);
         projector.Project(AotRuntimeEvent.Success(1, segment));
         if (!output.ToString().Contains("Verb", StringComparison.Ordinal)
             || error.GetStringBuilder().Length != 0)
@@ -4445,9 +4642,13 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             fixturePort,
             fixtureInvocation,
             null,
-            new Filter("CPU", Comparison.GreaterThan, AotValue.FromInteger(10)),
-            ["Name", "Id"],
-            projected: true);
+            [
+                new AotRecordFilterTransform(new Filter("CPU", Comparison.GreaterThan, AotValue.FromInteger(10)), null),
+                new AotRecordProjectionTransform(["Name", "Id"], null),
+            ],
+            new AotRecordShape(["Name", "Id"]),
+            null,
+            pipelineLength: 3);
         IReadOnlyList<IPipelineRecord> valueRows = valuePlan.Execute(new AotExecutionContext());
         if (valueRows.SingleOrDefault() is not AotPipelineRecord { Record: var result }
             || !result.Fields.Select(static field => field.Name).SequenceEqual(["Name", "Id"])

@@ -23,6 +23,14 @@ plane, but `Console.ReadLine` cannot safely color an editable buffer. A future
 raw-key editor must project the shared parser result and must not create a
 second lexer or execute input to color it.
 
+Command-output presentation remains typed too. `AotExecutionOutput` carries a
+static presentation mode from the already-bound cmdlet/pipeline plan. Direct,
+untransformed `Get-Help` is the admitted prose contract; ordinary one-column
+`Value` output remains a table, and any structural transform resets help to a
+table. The terminal projector honors that mode after validating the immutable
+batch/shape contract; it never infers prose by checking a runtime `HelpRecord`
+or any other CLR type.
+
 The [conditional execution and terminal-presentation review ledger](../reviews/2026-09-22-if-control-flow-terminal-presentation.md)
 records the terminal-policy, sanitizer, parser, and Native AOT evidence for
 this admission.
