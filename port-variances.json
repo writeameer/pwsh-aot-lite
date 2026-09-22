@@ -270,6 +270,48 @@
       ]
     },
     {
+      "command": "Get-Item",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/Navigation.cs",
+      "state": "in-progress-wave3-captured-root-direct-physical-slice",
+      "variances": [
+        {
+          "id": "getitem-generated-contract",
+          "sourceFeature": "GetItemCommand Path/LiteralPath/provider parameter declarations and parameter sets",
+          "targetDecision": "Generated metadata remains authoritative; the active adapter admits only generated mandatory positional-or-named Path.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "getitem-direct-physical-provider-boundary",
+          "sourceFeature": "ProcessRecord delegates Get-Item to InvokeProvider.Item.Get through SessionState and CmdletProviderContext",
+          "targetDecision": "Extend the existing immutable IPhysicalChildItemCatalog with GetDirectPhysicalItem, sharing captured-root canonicalization, provider/wildcard rejection, all-components no-follow acquisition, metadata, cancellation, and diagnostics while returning exactly one item rather than enumerating a directory.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "getitem-shared-closed-physical-record",
+          "sourceFeature": "FileSystemProvider returns FileInfo/DirectoryInfo objects enriched through PSObject/ETS",
+          "targetDecision": "Reuse the existing finite PhysicalChildItemRecord and explicit PipelineValueAdapter registration; no provider object, PSObject, reflection, or arbitrary property bag enters the pipeline.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "getitem-unix-format-static-extraction",
+          "sourceFeature": "Dynamic FileSystemInfo type-data and childrenWithUnixStat table selection",
+          "targetDecision": "Move the existing source-attributed Unix layout under PhysicalItemPresentation and reuse it by identity for Get-Item and Get-ChildItem; dynamic format/type discovery remains deferred.",
+          "status": "static-data-extracted",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "getitem-mandatory-path-noninteractive",
+          "sourceFeature": "The mandatory Path parameter can trigger PowerShell's interactive mandatory-parameter prompt when omitted.",
+          "targetDecision": "The noninteractive Native AOT static binder preserves generated mandatory Path metadata but does not implement an interactive prompt. An omitted Path therefore fails closed with source-spanned AOT6211 and a checked plain-terminal diagnostic snapshot; it never becomes an empty-result lookup. A future interactive-host contract is the required second-pass admission path; the cmdlet must not recreate prompting itself.",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Get-FileHash",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetHash.cs",
       "state": "complete-direct-physical-file-target",
