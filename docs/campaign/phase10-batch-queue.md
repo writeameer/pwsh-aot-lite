@@ -6,6 +6,7 @@ This queue accounts for every logical command in the checked Phase 10 manifest e
 - Accounting: 288 logical commands; 9 completed commands (5 baseline and 4 integrated during this campaign); 279 queued commands in 28 batches of ten (final queued batch may be smaller).
 - `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue and includes the deliberately pulled-forward JSON foundation as `W3a`; JSON work remains blocked on J0, the closed JSON codec/value-plane seam.
 - Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.
+- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the 279 unconverted survey outcomes. `missing-profile` means no exact compiler profile, not that every command has the same blocker.
 
 Regenerate or verify this queue:
 

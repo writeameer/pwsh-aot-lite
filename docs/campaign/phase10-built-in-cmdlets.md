@@ -22,6 +22,12 @@ current catalog/execution state. The rules live in
 The source generator supplies contract evidence; it must never auto-promote a
 row to executable status.
 
+The survey's unconverted outcomes are additionally grouped by upstream
+implementation family and reusable engineering route in the
+[Phase 10 engineering archetype inventory](phase10-archetype-inventory.md).
+That inventory explains why a compiler profile is missing; it does not alter
+this manifest's authoritative category, wave, or availability data.
+
 ## Inventory quality gate
 
 ```powershell
