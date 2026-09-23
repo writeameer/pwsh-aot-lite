@@ -9,11 +9,11 @@
     "logicalCommandCount": 288
   },
   "batchSize": 10,
-  "completedCommandCount": 7,
+  "completedCommandCount": 8,
   "completedBaselineCommandCount": 5,
-  "completedIntegratedCommandCount": 2,
-  "queuedCommandCount": 281,
-  "queuedBatchCount": 29,
+  "completedIntegratedCommandCount": 3,
+  "queuedCommandCount": 280,
+  "queuedBatchCount": 28,
   "batches": [
     {
       "batchId": "B00",
@@ -120,7 +120,7 @@
     {
       "batchId": "B01",
       "kind": "completed-integrated",
-      "commandCount": 2,
+      "commandCount": 3,
       "commands": [
         {
           "command": "Get-Item",
@@ -159,6 +159,25 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/TestPathCommand.cs"
           ],
           "platformVariants": []
+        },
+        {
+          "command": "Resolve-Path",
+          "category": "shared-substrate-dependency",
+          "sourceWave": "W3",
+          "queueWave": "W3",
+          "requiredPrerequisites": [
+            "integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence"
+          ],
+          "intendedOutcomeState": "native-subset-proven",
+          "status": "completed-integrated",
+          "queueRationale": "Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again.",
+          "declarationIds": [
+            "src/Microsoft.PowerShell.Commands.Management/commands/management/ResolvePathCommand.cs|ResolvePathCommand|1"
+          ],
+          "sourcePaths": [
+            "src/Microsoft.PowerShell.Commands.Management/commands/management/ResolvePathCommand.cs"
+          ],
+          "platformVariants": []
         }
       ]
     },
@@ -167,30 +186,6 @@
       "kind": "queued",
       "commandCount": 10,
       "commands": [
-        {
-          "command": "Resolve-Path",
-          "category": "shared-substrate-dependency",
-          "sourceWave": "W3",
-          "queueWave": "W3",
-          "sourceRequiredPrerequisites": [
-            "direct-path/provider rejection matrix",
-            "physical filesystem read capability"
-          ],
-          "requiredPrerequisites": [
-            "direct-path/provider rejection matrix",
-            "physical filesystem read capability"
-          ],
-          "intendedOutcomeState": "native-subset-or-extend-shared-seam",
-          "status": "queued",
-          "queueRationale": "Reuses the proven direct physical path resolver and captured-root policy.",
-          "declarationIds": [
-            "src/Microsoft.PowerShell.Commands.Management/commands/management/ResolvePathCommand.cs|ResolvePathCommand|1"
-          ],
-          "sourcePaths": [
-            "src/Microsoft.PowerShell.Commands.Management/commands/management/ResolvePathCommand.cs"
-          ],
-          "platformVariants": []
-        },
         {
           "command": "Convert-Path",
           "category": "shared-substrate-dependency",
@@ -406,14 +401,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B03",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Test-Json",
           "category": "native-replacement-required",
@@ -433,7 +421,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/TestJsonCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B03",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Get-Location",
           "category": "shared-substrate-dependency",
@@ -645,14 +640,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/AddMember.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B04",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Compare-Object",
           "category": "native-replacement-required",
@@ -672,7 +660,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Compare-Object.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B04",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "ConvertFrom-CliXml",
           "category": "native-replacement-required",
@@ -852,14 +847,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/XmlCommands.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B05",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Disable-ExperimentalFeature",
           "category": "native-replacement-required",
@@ -883,7 +871,14 @@
             "src/System.Management.Automation/engine/ExperimentalFeature/EnableDisableExperimentalFeatureCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B05",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Enable-ExperimentalFeature",
           "category": "native-replacement-required",
@@ -1067,14 +1062,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/FormatAndOutput/format-hex/Format-Hex.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B06",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Format-List",
           "category": "native-replacement-required",
@@ -1094,7 +1082,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/FormatAndOutput/format-list/Format-List.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B06",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Format-Table",
           "category": "native-replacement-required",
@@ -1290,14 +1285,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetMember.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B07",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Get-Module",
           "category": "native-replacement-required",
@@ -1321,7 +1309,14 @@
             "src/System.Management.Automation/engine/Modules/GetModuleCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B07",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Get-PSSubsystem",
           "category": "native-replacement-required",
@@ -1521,14 +1516,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/CsvCommands.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B08",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Import-LocalizedData",
           "category": "native-replacement-required",
@@ -1548,7 +1536,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Import-LocalizedData.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B08",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Import-Module",
           "category": "native-replacement-required",
@@ -1736,14 +1731,7 @@
             "src/System.Management.Automation/FormatAndOutput/out-textInterface/OutTextInterface.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B09",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Out-Null",
           "category": "native-replacement-required",
@@ -1763,7 +1751,14 @@
             "src/System.Management.Automation/FormatAndOutput/out-console/OutConsole.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B09",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Out-Printer",
           "category": "native-replacement-required",
@@ -1951,14 +1946,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/trace/SetTracerCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B10",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Show-Command",
           "category": "native-replacement-required",
@@ -1982,7 +1970,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/ShowCommand/ShowCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B10",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Show-Markdown",
           "category": "native-replacement-required",
@@ -2170,14 +2165,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Write-Object.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B11",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Write-Progress",
           "category": "native-replacement-required",
@@ -2197,7 +2185,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WriteProgressCmdlet.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B11",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Write-Verbose",
           "category": "native-replacement-required",
@@ -2419,14 +2414,7 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/CopyPropertyCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B12",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Move-Item",
           "category": "shared-substrate-dependency",
@@ -2452,7 +2440,14 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/Navigation.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B12",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Move-ItemProperty",
           "category": "shared-substrate-dependency",
@@ -2686,14 +2681,7 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/RemovePropertyCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B13",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Remove-PSDrive",
           "category": "shared-substrate-dependency",
@@ -2719,7 +2707,14 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/Navigation.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B13",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Rename-Item",
           "category": "shared-substrate-dependency",
@@ -2947,14 +2942,7 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/GetComputerInfoCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B14",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Get-Counter",
           "category": "shared-substrate-dependency",
@@ -2978,7 +2966,14 @@
             "src/Microsoft.PowerShell.Commands.Diagnostics/GetCounterCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B14",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Get-Culture",
           "category": "shared-substrate-dependency",
@@ -3194,14 +3189,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetUptime.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B15",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "New-Service",
           "category": "shared-substrate-dependency",
@@ -3225,7 +3213,14 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/Service.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B15",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Out-Host",
           "category": "shared-substrate-dependency",
@@ -3441,14 +3436,7 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/Service.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B16",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Set-TimeZone",
           "category": "shared-substrate-dependency",
@@ -3472,7 +3460,14 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/TimeZoneCommands.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B16",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Start-Process",
           "category": "shared-substrate-dependency",
@@ -3693,14 +3688,7 @@
             "src/System.Management.Automation/engine/Modules/SwitchProcessCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B17",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Update-Help",
           "category": "shared-substrate-dependency",
@@ -3724,7 +3712,14 @@
             "src/System.Management.Automation/help/UpdateHelpCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B17",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Update-List",
           "category": "shared-substrate-dependency",
@@ -3940,14 +3935,7 @@
             "src/Microsoft.PowerShell.Security/security/ExecutionPolicyCommands.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B18",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Get-PfxCertificate",
           "category": "shared-substrate-dependency",
@@ -3971,7 +3959,14 @@
             "src/Microsoft.PowerShell.Security/security/CertificateCommands.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B18",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Invoke-RestMethod",
           "category": "shared-substrate-dependency",
@@ -4192,14 +4187,7 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/TestConnectionCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B19",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Unprotect-CmsMessage",
           "category": "shared-substrate-dependency",
@@ -4223,7 +4211,14 @@
             "src/Microsoft.PowerShell.Security/security/CmsCommands.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B19",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Connect-WSMan",
           "category": "sidecar-candidate",
@@ -4457,14 +4452,7 @@
             "src/System.Management.Automation/engine/remoting/commands/EnterPSHostProcessCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B20",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Exit-PSHostProcess",
           "category": "sidecar-candidate",
@@ -4490,7 +4478,14 @@
             "src/System.Management.Automation/engine/remoting/commands/EnterPSHostProcessCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B20",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Export-PSSession",
           "category": "sidecar-candidate",
@@ -4724,14 +4719,7 @@
             "src/System.Management.Automation/engine/remoting/commands/EnterPSHostProcessCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B21",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Get-PSSessionCapability",
           "category": "sidecar-candidate",
@@ -4757,7 +4745,14 @@
             "src/System.Management.Automation/engine/remoting/commands/CustomShellCommands.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B21",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Get-PSSessionConfiguration",
           "category": "sidecar-candidate",
@@ -4991,14 +4986,7 @@
             "src/Microsoft.Management.Infrastructure.CimCmdlets/NewCimInstanceCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B22",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "New-CimSession",
           "category": "sidecar-candidate",
@@ -5024,7 +5012,14 @@
             "src/Microsoft.Management.Infrastructure.CimCmdlets/NewCimSessionCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B22",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "New-CimSessionOption",
           "category": "sidecar-candidate",
@@ -5258,14 +5253,7 @@
             "src/Microsoft.WSMan.Management/NewWSManSession.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B23",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Receive-Job",
           "category": "sidecar-candidate",
@@ -5291,7 +5279,14 @@
             "src/System.Management.Automation/engine/remoting/commands/ReceiveJob.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B23",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Receive-PSSession",
           "category": "sidecar-candidate",
@@ -5525,14 +5520,7 @@
             "src/System.Management.Automation/engine/remoting/commands/RemoveJob.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B24",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Remove-WSManInstance",
           "category": "sidecar-candidate",
@@ -5558,7 +5546,14 @@
             "src/Microsoft.WSMan.Management/WSManInstance.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B24",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Set-CimInstance",
           "category": "sidecar-candidate",
@@ -5792,14 +5787,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/UnregisterEventCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B25",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Unregister-PSSessionConfiguration",
           "category": "sidecar-candidate",
@@ -5825,7 +5813,14 @@
             "src/System.Management.Automation/engine/remoting/commands/CustomShellCommands.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B25",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Wait-Event",
           "category": "sidecar-candidate",
@@ -6017,14 +6012,7 @@
             "src/Microsoft.PowerShell.Commands.Management/commands/management/Process.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B26",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Debug-Runspace",
           "category": "explicitly-unsupported",
@@ -6044,7 +6032,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/DebugRunspaceCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B26",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Disable-PSBreakpoint",
           "category": "explicitly-unsupported",
@@ -6224,14 +6219,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetAliasCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B27",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Get-History",
           "category": "explicitly-unsupported",
@@ -6251,7 +6239,14 @@
             "src/System.Management.Automation/engine/hostifaces/History.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B27",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Get-PSBreakpoint",
           "category": "explicitly-unsupported",
@@ -6431,14 +6426,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/ImportAliasCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B28",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Invoke-Expression",
           "category": "explicitly-unsupported",
@@ -6458,7 +6446,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/InvokeExpressionCommand.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B28",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Invoke-History",
           "category": "explicitly-unsupported",
@@ -6638,14 +6633,7 @@
             "src/System.Management.Automation/engine/remoting/commands/removerunspacecommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B29",
-      "kind": "queued",
-      "commandCount": 10,
-      "commands": [
+        },
         {
           "command": "Remove-TypeData",
           "category": "explicitly-unsupported",
@@ -6665,7 +6653,14 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Update-TypeData.cs"
           ],
           "platformVariants": []
-        },
+        }
+      ]
+    },
+    {
+      "batchId": "B29",
+      "kind": "queued",
+      "commandCount": 10,
+      "commands": [
         {
           "command": "Remove-Variable",
           "category": "explicitly-unsupported",
@@ -6845,14 +6840,7 @@
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/EnableDisableRunspaceDebugCommand.cs"
           ],
           "platformVariants": []
-        }
-      ]
-    },
-    {
-      "batchId": "B30",
-      "kind": "queued",
-      "commandCount": 1,
-      "commands": [
+        },
         {
           "command": "Write-Debug",
           "category": "explicitly-unsupported",

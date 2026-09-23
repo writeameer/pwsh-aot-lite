@@ -21,6 +21,12 @@ internal interface IPhysicalChildItemCatalog
     // an item record would be needless policy and would risk turning a probe
     // into a second lookup contract.
     PhysicalItemProbeResult ProbeDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span);
+
+    // Resolve-Path needs only the canonical direct path after the same
+    // no-follow acquisition used by the item operations.  It deliberately
+    // does not describe an item, enumerate a directory, or expose a provider
+    // result/object.
+    DirectPhysicalPathResolution ResolveExistingDirectPhysicalPath(string path, AotExecutionContext context, AotSourceSpan? span);
 }
 
 internal enum PhysicalChildItemKind { File, Directory }
@@ -36,6 +42,30 @@ internal readonly record struct PhysicalItemProbeResult(PhysicalItemProbeStatus 
     internal static PhysicalItemProbeResult Found(PhysicalChildItemKind kind) => new(PhysicalItemProbeStatus.Found, kind);
     internal static PhysicalItemProbeResult Missing { get; } = new(PhysicalItemProbeStatus.Missing);
     internal static PhysicalItemProbeResult Rejected { get; } = new(PhysicalItemProbeStatus.Rejected);
+}
+
+// A Resolve-Path result is intentionally not a bool, errno, PathInfo, or
+// FileSystemInfo.  Missing and Rejected already have their distinct catalog
+// diagnostic policy; only Resolved owns a closed path record.
+internal enum DirectPhysicalPathResolutionStatus { Resolved, Missing, Rejected }
+
+internal readonly record struct DirectPhysicalPathResolution(DirectPhysicalPathResolutionStatus Status, DirectPhysicalPathRecord? Record = null)
+{
+    internal static DirectPhysicalPathResolution Resolved(DirectPhysicalPathRecord record) => new(DirectPhysicalPathResolutionStatus.Resolved, record);
+    internal static DirectPhysicalPathResolution Missing { get; } = new(DirectPhysicalPathResolutionStatus.Missing);
+    internal static DirectPhysicalPathResolution Rejected { get; } = new(DirectPhysicalPathResolutionStatus.Rejected);
+}
+
+// The only data Resolve-Path admits across the AOT pipeline boundary.  The
+// source emits PathInfo/provider objects; this bounded port emits only the
+// canonical physical path string that its no-follow catalog acquired.
+internal sealed record DirectPhysicalPathRecord(string Path) : IPipelineRecord
+{
+    public double NumberFor(string property) => throw new ScriptException($"Where-Object does not support property '{property}' for resolved physical paths.");
+
+    public string TextFor(string column) => column.Equals("Path", StringComparison.OrdinalIgnoreCase)
+        ? Path
+        : throw new ScriptException($"Select-Object does not support column '{column}' for resolved physical paths.");
 }
 
 // This is deliberately a small, public-to-the-substrate result rather than
@@ -102,6 +132,33 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
         return ProbeCanonicalDirectPhysicalItem(canonicalPath!, context, span);
     }
 
+    public DirectPhysicalPathResolution ResolveExistingDirectPhysicalPath(string path, AotExecutionContext context, AotSourceSpan? span)
+    {
+        // Empty has a source-specific diagnostic.  Whitespace intentionally
+        // reaches canonicalization as a literal filename; trimming it would
+        // silently turn an existence miss into the captured root.
+        if (path.Length == 0)
+        {
+            WriteError(context, "AOT6213", "Resolve-Path does not accept an empty direct physical -Path value in the current Native AOT slice.", span,
+                "empty direct physical path", "Supply one non-empty direct operating-system file or directory path.");
+            return DirectPhysicalPathResolution.Rejected;
+        }
+
+        if (!TryResolveDirectPhysicalPath(path, context, span, out string? canonicalPath))
+        {
+            return DirectPhysicalPathResolution.Rejected;
+        }
+
+        DirectPhysicalAcquisition acquisition = AcquireCanonicalDirectPhysicalPath(canonicalPath!, context, span, emitMissingDiagnostic: true);
+        return acquisition.Status switch
+        {
+            DirectPhysicalAcquisitionStatus.Found => DirectPhysicalPathResolution.Resolved(new DirectPhysicalPathRecord(canonicalPath!)),
+            DirectPhysicalAcquisitionStatus.Missing => DirectPhysicalPathResolution.Missing,
+            DirectPhysicalAcquisitionStatus.Rejected => DirectPhysicalPathResolution.Rejected,
+            _ => throw new InvalidOperationException("Unexpected direct physical acquisition status."),
+        };
+    }
+
     private bool TryResolveDirectPhysicalPath(string path, AotExecutionContext context, AotSourceSpan? span, out string? canonicalPath)
     {
         canonicalPath = null;
@@ -140,7 +197,7 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
 
     private string? TryCanonicalize(string path, AotExecutionContext context, AotSourceSpan? span)
     {
-        if (string.IsNullOrWhiteSpace(path))
+        if (path.Length == 0)
         {
             path = ".";
         }
@@ -163,93 +220,14 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
 
     private PhysicalChildItem? TryDescribe(string canonicalPath, AotExecutionContext context, AotSourceSpan? span, bool emitMissing)
     {
-        context.ThrowIfCancellationRequested();
-        try
+        DirectPhysicalAcquisition acquisition = AcquireCanonicalDirectPhysicalPath(canonicalPath, context, span, emitMissing);
+        if (acquisition.Status != DirectPhysicalAcquisitionStatus.Found)
         {
-            // A lexical Path.GetFullPath above does not touch the filesystem.
-            // Every filesystem component is acquired from a descriptor for /
-            // with fstatat(AT_SYMLINK_NOFOLLOW) plus openat(O_NOFOLLOW).
-            // This rejects an ancestor link just as it rejects a final link,
-            // and the final descriptor's fstat supplies the only item facts.
-            if (!MacOsPhysicalMetadata.TryAcquireNoFollow(canonicalPath, out MacOsPhysicalStat acquired, out MacOsNoFollowPathFailure failure))
-            {
-                if (emitMissing)
-                {
-                    WriteNoFollowFailure(context, canonicalPath, failure, span);
-                }
-
-                return null;
-            }
-
-            string name = Path.GetFileName(canonicalPath.TrimEnd(Path.DirectorySeparatorChar));
-            if (IsHidden(name, acquired.Flags))
-            {
-                // There is intentionally no Force capability in this slice.
-                // Skip directory members but make a requested exact hidden path
-                // fail visibly instead of pretending it was absent.
-                if (emitMissing)
-                {
-                    WriteError(context, "AOT6204", $"Hidden direct physical path '{canonicalPath}' requires unsupported -Force behavior.", span,
-                        "hidden path rejected", "Use a non-hidden path in the current Native AOT slice.");
-                }
-
-                return null;
-            }
-
-            if (!acquired.IsRegularFileOrDirectory)
-            {
-                if (emitMissing)
-                {
-                    WriteError(context, "AOT6210", $"Direct physical path '{canonicalPath}' is not a regular file or directory.", span,
-                        "unsupported physical item type", "Use a non-link direct physical file or directory path.");
-                }
-
-                return null;
-            }
-
-            context.ThrowIfCancellationRequested();
-            return TryCreateItem(name, canonicalPath, acquired, emitMissing, context, span);
-        }
-        catch (FileNotFoundException)
-        {
-            if (emitMissing)
-            {
-                WriteError(context, "AOT6206", $"Cannot find direct physical path '{canonicalPath}'.", span,
-                    "direct physical path not found", "Use an existing direct physical file or directory path.");
-            }
-
             return null;
         }
-        catch (DirectoryNotFoundException)
-        {
-            if (emitMissing)
-            {
-                WriteError(context, "AOT6206", $"Cannot find direct physical path '{canonicalPath}'.", span,
-                    "direct physical path not found", "Use an existing direct physical file or directory path.");
-            }
 
-            return null;
-        }
-        catch (UnauthorizedAccessException error)
-        {
-            if (emitMissing)
-            {
-                WriteError(context, "AOT6207", $"Cannot read direct physical path '{canonicalPath}': {error.Message}", span,
-                    "physical path access denied", "Choose a readable direct physical file or directory.");
-            }
-
-            return null;
-        }
-        catch (IOException error)
-        {
-            if (emitMissing)
-            {
-                WriteError(context, "AOT6208", $"Cannot read direct physical path '{canonicalPath}': {error.Message}", span,
-                    "physical path read failed", "Choose an accessible direct physical file or directory.");
-            }
-
-            return null;
-        }
+        string name = Path.GetFileName(canonicalPath.TrimEnd(Path.DirectorySeparatorChar));
+        return TryCreateItem(name, canonicalPath, acquisition.Stat!.Value, emitMissing, context, span);
     }
 
     // Test-Path deliberately consumes the descriptor acquisition fact rather
@@ -258,6 +236,26 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
     // to answer an existence question.
     private PhysicalItemProbeResult ProbeCanonicalDirectPhysicalItem(string canonicalPath, AotExecutionContext context, AotSourceSpan? span)
     {
+        DirectPhysicalAcquisition acquisition = AcquireCanonicalDirectPhysicalPath(canonicalPath, context, span, emitMissingDiagnostic: false);
+        return acquisition.Status switch
+        {
+            DirectPhysicalAcquisitionStatus.Found => PhysicalItemProbeResult.Found(acquisition.Stat!.Value.IsDirectory ? PhysicalChildItemKind.Directory : PhysicalChildItemKind.File),
+            DirectPhysicalAcquisitionStatus.Missing => PhysicalItemProbeResult.Missing,
+            DirectPhysicalAcquisitionStatus.Rejected => PhysicalItemProbeResult.Rejected,
+            _ => throw new InvalidOperationException("Unexpected direct physical acquisition status."),
+        };
+    }
+
+    // The sole metadata-free descriptor acquisition primitive for direct path
+    // consumers.  It is deliberately below cmdlet policy: callers choose only
+    // whether a missing target receives the catalog diagnostic.  No caller may
+    // substitute File.Exists, TryDescribe, provider dispatch, or enumeration.
+    private DirectPhysicalAcquisition AcquireCanonicalDirectPhysicalPath(
+        string canonicalPath,
+        AotExecutionContext context,
+        AotSourceSpan? span,
+        bool emitMissingDiagnostic)
+    {
         context.ThrowIfCancellationRequested();
         try
         {
@@ -265,11 +263,16 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
             {
                 if (failure == MacOsNoFollowPathFailure.Missing)
                 {
-                    return PhysicalItemProbeResult.Missing;
+                    if (emitMissingDiagnostic)
+                    {
+                        WriteNoFollowFailure(context, canonicalPath, failure, span);
+                    }
+
+                    return DirectPhysicalAcquisition.Missing;
                 }
 
                 WriteNoFollowFailure(context, canonicalPath, failure, span);
-                return PhysicalItemProbeResult.Rejected;
+                return DirectPhysicalAcquisition.Rejected;
             }
 
             string name = Path.GetFileName(canonicalPath.TrimEnd(Path.DirectorySeparatorChar));
@@ -277,34 +280,60 @@ internal sealed class SystemPhysicalChildItemCatalog(IAotHostDiscoveryRoots root
             {
                 WriteError(context, "AOT6204", $"Hidden direct physical path '{canonicalPath}' requires unsupported -Force behavior.", span,
                     "hidden path rejected", "Use a non-hidden path in the current Native AOT slice.");
-                return PhysicalItemProbeResult.Rejected;
+                return DirectPhysicalAcquisition.Rejected;
+            }
+
+            if (!acquired.IsRegularFileOrDirectory)
+            {
+                WriteError(context, "AOT6210", $"Direct physical path '{canonicalPath}' is not a regular file or directory.", span,
+                    "unsupported physical item type", "Use a non-link direct physical file or directory path.");
+                return DirectPhysicalAcquisition.Rejected;
             }
 
             context.ThrowIfCancellationRequested();
-            return PhysicalItemProbeResult.Found(acquired.IsDirectory ? PhysicalChildItemKind.Directory : PhysicalChildItemKind.File);
+            return DirectPhysicalAcquisition.Found(acquired);
         }
         catch (FileNotFoundException)
         {
-            // A race after canonicalization is still a missing no-follow
-            // physical target, never an invented provider error.
-            return PhysicalItemProbeResult.Missing;
+            if (emitMissingDiagnostic)
+            {
+                WriteError(context, "AOT6206", $"Cannot find direct physical path '{canonicalPath}'.", span,
+                    "direct physical path not found", "Use an existing direct physical file or directory path.");
+            }
+
+            return DirectPhysicalAcquisition.Missing;
         }
         catch (DirectoryNotFoundException)
         {
-            return PhysicalItemProbeResult.Missing;
+            if (emitMissingDiagnostic)
+            {
+                WriteError(context, "AOT6206", $"Cannot find direct physical path '{canonicalPath}'.", span,
+                    "direct physical path not found", "Use an existing direct physical file or directory path.");
+            }
+
+            return DirectPhysicalAcquisition.Missing;
         }
         catch (UnauthorizedAccessException error)
         {
             WriteError(context, "AOT6207", $"Cannot read direct physical path '{canonicalPath}': {error.Message}", span,
                 "physical path access denied", "Choose a readable direct physical file or directory.");
-            return PhysicalItemProbeResult.Rejected;
+            return DirectPhysicalAcquisition.Rejected;
         }
         catch (IOException error)
         {
             WriteError(context, "AOT6208", $"Cannot read direct physical path '{canonicalPath}': {error.Message}", span,
                 "physical path read failed", "Choose an accessible direct physical file or directory.");
-            return PhysicalItemProbeResult.Rejected;
+            return DirectPhysicalAcquisition.Rejected;
         }
+    }
+
+    private enum DirectPhysicalAcquisitionStatus { Found, Missing, Rejected }
+
+    private readonly record struct DirectPhysicalAcquisition(DirectPhysicalAcquisitionStatus Status, MacOsPhysicalStat? Stat = null)
+    {
+        internal static DirectPhysicalAcquisition Found(MacOsPhysicalStat stat) => new(DirectPhysicalAcquisitionStatus.Found, stat);
+        internal static DirectPhysicalAcquisition Missing { get; } = new(DirectPhysicalAcquisitionStatus.Missing);
+        internal static DirectPhysicalAcquisition Rejected { get; } = new(DirectPhysicalAcquisitionStatus.Rejected);
     }
 
     private static string CanonicalizeRoot(string root) => Path.GetFullPath(root);
@@ -960,6 +989,21 @@ internal static class PhysicalItemPresentation
         item.Size);
 }
 
+// Resolve-Path has a distinct, source-observed view: one Path column with one
+// literal leading blank line.  The blank is a property of this immutable
+// layout, never a formatter-wide special case.
+internal static class ResolvePathPresentation
+{
+    internal static IReadOnlyList<string> PathColumns { get; } = ["Path"];
+
+    internal static AotTableLayout PathTable { get; } = new(
+        [new("Path", "Path")],
+        leadingBlankLines: 1,
+        // The observed single-object Path table has a matching literal final
+        // gap. Keep both gaps on this view rather than changing all tables.
+        trailingBlankLines: 1);
+}
+
 // Port boundary for Microsoft.PowerShell.Commands.GetChildItemCommand. The
 // source delegates all behavior to SessionState providers; this adapter admits
 // only a captured-root, direct OS file/directory subset through the dedicated
@@ -1040,6 +1084,48 @@ internal sealed class GetItemCmdlet(IPhysicalChildItemCatalog childItems) : AotC
 
     private static CmdletDescriptor CreateDescriptor() =>
         GeneratedCmdletPorts.GetItem.CreateAotDescriptor("Path");
+}
+
+// Port boundary for Microsoft.PowerShell.Commands.ResolvePathCommand.  The
+// upstream command returns provider/glob PathInfo results.  This generated
+// Path-only adapter instead emits the catalog-acquired canonical path record
+// for an existing direct file/directory and carries no provider/session state.
+internal sealed class ResolvePathCmdlet(IPhysicalChildItemCatalog childItems) : AotCmdletBase
+{
+    private static readonly CmdletDescriptor ResolvePathDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => ResolvePathDescriptor;
+    public override IReadOnlyList<string> DefaultColumns => ResolvePathPresentation.PathColumns;
+    public override AotTableLayout DefaultTableLayout => ResolvePathPresentation.PathTable;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("Path", out string[] paths))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6211",
+                "Resolve-Path requires a direct physical -Path value in the current Native AOT slice.",
+                invocation.SourceSpan,
+                "required direct path missing",
+                "Supply one existing direct physical file or directory path."));
+        }
+
+        List<IPipelineRecord> output = [];
+        for (int index = 0; index < paths.Length; index++)
+        {
+            DirectPhysicalPathResolution resolution = childItems.ResolveExistingDirectPhysicalPath(
+                paths[index], context, invocation.GetValueSpan("Path", index));
+            if (resolution is { Status: DirectPhysicalPathResolutionStatus.Resolved, Record: { } record })
+            {
+                output.Add(record);
+            }
+        }
+
+        return output;
+    }
+
+    private static CmdletDescriptor CreateDescriptor() =>
+        GeneratedCmdletPorts.ResolvePath.CreateAotDescriptor("Path");
 }
 
 // Port boundary for Microsoft.PowerShell.Commands.TestPathCommand. The source

@@ -33,6 +33,7 @@ internal static class PipelineValueAdapter
             or BooleanRecord
             or FileHashRecord
             or PhysicalChildItemRecord
+            or DirectPhysicalPathRecord
             or CommandInfoRecord
             or ModuleInfoRecord
             or RepositoryModuleRecord
@@ -146,6 +147,7 @@ internal static class PipelineValueAdapter
                 Field("Group", Text(value.Group)),
                 Field("LastWriteTime", DateTime(value.LastWriteTime)),
                 Field("Size", Integer(value.Size))),
+            DirectPhysicalPathRecord value => Record(Field("Path", Text(value.Path))),
             CommandInfoRecord value => Record(
                 Field("Name", Text(value.Name)),
                 Field("CommandType", Text(value.CommandType)),

@@ -129,7 +129,12 @@ internal sealed record AotTableGroup
 
 internal sealed class AotTableLayout
 {
-    internal AotTableLayout(IReadOnlyList<AotTableColumn> columns, AotTableGroup? group = null, string columnSeparator = "  ")
+    internal AotTableLayout(
+        IReadOnlyList<AotTableColumn> columns,
+        AotTableGroup? group = null,
+        string columnSeparator = "  ",
+        int leadingBlankLines = 0,
+        int trailingBlankLines = 0)
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count == 0 || columns.Any(static column => column is null))
@@ -147,9 +152,14 @@ internal sealed class AotTableLayout
             throw new ArgumentException("A static terminal table layout requires a non-empty literal-space column separator.", nameof(columnSeparator));
         }
 
+        ArgumentOutOfRangeException.ThrowIfNegative(leadingBlankLines);
+        ArgumentOutOfRangeException.ThrowIfNegative(trailingBlankLines);
+
         Columns = columns.ToArray();
         Group = group;
         ColumnSeparator = columnSeparator;
+        LeadingBlankLines = leadingBlankLines;
+        TrailingBlankLines = trailingBlankLines;
     }
 
     internal IReadOnlyList<AotTableColumn> Columns { get; }
@@ -157,6 +167,12 @@ internal sealed class AotTableLayout
     // Table controls own this fixed, source-attributed presentation fact.
     // It cannot be a format script or a runtime-selectable setting.
     internal string ColumnSeparator { get; }
+    // A source-attributed table-control literal only.  This cannot become a
+    // formatter/global terminal policy; each reviewed layout must opt in.
+    internal int LeadingBlankLines { get; }
+    // Same static table-control fact as LeadingBlankLines. A port must opt in;
+    // there is no generic post-table whitespace policy.
+    internal int TrailingBlankLines { get; }
 }
 
 internal sealed record AotExecutionOutput(

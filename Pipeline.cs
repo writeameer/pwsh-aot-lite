@@ -890,7 +890,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -2334,6 +2334,7 @@ internal static class TableWriter
         AotTableGroup? group = layout?.Group;
         string? activeGroup = null;
         bool wroteGroup = false;
+        bool wroteLeadingBlankLines = false;
         foreach (IPipelineRecord row in rows)
         {
             projectionContext?.ThrowIfCancellationRequested();
@@ -2358,6 +2359,16 @@ internal static class TableWriter
             }
             else if (!wroteGroup)
             {
+                if (!wroteLeadingBlankLines)
+                {
+                    for (int index = 0; index < layout?.LeadingBlankLines; index++)
+                    {
+                        writer.WriteLine();
+                    }
+
+                    wroteLeadingBlankLines = true;
+                }
+
                 WriteLine(tableColumns.Select(static column => column.Header).ToArray(), widths, tableColumns, columnSeparator, writer);
                 WriteSeparator(tableColumns, widths, columnSeparator, writer);
                 wroteGroup = true;
@@ -2365,6 +2376,14 @@ internal static class TableWriter
 
             WriteLine(tableColumns.Select(column => RenderCell(row, column)).ToArray(), widths, tableColumns, columnSeparator, writer);
             afterRowRendered?.Invoke();
+        }
+
+        if (wroteGroup && group is null)
+        {
+            for (int index = 0; index < layout?.TrailingBlankLines; index++)
+            {
+                writer.WriteLine();
+            }
         }
 
         projectionContext?.ThrowIfCancellationRequested();
@@ -2995,6 +3014,120 @@ internal static class SelfTest
                 || !namedGetItemPaths.SequenceEqual([childDirectoryPath]))
             {
                 throw new InvalidOperationException("Get-Item generated Path positional/named binding regression.");
+            }
+
+            SourceCmdletMetadata resolvePathContract = GeneratedCmdletPorts.ResolvePath;
+            if (!resolvePathContract.BaseTypeChain.Take(2).SequenceEqual(["CoreCommandWithCredentialsBase", "CoreCommandBase"])
+                || resolvePathContract.Parameters.Single(parameter => parameter.Name == "Path").ParameterSets.Single() is not { Position: 0, Mandatory: true }
+                || !resolvePathContract.Parameters.Single(parameter => parameter.Name == "LiteralPath").Aliases.SequenceEqual(["PSPath", "LP"]))
+            {
+                throw new InvalidOperationException("Generated Resolve-Path contract regression.");
+            }
+
+            IPhysicalChildItemCatalog resolvePathCatalog = new SystemPhysicalChildItemCatalog(
+                new FixtureDiscoveryRoots(childItemFixtureDirectory), macOsChildItemPlatform);
+            ResolvePathCmdlet resolvePath = new(resolvePathCatalog);
+            DirectPhysicalPathRecord[] resolvedRows = resolvePath.Invoke(new CommandInvocation(resolvePath.Descriptor,
+                new Dictionary<string, string[]> { ["Path"] = ["alpha.txt", childDirectoryPath] }), new AotExecutionContext())
+                .Cast<DirectPhysicalPathRecord>().ToArray();
+            if (!resolvedRows.Select(static row => row.Path).SequenceEqual([childAlphaPath, childDirectoryPath])
+                || !resolvePath.DefaultColumns.SequenceEqual(["Path"])
+                || !ReferenceEquals(resolvePath.DefaultTableLayout, ResolvePathPresentation.PathTable))
+            {
+                throw new InvalidOperationException("Resolve-Path captured-root direct record/layout regression.");
+            }
+
+            // The catalog captures its discovery root at composition. A later
+            // process CWD mutation must not become a hidden resolution input.
+            string originalWorkingDirectory = Directory.GetCurrentDirectory();
+            try
+            {
+                Directory.SetCurrentDirectory(childDirectoryPath);
+                if (resolvePath.Invoke(new CommandInvocation(resolvePath.Descriptor,
+                    new Dictionary<string, string[]> { ["Path"] = ["alpha.txt"] }), new AotExecutionContext())
+                    .Cast<DirectPhysicalPathRecord>().SingleOrDefault() is not { Path: var capturedRootPath }
+                    || capturedRootPath != childAlphaPath)
+                {
+                    throw new InvalidOperationException("Resolve-Path consulted invocation current directory instead of its captured root.");
+                }
+            }
+            finally
+            {
+                Directory.SetCurrentDirectory(originalWorkingDirectory);
+            }
+
+            using (StringWriter resolveTable = new(CultureInfo.InvariantCulture))
+            {
+                TableWriter.Write(resolvedRows, resolvePath.DefaultColumns, resolveTable, layout: resolvePath.DefaultTableLayout);
+                string expected = $"{Environment.NewLine}Path{Environment.NewLine}----{Environment.NewLine}{childAlphaPath}{Environment.NewLine}{childDirectoryPath}{Environment.NewLine}{Environment.NewLine}";
+                if (resolveTable.ToString() != expected)
+                {
+                    throw new InvalidOperationException("Resolve-Path layout-owned leading blank-line regression.");
+                }
+            }
+
+            AotSourceSpan resolveAcceptedFirstSpan = new("resolvepath-mixed.ps1", 13, 31, 1, 14, 1, 32);
+            AotSourceSpan resolveMissingSpan = new("resolvepath-mixed.ps1", 32, 50, 1, 33, 1, 51);
+            AotSourceSpan resolveRejectedSpan = new("resolvepath-mixed.ps1", 51, 69, 1, 52, 1, 70);
+            AotSourceSpan resolveAcceptedLastSpan = new("resolvepath-mixed.ps1", 70, 89, 1, 53, 1, 90);
+            AotExecutionContext resolveMixedContext = new();
+            DirectPhysicalPathRecord[] resolveMixedRows = resolvePath.Invoke(new CommandInvocation(resolvePath.Descriptor,
+                new Dictionary<string, string[]> { ["Path"] = [childAlphaPath, Path.Combine(childItemFixtureDirectory, "missing.txt"), "FileSystem::/tmp", childDirectoryPath] },
+                childItemSpan,
+                new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [resolveAcceptedFirstSpan, resolveMissingSpan, resolveRejectedSpan, resolveAcceptedLastSpan] }),
+                resolveMixedContext).Cast<DirectPhysicalPathRecord>().ToArray();
+            if (!resolveMixedRows.Select(static row => row.Path).SequenceEqual([childAlphaPath, childDirectoryPath])
+                || resolveMixedContext.Errors.Count != 2
+                || resolveMixedContext.Errors[0].Diagnostic is not { Id: "AOT6206", Span: var resolveMissingErrorSpan }
+                || !ReferenceEquals(resolveMissingErrorSpan, resolveMissingSpan)
+                || resolveMixedContext.Errors[1].Diagnostic is not { Id: "AOT6201", Span: var resolveRejectedErrorSpan }
+                || !ReferenceEquals(resolveRejectedErrorSpan, resolveRejectedSpan))
+            {
+                throw new InvalidOperationException("Resolve-Path Missing/Rejected continuation or per-value-span regression.");
+            }
+
+            AotExecutionContext resolveWhitespaceContext = new();
+            if (resolvePath.Invoke(new CommandInvocation(resolvePath.Descriptor, new Dictionary<string, string[]> { ["Path"] = ["  "] }), resolveWhitespaceContext).Any()
+                || resolveWhitespaceContext.Errors.SingleOrDefault()?.Id != "AOT6206")
+            {
+                throw new InvalidOperationException("Resolve-Path whitespace literal/missing regression.");
+            }
+
+            AotExecutionContext resolveEmptyContext = new();
+            if (resolvePath.Invoke(new CommandInvocation(resolvePath.Descriptor, new Dictionary<string, string[]> { ["Path"] = [string.Empty] }), resolveEmptyContext).Any()
+                || resolveEmptyContext.Errors.SingleOrDefault()?.Diagnostic is not { Id: "AOT6213", Span: null })
+            {
+                throw new InvalidOperationException("Resolve-Path empty direct input diagnostic regression.");
+            }
+
+            AotExecutionContext resolveLinkContext = new();
+            if (resolvePath.Invoke(new CommandInvocation(resolvePath.Descriptor, new Dictionary<string, string[]>
+                { ["Path"] = [Path.Combine(linkedAncestor, "descendant.txt")] }), resolveLinkContext).Any()
+                || resolveLinkContext.Errors.SingleOrDefault()?.Id != "AOT6205")
+            {
+                throw new InvalidOperationException("Resolve-Path no-follow ancestor-link regression.");
+            }
+
+            (_, CommandInvocation positionalResolvePath) = AotCmdletRegistry.ParseSource("Resolve-Path alpha.txt");
+            (_, CommandInvocation namedResolvePath) = AotCmdletRegistry.ParseSource($"Resolve-Path -Path '{childDirectoryPath}'");
+            if (!positionalResolvePath.TryGetValues("Path", out string[] positionalResolveValues)
+                || !positionalResolveValues.SequenceEqual(["alpha.txt"])
+                || !namedResolvePath.TryGetValues("Path", out string[] namedResolveValues)
+                || !namedResolveValues.SequenceEqual([childDirectoryPath]))
+            {
+                throw new InvalidOperationException("Resolve-Path generated Path positional/named binding regression.");
+            }
+
+            foreach (string rejectedParameter in new[] { "-LP", "-Relative", "-RelativeBasePath" })
+            {
+                try
+                {
+                    _ = AotCmdletRegistry.ParseSource($"Resolve-Path {rejectedParameter} '{childAlphaPath}'");
+                    throw new InvalidOperationException($"Resolve-Path accepted deferred parameter {rejectedParameter}.");
+                }
+                catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
+                {
+                }
             }
 
             SourceCmdletMetadata testPathContract = GeneratedCmdletPorts.TestPath;
@@ -4023,6 +4156,35 @@ error[AOT6211]: Get-Item requires a direct physical -Path value in the current N
    |
 1 | Get-Item
    | ^^^^^^^^ required direct path missing
+   = help: Supply one existing direct physical file or directory path.
+""");
+        }
+
+        // Resolve-Path preserves the source-mandatory Path metadata but does
+        // not synthesize the upstream host's interactive prompt.  Keep that
+        // separate from its catalog-owned empty-string AOT6213 diagnostic.
+        try
+        {
+            _ = AotExecutionKernel.Compile("Resolve-Path", "resolvepath-missing-path.ps1")
+                .Execute(new AotExecutionContext());
+            throw new InvalidOperationException("Resolve-Path accepted a missing mandatory Path.");
+        }
+        catch (ScriptException error) when (error.Diagnostic is
+            {
+                Id: "AOT6211",
+                Category: AotDiagnosticCategory.Runtime,
+                Span: { DocumentName: "resolvepath-missing-path.ps1", StartLine: 1, StartColumn: 1, EndLine: 1, EndColumn: 13 },
+            })
+        {
+            AssertDiagnosticSnapshot(
+                error.Diagnostic,
+                "Resolve-Path",
+                """
+error[AOT6211]: Resolve-Path requires a direct physical -Path value in the current Native AOT slice.
+  --> resolvepath-missing-path.ps1:1:1
+   |
+1 | Resolve-Path
+   | ^^^^^^^^^^^^ required direct path missing
    = help: Supply one existing direct physical file or directory path.
 """);
         }
