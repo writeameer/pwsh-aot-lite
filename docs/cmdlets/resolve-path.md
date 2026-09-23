@@ -60,9 +60,12 @@ not root coercion.
 
 ## Verification
 
-The final immutable release implementation source and fresh Native AOT
-artifact identity are recorded in the review ledger before integration. The
-release artifact is intentionally not tracked in Git.
+The immutable release implementation source is commit
+`58060bfea4a872f6b7070a1469d0746218ff561f`. Fresh Native AOT artifact
+`artifacts/osx-arm64-resolve-path-release-20260923-0833/PwshAotLite` passed
+`--self-test` and the strict stock/native oracle; its SHA-256 is
+`f6a7de65202c85b1c37967532238708decb316aea5c87775bd31e7d5e9d0bff9`.
+The release artifact is intentionally not tracked in Git.
 
 ```powershell
 dotnet build -c Release --no-restore

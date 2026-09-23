@@ -12,10 +12,11 @@ Claim under review: `Generated Path-only adapter resolves existing direct physic
 - Compatibility evidence: `tools/Test-ResolvePathCompatibility.ps1` compares stock PlainText and native direct file/directory rendering exactly, including leading blank; it also asserts Missing continuation, empty vs whitespace, captured-root behavior, `-Relative` rejection, and ancestor-link no-follow.
 - Working-branch verification: managed Release build/self-test, parser reuse guard,
   34-fixture parser baseline, Phase 10 campaign/queue verification, and
-  `git diff --check` passed. Fresh `osx-arm64` artifact
-  `artifacts/osx-arm64-resolve-path-working/PwshAotLite` passed `--self-test`
-  and the strict oracle; SHA-256
-  `7e6fbe3bd3f521e0f07fbce4db16f1155ebdcc3440113afbcec0915228d7975e`.
+  `git diff --check` passed. Final immutable implementation source commit
+  `58060bfea4a872f6b7070a1469d0746218ff561f` was freshly published as
+  `artifacts/osx-arm64-resolve-path-release-20260923-0833/PwshAotLite`; it
+  passed `--self-test` and the strict oracle; SHA-256
+  `f6a7de65202c85b1c37967532238708decb316aea5c87775bd31e7d5e9d0bff9`.
 
 ## Independent verdicts
 
