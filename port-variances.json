@@ -762,13 +762,13 @@
     {
       "command": "ConvertFrom-Json",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertFromJsonCommand.cs and JsonObject.cs",
-      "state": "design-research-only",
+      "state": "closed-codec-foundation-implemented; command-adapter-deferred",
       "variances": [
         {
           "id": "json-closed-value-codec",
           "sourceFeature": "JsonObject uses Newtonsoft plus PowerShell PSObject/hashtable materialization and ConvertFrom-Json writes dynamically enumerated results.",
-          "targetDecision": "Propose one pure System.Text.Json codec that parses only into immutable closed AotValue/AotRecord cases; no executable adapter exists until independent review and native proof pass.",
-          "status": "blocked",
+          "targetDecision": "One pure System.Text.Json codec now parses only into immutable closed AotValue/AotRecord cases and has managed/native self-test evidence; no executable ConvertFrom-Json adapter is registered.",
+          "status": "foundation-verified-adapter-deferred",
           "automationCandidate": "yes"
         },
         {
@@ -784,25 +784,32 @@
           "targetDecision": "The initial closed AotRecord route rejects exact duplicates, case collisions, and blank/whitespace property names with AOT6304. Stock default ConvertFrom-Json accepts an exact duplicate with the latter value, so that rejection is an explicit fail-closed variance. -AsHashtable is wholly deferred; no hashtable behavior is implied.",
           "status": "deliberate-subset",
           "automationCandidate": "yes"
+        },
+        {
+          "id": "json-whitespace-key",
+          "sourceFeature": "Stock default ConvertFrom-Json accepts a JSON object property whose name consists only of whitespace.",
+          "targetDecision": "The closed AotRecord route rejects a whitespace-only property name with AOT6304. This is a deliberate fail-closed validation variance because the immutable record field contract disallows unsafe names; it does not claim stock validation parity.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
         }
       ]
     },
     {
       "command": "ConvertTo-Json",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs and JsonObject.cs",
-      "state": "design-research-only",
+      "state": "closed-codec-foundation-implemented; command-adapter-deferred",
       "variances": [
         {
           "id": "json-arbitrary-object-input",
           "sourceFeature": "ConvertTo-Json accepts arbitrary object input and PowerShell/Json.NET preprocessing before serializing it.",
-          "targetDecision": "The proposed J0 seam accepts only existing closed AotValue cases. It will never discover CLR members, reflect, wrap PSObject, or invoke a generic serializer.",
-          "status": "blocked",
+          "targetDecision": "The implemented J0 codec accepts only existing closed AotValue cases. It never discovers CLR members, reflects, wraps PSObject, or invokes a generic serializer; no ConvertTo-Json adapter is registered.",
+          "status": "foundation-verified-adapter-deferred",
           "automationCandidate": "yes"
         },
         {
           "id": "json-format-and-options",
           "sourceFeature": "AsArray, Compress, Depth, EnumsAsStrings, EscapeHandling, and cmdlet-owned cancellation shape source output and lifecycle.",
-          "targetDecision": "No option is admitted until a generated descriptor opt-in and stock/native formatting oracle establish a bounded contract. The shared codec is design-only.",
+          "targetDecision": "No option is admitted until a generated descriptor opt-in and stock/native formatting oracle establish a bounded contract. The shared codec is implemented but no command adapter exists.",
           "status": "deferred",
           "automationCandidate": "yes"
         }

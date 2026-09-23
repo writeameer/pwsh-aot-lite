@@ -2466,6 +2466,7 @@ internal static class SelfTest
         AssertTerminalPresentation();
         AssertHostReplProjection();
         AssertClosedValuePlane();
+        AssertClosedJsonCodec();
 
         if (GeneratedCmdletPorts.Count != 290)
         {
@@ -6291,6 +6292,111 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             catch (ScriptException exception) when (exception.Message == "Where-Object does not accept NaN or infinity predicate literals in the AOT subset.")
             {
             }
+        }
+    }
+
+    private static void AssertClosedJsonCodec()
+    {
+        AotSourceSpan span = new("json-fixture.ps1", 11, 28, 1, 12, 1, 29);
+        AotValue decoded = AotJsonCodec.Decode(
+            "{\"name\":\"pwsh\",\"count\":2,\"items\":[true,null,1.5]}"u8,
+            AotJsonReadLimits.J0,
+            span,
+            CancellationToken.None);
+        if (!decoded.TryGetRecord(out AotRecord? decodedRecord)
+            || decodedRecord is null
+            || !decodedRecord.Fields.Select(static field => field.Name).SequenceEqual(["name", "count", "items"])
+            || !decodedRecord.GetRequiredValue("count").TryGetInteger(out long count)
+            || count != 2
+            || !decodedRecord.GetRequiredValue("items").TryGetItems(out IReadOnlyList<AotValue>? items)
+            || items is null
+            || items.Count != 3
+            || !items[2].TryGetDecimal(out decimal decimalValue)
+            || decimalValue != 1.5m)
+        {
+            throw new InvalidOperationException("Closed JSON decoding did not preserve the approved ordered AOT shape.");
+        }
+
+        byte[] encoded = AotJsonCodec.Encode(decoded, AotJsonWriteLimits.J0, span, CancellationToken.None);
+        if (!encoded.AsSpan().SequenceEqual("{\"name\":\"pwsh\",\"count\":2,\"items\":[true,null,1.5]}"u8))
+        {
+            throw new InvalidOperationException("Closed JSON encoding did not produce the stable compact J0 representation.");
+        }
+
+        AotValue floatingPoint = AotJsonCodec.Decode("1e30"u8, AotJsonReadLimits.J0, span, CancellationToken.None);
+        if (!floatingPoint.TryGetFloatingPoint(out double finiteFloatingPoint) || finiteFloatingPoint != 1e30d)
+        {
+            throw new InvalidOperationException("JSON numeric precedence did not fall back from Int64/Decimal to a finite floating point value.");
+        }
+
+        byte[] exactNull = AotJsonCodec.Encode(AotValue.Null, new AotJsonWriteLimits(4, 16, 32, 8, 64), span, CancellationToken.None);
+        byte[] exactString = AotJsonCodec.Encode(AotValue.FromString("a"), new AotJsonWriteLimits(3, 16, 32, 8, 64), span, CancellationToken.None);
+        if (!exactNull.AsSpan().SequenceEqual("null"u8) || !exactString.AsSpan().SequenceEqual("\"a\""u8))
+        {
+            throw new InvalidOperationException("Closed JSON encoding rejected an exact-fit small output budget.");
+        }
+
+        AssertJsonDiagnostic("{\"value\":"u8, "AOT6301", span);
+        AssertJsonDiagnostic("{\"value\":1} trailing"u8, "AOT6301", span);
+        AssertJsonDiagnostic("{\"Name\":1,\"Name\":2}"u8, "AOT6304", span);
+        AssertJsonDiagnostic("{\"Name\":1,\"name\":2}"u8, "AOT6304", span);
+        AssertJsonDiagnostic("{\"\":1}"u8, "AOT6304", span);
+        // Stock pwsh accepts this property name. J0 deliberately fails closed
+        // under AOT6304 because AotRecord cannot carry whitespace-only fields.
+        AssertJsonDiagnostic("{\"   \":1}"u8, "AOT6304", span);
+        AssertJsonDiagnostic("1e400"u8, "AOT6305", span);
+
+        AotJsonReadLimits tinyInput = new(4, 16, 32, 8, 64);
+        AssertJsonDiagnostic("12345"u8, "AOT6302", span, tinyInput);
+        AotJsonReadLimits shallow = new(1024, 1, 32, 8, 64);
+        AssertJsonDiagnostic("[[]]"u8, "AOT6302", span, shallow);
+        AotJsonReadLimits fewMembers = new(1024, 16, 32, 1, 64);
+        AssertJsonDiagnostic("[1,2]"u8, "AOT6302", span, fewMembers);
+        AssertJsonDiagnostic("{\"one\":1,\"two\":2}"u8, "AOT6302", span, fewMembers);
+
+        AssertJsonEncodeDiagnostic(AotValue.FromDateTime(DateTime.UnixEpoch), "AOT6306", span, AotJsonWriteLimits.J0);
+        AssertJsonEncodeDiagnostic(AotValue.FromBytes(new byte[] { 1, 2 }), "AOT6306", span, AotJsonWriteLimits.J0);
+        AssertJsonEncodeDiagnostic(AotValue.FromString("output"), "AOT6303", span, new AotJsonWriteLimits(4, 16, 32, 8, 64));
+        AssertJsonEncodeDiagnostic(AotValue.FromList([AotValue.FromList([])]), "AOT6303", span, new AotJsonWriteLimits(1024, 1, 32, 8, 64));
+        AssertJsonEncodeDiagnostic(AotValue.FromList([AotValue.Null, AotValue.Null]), "AOT6303", span, new AotJsonWriteLimits(1024, 16, 1, 8, 64));
+        AssertJsonEncodeDiagnostic(AotValue.FromList([AotValue.Null, AotValue.Null]), "AOT6303", span, new AotJsonWriteLimits(1024, 16, 32, 1, 64));
+        AssertJsonEncodeDiagnostic(AotValue.FromString("long"), "AOT6303", span, new AotJsonWriteLimits(1024, 16, 32, 8, 3));
+
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+        AssertCancellation(() => AotJsonCodec.Decode("null"u8, AotJsonReadLimits.J0, span, cancelled.Token));
+        AssertCancellation(() => AotJsonCodec.Encode(AotValue.Null, AotJsonWriteLimits.J0, span, cancelled.Token));
+    }
+
+    private static void AssertJsonDiagnostic(
+        ReadOnlySpan<byte> input,
+        string expectedId,
+        AotSourceSpan expectedSpan,
+        AotJsonReadLimits? limits = null)
+    {
+        try
+        {
+            _ = AotJsonCodec.Decode(input, limits ?? AotJsonReadLimits.J0, expectedSpan, CancellationToken.None);
+            throw new InvalidOperationException($"Expected {expectedId} from the closed JSON decoder.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == expectedId && error.Diagnostic.Span == expectedSpan)
+        {
+        }
+    }
+
+    private static void AssertJsonEncodeDiagnostic(
+        AotValue value,
+        string expectedId,
+        AotSourceSpan expectedSpan,
+        AotJsonWriteLimits limits)
+    {
+        try
+        {
+            _ = AotJsonCodec.Encode(value, limits, expectedSpan, CancellationToken.None);
+            throw new InvalidOperationException($"Expected {expectedId} from the closed JSON encoder.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == expectedId && error.Diagnostic.Span == expectedSpan)
+        {
         }
     }
 

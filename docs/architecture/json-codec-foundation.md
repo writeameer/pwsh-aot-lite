@@ -2,10 +2,12 @@
 
 ## Status
 
-**Design/review only — no JSON cmdlet is executable.** This is the pulled-forward
-J0 prerequisite for `ConvertFrom-Json`, `ConvertTo-Json`, and eventually
-`Test-Json`. It does not alter the PowerShell parser, binder, executable
-registry, host substrate, or terminal presentation.
+**Implemented and verified codec foundation — no JSON cmdlet is executable.**
+This is the pulled-forward J0 prerequisite for `ConvertFrom-Json`,
+`ConvertTo-Json`, and eventually `Test-Json`. The executable contains the
+closed codec and its self-tests only; it does not alter the PowerShell parser,
+binder, executable registry, host substrate, or terminal presentation. Both
+JSON command names remain deliberately unregistered (`AOT2001`).
 
 The source declarations remain catalogued-only. This document is not a
 compatibility claim and must not be used to register a cmdlet before the review
@@ -62,7 +64,11 @@ bytes** per decoded/encoded string or property name. These align with the
 existing bounded data-only repository-index intake (1 MiB/16 levels) while
 placing additional collection limits before a general-purpose codec is exposed.
 Every limit is checked during traversal before an unbounded materialization or
-write can occur.
+write can occur. The writer may retain a bounded 256-byte implementation
+scratch segment even when a deliberately smaller logical output limit is
+selected for a test, but the logical limit is enforced on every committed byte
+advance; thus an exact four-byte `null` is valid under a four-byte output
+budget and no emitted JSON can exceed that budget.
 
 The codec may use only these existing cases:
 
@@ -87,11 +93,15 @@ PowerShell behavior. A controlled stock `pwsh` 7.6.6 probe rejects
 `{"Name":1,"name":2}` by default and directs the caller to `-AsHashtable`,
 but accepts exact duplicate `{"Name":1,"Name":2}` with the latter value;
 J0 rejects both because an immutable record cannot retain duplicate fields.
-An empty name is likewise rejected by stock's default object route and J0.
-`-AsHashtable` remains unsupported. Any future admitted cmdlet surface must
-retain raw stock/native oracle output for exact duplicates, case collisions,
-nested collisions, and empty keys; that oracle may not normalize the known
-exact-duplicate divergence away.
+An empty name is likewise rejected by stock's default object route. In
+contrast, stock accepts a whitespace-only property name; J0 deliberately
+rejects it as **AOT6304** because `AotRecord` treats whitespace-only names as
+unsafe. That is a named fail-closed compatibility variance, not a claim that
+stock has the same validation. `-AsHashtable` remains unsupported. Any
+future admitted cmdlet surface must retain raw stock/native oracle output for
+exact duplicates, case collisions, nested collisions, empty keys, and
+whitespace-only keys; that oracle must demonstrate the stock success versus
+native AOT6304 rejection rather than normalize it away.
 
 The decoder accepts exactly one JSON root; comments, trailing commas, and a
 second/trailing token are rejected. It checks the caller-owned cancellation
@@ -147,12 +157,20 @@ implementation:
 first six diagnostic IDs. Plain and ANSI snapshot tests must prove the command
 argument span and safe detail rendering.
 
-Required proof before support:
+J0 implementation evidence (not a cmdlet-support claim): managed Release
+build and self-test, parser guard and 36-fixture differential baseline,
+campaign/queue verification, and fresh `osx-arm64` Native AOT self-test all
+passed on the recorded J0 artifact in the review ledger. Grammar fixture
+`tests/grammar/fixtures/36-json-key-boundaries.ps1` and its checked-in stock
+baseline preserve the upstream command-string boundary for the later JSON-key
+oracle; they do not execute a JSON cmdlet.
+
+Required proof before a command adapter can be supported:
 
 1. upstream-generated descriptors prove every admitted parameter;
 2. managed invariants cover nesting, ordering, case-insensitive duplicate keys,
-   numeric boundaries, cancellation, malformed input, and unsupported value
-   kinds;
+   numeric boundaries, cancellation, malformed input, unsupported value kinds,
+   and empty/whitespace-only/duplicate/case-colliding property names;
 3. stock `pwsh` versus fresh native controlled-fixture oracles cover every
    admitted input/output surface and documented normalization;
 4. parser reuse guard and baseline verification remain unchanged; and
