@@ -10,6 +10,7 @@ platform dependencies. It is **not** a partial PowerShell provider engine,
 | Capability | Current local implementation | Admitted authority | Explicit exclusion |
 | --- | --- | --- | --- |
 | physical files | `IPhysicalFileResolver` / `SystemPhysicalFileResolver` | direct physical read paths and terminal `*`/`?` enumeration | PS drives, provider paths, recursive provider expansion, content streams |
+| direct physical item catalog | `IPhysicalChildItemCatalog` / `SystemPhysicalChildItemCatalog` | captured-root direct physical item, existence, and existing-path facts through one all-component no-follow acquisition | providers/drives, ambient current location, wildcard globber, `PathInfo`, `FileInfo`, `PSObject` |
 | processes | `IProcessCatalog` / `SystemProcessCatalog` | inspection and existing `Get-Process` data | arbitrary process launch or a process provider |
 | process owner | `IProcessOwnerReader` / `UnixPsProcessOwnerReader` | fixed `/bin/ps` lookup on macOS/Linux only | command lookup, shell invocation, Windows fallback, generic execution API |
 | time and globalization | `IClock`, `IHostCulture`, `ICultureCatalog`, `ITimeZoneCatalog` | BCL time/culture/zone snapshot calls | `PSHost`, user-profile/session state |
@@ -39,6 +40,17 @@ configuration capability.
 No Phase 9 interface accepts `FileSystem::`, `Env:`, `Registry:`, a PS drive,
 or a provider-qualified path. A future virtual-file service requires its own
 design, diagnostics, trust model, fixtures, and review.
+
+`ResolveExistingDirectPhysicalPath` is a closed catalog operation rather than
+a second filesystem resolver: rooted OS paths remain rooted, unrooted paths
+are lexical-normalized from the immutable captured root, empty input is a
+source-spanned rejection, and whitespace remains literal. Its only result is
+`Resolved(DirectPhysicalPathRecord)`, `Missing`, or `Rejected`; consumers may
+not invoke `GetDirectPhysicalItem`, `TryDescribe`, `File.Exists`, provider
+dispatch, or enumeration to recreate it. The catalog's single metadata-free
+descriptor/no-follow acquisition is shared with the direct item and probe
+operations; display metadata is acquired only by consumers that actually need
+it.
 
 ## Platform and process policy
 

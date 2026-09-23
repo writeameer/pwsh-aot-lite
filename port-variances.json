@@ -347,6 +347,48 @@
       ]
     },
     {
+      "command": "Resolve-Path",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/ResolvePathCommand.cs",
+      "state": "complete-wave3-direct-existing-physical-resolution-slice",
+      "variances": [
+        {
+          "id": "resolvepath-generated-path-contract",
+          "sourceFeature": "ResolvePathCommand Path/LiteralPath/provider parameter declarations and parameter sets",
+          "targetDecision": "Generated metadata remains authoritative; the executable descriptor is exactly GeneratedCmdletPorts.ResolvePath.CreateAotDescriptor(\"Path\"). Only mandatory positional-or-named Path is admitted.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "resolvepath-direct-existing-physical-resolution",
+          "sourceFeature": "ProcessRecord resolves provider/glob paths through SessionState.Path.GetResolvedPSPathFromPSPath and emits PathInfo",
+          "targetDecision": "Extend the existing IPhysicalChildItemCatalog with ResolveExistingDirectPhysicalPath. It shares strict captured-root lexical normalization and the sole metadata-free all-component no-follow acquisition primitive. Its closed outcome is Resolved(DirectPhysicalPathRecord), Missing, or Rejected; only Resolved emits one canonical Path record, while Missing/Rejected retain source-spanned nonterminating diagnostics and later values continue.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "resolvepath-strict-normalization-and-empty-boundary",
+          "sourceFeature": "SessionState current location/provider normalization accepts dynamic path and drive semantics",
+          "targetDecision": "Rooted direct OS paths stay rooted and unrooted paths are lexical-normalized from the immutable catalog captured root, never invocation current directory. Empty direct input fails closed with AOT6213; whitespace remains a literal filename and normally reaches the catalog Missing/AOT6206 path. No drive/provider/current-location emulation is added.",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        },
+        {
+          "id": "resolvepath-closed-path-record-static-layout",
+          "sourceFeature": "PathInfo/PSObject output and dynamic format/type resolution",
+          "targetDecision": "Use only DirectPhysicalPathRecord(Path) registered explicitly in PipelineValueAdapter and ResolvePathPresentation.PathTable, an immutable one-column layout whose observed leading/final blank lines are layout-owned. No PathInfo, FileInfo, DirectoryInfo, PSObject, ETS, dynamic view, or global formatter rule enters the target.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "resolvepath-provider-literal-relative-pipeline-deferrals",
+          "sourceFeature": "LiteralPath/PSPath/LP, wildcard/provider expansion, Relative, RelativeBasePath, Force, provider transactions/ErrorRecords, and pipeline/property-name binding",
+          "targetDecision": "Those dynamic engine behaviors are absent from the generated descriptor or fail closed through the shared binder/catalog diagnostics. Omitted Path remains the noninteractive AOT6211 boundary; a future host/provider contract is required before widening.",
+          "status": "deferred",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Get-FileHash",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetHash.cs",
       "state": "complete-direct-physical-file-target",

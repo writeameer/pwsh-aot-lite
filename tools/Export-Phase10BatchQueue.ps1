@@ -28,13 +28,15 @@ $alreadyProven = @(
 # a baseline.
 $integratedDuringCampaign = @(
     'Get-Item',
-    'Test-Path'
+    'Test-Path',
+    'Resolve-Path'
 )
 
-# Batch 01 is intentionally the next direct physical-filesystem cluster.  Its
-# first six commands consume the captured-root/path seams proven by
-# Get-ChildItem and Get-FileHash.  The JSON group is deliberately pulled
-# forward in Batch 02, as W3a, but remains blocked on its explicit J0 seam.
+# The remaining front of the queue is the direct physical-filesystem cluster.
+# Its first commands consume the captured-root/path seams proven by
+# Get-ChildItem, Get-Item, Test-Path, and Resolve-Path. The JSON group remains
+# deliberately pulled forward as W3a, but remains blocked on its explicit J0
+# seam.
 $frontOfQueue = @(
     'Get-Item', 'Test-Path', 'Resolve-Path', 'Convert-Path', 'Join-Path',
     'Split-Path', 'Get-Content', 'Get-ItemProperty', 'Get-ItemPropertyValue',
@@ -65,7 +67,7 @@ $effectivePrerequisites = @{
 }
 
 $waveOrder = @{
-    # B01/B02 preserve the direct physical-filesystem dependency cluster.
+# B02 preserves the remaining direct physical-filesystem dependency cluster.
     # The W1/W6 replacement backlog follows it; individual W1 work still
     # cannot proceed before its declared typed-data/formatter prerequisite.
     'W3' = 20
@@ -280,7 +282,7 @@ $lines.Add('This queue accounts for every logical command in the checked Phase 1
 $lines.Add('')
 $lines.Add(('- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `{0}`.' -f $manifestHash))
 $lines.Add("- Accounting: $($manifest.logicalCommandCount) logical commands; $($provenRows.Count + $integratedRows.Count) completed commands ($($provenRows.Count) baseline and $($integratedRows.Count) integrated during this campaign); $($remaining.Count) queued commands in $($batchNumber - 2) batches of ten (final queued batch may be smaller).")
-$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue. `B03` deliberately pulls the JSON foundation forward as `W3a`; it remains blocked on J0, the closed JSON codec/value-plane seam.')
+$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue and includes the deliberately pulled-forward JSON foundation as `W3a`; JSON work remains blocked on J0, the closed JSON codec/value-plane seam.')
 $lines.Add('- Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.')
 $lines.Add('')
 $lines.Add('Regenerate or verify this queue:')

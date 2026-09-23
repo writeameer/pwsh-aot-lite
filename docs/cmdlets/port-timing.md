@@ -28,6 +28,7 @@ reuse, review, and verification work—not just target coding.
 | `Get-ChildItem` | 2026-09-22T09:59:17.2280730Z | 2026-09-22T11:09:30.2144590Z | 01:10:12 | Wave 3 macOS-arm64 captured-root direct physical immediate-child/default-`Path` slice. | integrated |
 | `Get-Item` | 2026-09-22T22:25:55.0487520Z | 2026-09-22T22:45:15.0000000Z | 00:19:19.9512480 | Wave 3 captured-root direct physical file-or-directory lookup slice; no provider, wildcard, or dynamic-parameter support. | integrated |
 | `Test-Path` | 2026-09-22T23:07:18.1558270Z | 2026-09-22T23:14:42.0000000Z | 00:07:23.8441730 | Wave 3 direct physical existence/kind probe; closed Any/Container/Leaf Boolean projection. | integrated |
+| `Resolve-Path` | 2026-09-23T07:49:52.4190000Z | 2026-09-23T08:31:39.0000000Z | 00:41:46.5810000 | Wave 3 direct existing physical resolution; closed canonical Path record/static one-column view. | integrated |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
