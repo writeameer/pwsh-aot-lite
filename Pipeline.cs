@@ -890,7 +890,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -3128,6 +3128,98 @@ internal static class SelfTest
                 catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT2002")
                 {
                 }
+            }
+
+            // Convert-Path deliberately has a stricter empty-input contract
+            // than the shared resolver: it must inspect the *entire* bound
+            // collection before making its first catalog call.  Keep this
+            // observable rather than inferring it from terminal text; a
+            // counting catalog proves an empty value at every possible first
+            // empty position prevents rows, resolver calls, and side errors.
+            SourceCmdletMetadata convertPathContract = GeneratedCmdletPorts.ConvertPath;
+            if (!convertPathContract.BaseTypeChain.Take(2).SequenceEqual(["CoreCommandBase", "PSCmdlet"])
+                || convertPathContract.Parameters.Single(parameter => parameter.Name == "Path").ParameterSets.Single() is not { Position: 0, Mandatory: true })
+            {
+                throw new InvalidOperationException("Generated Convert-Path contract regression.");
+            }
+
+            AotSourceSpan convertResolvedFirstSpan = new("convertpath-mixed.ps1", 14, 29, 1, 15, 1, 30);
+            AotSourceSpan convertMissingSpan = new("convertpath-mixed.ps1", 31, 40, 1, 32, 1, 41);
+            AotSourceSpan convertRejectedSpan = new("convertpath-mixed.ps1", 42, 52, 1, 43, 1, 53);
+            AotSourceSpan convertResolvedLastSpan = new("convertpath-mixed.ps1", 54, 68, 1, 55, 1, 69);
+            AotSourceSpan[] emptySpans =
+            [
+                new("convertpath-empty.ps1", 14, 16, 1, 15, 1, 17),
+                new("convertpath-empty.ps1", 31, 33, 1, 32, 1, 34),
+                new("convertpath-empty.ps1", 48, 50, 1, 49, 1, 51),
+            ];
+            string[][] pathsWithFirstEmpty =
+            [
+                [string.Empty, "resolved-first", "missing"],
+                ["resolved-first", string.Empty, "rejected"],
+                ["resolved-first", "missing", string.Empty, "resolved-last"],
+            ];
+            for (int emptyIndex = 0; emptyIndex < pathsWithFirstEmpty.Length; emptyIndex++)
+            {
+                CountingConvertPathCatalog emptyCatalog = new();
+                ConvertPathCmdlet convertPath = new(emptyCatalog);
+                AotExecutionContext emptyContext = new();
+                AotSourceSpan?[] valueSpans = pathsWithFirstEmpty[emptyIndex]
+                    .Select((_, index) => index == emptyIndex ? emptySpans[emptyIndex] : convertResolvedFirstSpan)
+                    .Cast<AotSourceSpan?>()
+                    .ToArray();
+                int observedAot6213 = 0;
+                try
+                {
+                    _ = convertPath.Invoke(new CommandInvocation(convertPath.Descriptor,
+                        new Dictionary<string, string[]> { ["Path"] = pathsWithFirstEmpty[emptyIndex] },
+                        convertResolvedFirstSpan,
+                        new Dictionary<string, AotSourceSpan?[]> { ["Path"] = valueSpans }), emptyContext).ToArray();
+                    throw new InvalidOperationException("Convert-Path accepted an exact empty Path value.");
+                }
+                catch (ScriptException exception) when (exception.Diagnostic is { Id: "AOT6213", Span: var emptySpan }
+                    && ReferenceEquals(emptySpan, emptySpans[emptyIndex]))
+                {
+                    observedAot6213++;
+                }
+
+                if (observedAot6213 != 1
+                    || emptyCatalog.ResolveCalls != 0
+                    || emptyContext.Errors.Count != 0
+                    || emptyContext.Events.Count != 0)
+                {
+                    throw new InvalidOperationException("Convert-Path whole-collection empty preflight leaked a resolver call, row, or secondary diagnostic.");
+                }
+            }
+
+            CountingConvertPathCatalog continuationCatalog = new();
+            ConvertPathCmdlet continuationConvertPath = new(continuationCatalog);
+            AotExecutionContext convertContinuationContext = new();
+            TextRecord[] convertContinuationRows = continuationConvertPath.Invoke(new CommandInvocation(continuationConvertPath.Descriptor,
+                new Dictionary<string, string[]> { ["Path"] = ["resolved-first", "missing", "rejected", "resolved-last"] },
+                convertResolvedFirstSpan,
+                new Dictionary<string, AotSourceSpan?[]> { ["Path"] = [convertResolvedFirstSpan, convertMissingSpan, convertRejectedSpan, convertResolvedLastSpan] }),
+                convertContinuationContext).Cast<TextRecord>().ToArray();
+            if (!convertContinuationRows.Select(static row => row.Value).SequenceEqual(["/fixture/convert-first", "/fixture/convert-last"])
+                || !continuationCatalog.Inputs.SequenceEqual(["resolved-first", "missing", "rejected", "resolved-last"])
+                || convertContinuationContext.Errors.Count != 2
+                || convertContinuationContext.Errors[0].Diagnostic is not { Id: "AOT6206", Span: var convertMissingErrorSpan }
+                || !ReferenceEquals(convertMissingErrorSpan, convertMissingSpan)
+                || convertContinuationContext.Errors[1].Diagnostic is not { Id: "AOT6201", Span: var convertRejectedErrorSpan }
+                || !ReferenceEquals(convertRejectedErrorSpan, convertRejectedSpan))
+            {
+                throw new InvalidOperationException("Convert-Path non-empty Missing/Rejected continuation, ordering, or per-value-span regression.");
+            }
+
+            CountingConvertPathCatalog whitespaceCatalog = new();
+            ConvertPathCmdlet whitespaceConvertPath = new(whitespaceCatalog);
+            AotExecutionContext convertWhitespaceContext = new();
+            if (whitespaceConvertPath.Invoke(new CommandInvocation(whitespaceConvertPath.Descriptor,
+                new Dictionary<string, string[]> { ["Path"] = ["  "] }), convertWhitespaceContext).Any()
+                || !whitespaceCatalog.Inputs.SequenceEqual(["  "])
+                || convertWhitespaceContext.Errors.SingleOrDefault()?.Id != "AOT6206")
+            {
+                throw new InvalidOperationException("Convert-Path whitespace literal/missing regression.");
             }
 
             SourceCmdletMetadata testPathContract = GeneratedCmdletPorts.TestPath;
@@ -7022,6 +7114,58 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             }
 
             return "fixture-user";
+        }
+    }
+
+    // A deliberately observable direct-resolution seam fixture. It gives the
+    // Convert-Path test a closed Resolved/Missing/Rejected transcript without
+    // depending on host filesystem state, and makes it impossible for a
+    // future refactor to hide an early resolver call behind equivalent text.
+    private sealed class CountingConvertPathCatalog : IPhysicalChildItemCatalog
+    {
+        private readonly List<string> _inputs = [];
+
+        internal int ResolveCalls { get; private set; }
+        internal IReadOnlyList<string> Inputs => _inputs;
+
+        public IEnumerable<PhysicalChildItem> GetImmediateChildren(string path, AotExecutionContext context, AotSourceSpan? span) =>
+            throw new InvalidOperationException("Convert-Path fixture must not enumerate children.");
+
+        public PhysicalChildItem? GetDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span) =>
+            throw new InvalidOperationException("Convert-Path fixture must not describe an item.");
+
+        public PhysicalItemProbeResult ProbeDirectPhysicalItem(string path, AotExecutionContext context, AotSourceSpan? span) =>
+            throw new InvalidOperationException("Convert-Path fixture must not probe an item.");
+
+        public DirectPhysicalPathResolution ResolveExistingDirectPhysicalPath(string path, AotExecutionContext context, AotSourceSpan? span)
+        {
+            ResolveCalls++;
+            _inputs.Add(path);
+            return path switch
+            {
+                "resolved-first" => DirectPhysicalPathResolution.Resolved(new DirectPhysicalPathRecord("/fixture/convert-first")),
+                "resolved-last" => DirectPhysicalPathResolution.Resolved(new DirectPhysicalPathRecord("/fixture/convert-last")),
+                "missing" => Missing(context, span),
+                "rejected" => Rejected(context, span),
+                "  " => Missing(context, span),
+                _ => throw new InvalidOperationException($"Unexpected Convert-Path fixture input '{path}'."),
+            };
+        }
+
+        private static DirectPhysicalPathResolution Missing(AotExecutionContext context, AotSourceSpan? span)
+        {
+            context.WriteNonTerminatingError(AotDiagnostics.Runtime(
+                "AOT6206", "Cannot find direct physical path in Convert-Path fixture.", span,
+                "direct physical path not found", "Use an existing direct physical file or directory path."));
+            return DirectPhysicalPathResolution.Missing;
+        }
+
+        private static DirectPhysicalPathResolution Rejected(AotExecutionContext context, AotSourceSpan? span)
+        {
+            context.WriteNonTerminatingError(AotDiagnostics.Runtime(
+                "AOT6201", "Convert-Path fixture rejected a provider-qualified path.", span,
+                "provider-qualified path rejected", "Use a direct operating-system path without '::'."));
+            return DirectPhysicalPathResolution.Rejected;
         }
     }
 
