@@ -760,6 +760,55 @@
       ]
     },
     {
+      "command": "ConvertFrom-Json",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertFromJsonCommand.cs and JsonObject.cs",
+      "state": "design-research-only",
+      "variances": [
+        {
+          "id": "json-closed-value-codec",
+          "sourceFeature": "JsonObject uses Newtonsoft plus PowerShell PSObject/hashtable materialization and ConvertFrom-Json writes dynamically enumerated results.",
+          "targetDecision": "Propose one pure System.Text.Json codec that parses only into immutable closed AotValue/AotRecord cases; no executable adapter exists until independent review and native proof pass.",
+          "status": "blocked",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "json-input-lifecycle",
+          "sourceFeature": "ProcessRecord buffers pipeline strings and EndProcessing chooses separate-document versus newline-joined JSON behavior; DateKind, AsHashtable, Depth, and NoEnumerate alter source semantics.",
+          "targetDecision": "Do not admit source parameters or pipeline aggregation without a static generated-metadata binding and typed-output design; all are deferred during J0.",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "json-case-collision",
+          "sourceFeature": "The default ConvertFrom-Json PSObject route rejects JSON keys differing only by case, while -AsHashtable has a distinct hashtable route.",
+          "targetDecision": "The initial closed AotRecord route rejects exact duplicates, case collisions, and blank/whitespace property names with AOT6304. Stock default ConvertFrom-Json accepts an exact duplicate with the latter value, so that rejection is an explicit fail-closed variance. -AsHashtable is wholly deferred; no hashtable behavior is implied.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "ConvertTo-Json",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs and JsonObject.cs",
+      "state": "design-research-only",
+      "variances": [
+        {
+          "id": "json-arbitrary-object-input",
+          "sourceFeature": "ConvertTo-Json accepts arbitrary object input and PowerShell/Json.NET preprocessing before serializing it.",
+          "targetDecision": "The proposed J0 seam accepts only existing closed AotValue cases. It will never discover CLR members, reflect, wrap PSObject, or invoke a generic serializer.",
+          "status": "blocked",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "json-format-and-options",
+          "sourceFeature": "AsArray, Compress, Depth, EnumsAsStrings, EscapeHandling, and cmdlet-owned cancellation shape source output and lifecycle.",
+          "targetDecision": "No option is admitted until a generated descriptor opt-in and stock/native formatting oracle establish a bounded contract. The shared codec is design-only.",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "MetadataCompletion",
       "source": "PowerShell completion, ArgumentCompleter, and Register-ArgumentCompleter subsystems",
       "state": "complete-static-catalog-discovery-target",
