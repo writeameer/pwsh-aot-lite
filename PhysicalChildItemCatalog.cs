@@ -1128,6 +1128,56 @@ internal sealed class ResolvePathCmdlet(IPhysicalChildItemCatalog childItems) : 
         GeneratedCmdletPorts.ResolvePath.CreateAotDescriptor("Path");
 }
 
+// Port boundary for Microsoft.PowerShell.Commands.ConvertPathCommand. The
+// source converts provider paths. This thin Path-only port consumes the
+// already-reviewed direct-resolution outcome and emits its canonical path as
+// the existing prose TextRecord; it introduces no second resolver or view.
+internal sealed class ConvertPathCmdlet(IPhysicalChildItemCatalog childItems) : AotCmdletBase
+{
+    private static readonly CmdletDescriptor ConvertPathDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => ConvertPathDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("Path", out string[] paths))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6211", "Convert-Path requires a direct physical -Path value in the current Native AOT slice.",
+                invocation.SourceSpan, "required direct path missing", "Supply one existing direct physical file or directory path."));
+        }
+
+        // This is deliberately a collection gate, not a per-value error.
+        // Nothing may resolve before every value has been checked: the first
+        // exact empty path is the sole AOT6213 diagnostic and returns no rows.
+        for (int index = 0; index < paths.Length; index++)
+        {
+            if (paths[index].Length == 0)
+            {
+                throw new ScriptException(AotDiagnostics.Runtime(
+                    "AOT6213", "Convert-Path does not accept an empty direct physical -Path value in the current Native AOT slice.",
+                    invocation.GetValueSpan("Path", index), "empty direct physical path", "Supply one non-empty direct operating-system file or directory path."));
+            }
+        }
+
+        List<IPipelineRecord> output = [];
+        for (int index = 0; index < paths.Length; index++)
+        {
+            DirectPhysicalPathResolution resolution = childItems.ResolveExistingDirectPhysicalPath(paths[index], context, invocation.GetValueSpan("Path", index));
+            if (resolution is { Status: DirectPhysicalPathResolutionStatus.Resolved, Record: { } record })
+            {
+                output.Add(new TextRecord(record.Path));
+            }
+        }
+
+        return output;
+    }
+
+    private static CmdletDescriptor CreateDescriptor() => GeneratedCmdletPorts.ConvertPath.CreateAotDescriptor("Path");
+}
+
 // Port boundary for Microsoft.PowerShell.Commands.TestPathCommand. The source
 // calls provider Exists/IsContainer; this bounded adapter asks the existing
 // captured-root catalog for one closed no-follow fact and projects it as a

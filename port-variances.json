@@ -389,6 +389,27 @@
       ]
     },
     {
+      "command": "Convert-Path",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/ConvertPathCommand.cs",
+      "state": "in-progress-wave3-direct-canonical-text-slice",
+      "variances": [
+        {
+          "id": "convertpath-reused-direct-resolution",
+          "sourceFeature": "SessionState.Path.GetResolvedProviderPathFromPSPath provider conversion and string collection output",
+          "targetDecision": "Use generated Path-only binding and the existing IPhysicalChildItemCatalog.ResolveExistingDirectPhysicalPath closed outcome. Resolved projects only as existing TextRecord prose; no provider, PathInfo, PSObject, FileInfo, wildcarding, or second resolver is added.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "convertpath-whole-collection-empty-gate",
+          "sourceFeature": "Bound Path collection can contain arbitrary provider values",
+          "targetDecision": "Before any resolver call, inspect all values in source order. The first exact empty value emits the sole source-spanned AOT6213 and immediately returns with zero output, resolver calls, or other diagnostics. Whitespace remains literal only if the collection passes this gate.",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Get-FileHash",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetHash.cs",
       "state": "complete-direct-physical-file-target",

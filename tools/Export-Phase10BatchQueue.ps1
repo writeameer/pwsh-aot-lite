@@ -29,7 +29,8 @@ $alreadyProven = @(
 $integratedDuringCampaign = @(
     'Get-Item',
     'Test-Path',
-    'Resolve-Path'
+    'Resolve-Path',
+    'Convert-Path'
 )
 
 # The remaining front of the queue is the direct physical-filesystem cluster.
