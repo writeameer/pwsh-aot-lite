@@ -285,6 +285,7 @@ $lines.Add(('- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmd
 $lines.Add("- Accounting: $($manifest.logicalCommandCount) logical commands; $($provenRows.Count + $integratedRows.Count) completed commands ($($provenRows.Count) baseline and $($integratedRows.Count) integrated during this campaign); $($remaining.Count) queued commands in $($batchNumber - 2) batches of ten (final queued batch may be smaller).")
 $lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue and includes the deliberately pulled-forward JSON foundation as `W3a`; JSON work remains blocked on J0, the closed JSON codec/value-plane seam.')
 $lines.Add('- Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.')
+$lines.Add('- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the 279 unconverted survey outcomes. `missing-profile` means no exact compiler profile, not that every command has the same blocker.')
 $lines.Add('')
 $lines.Add('Regenerate or verify this queue:')
 $lines.Add('')
