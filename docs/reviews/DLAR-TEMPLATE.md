@@ -34,6 +34,23 @@ Upstream commit: `<commit or N/A>`
 - Current target seam and capability authority: `<links>`
 - Admitted/rejected behavior and variance table: `<links>`
 - Managed/parser/oracle/Native AOT evidence: `<exact commands, outputs, or N/A>`
+- Profile-design preflight: `<completed preflight link, or N/A with reason>`
+
+## Preflight closure
+
+For a new profile family or shared substrate, complete this table before
+dispatching either lens. A missing row is a `BLOCK`; link the detailed packet
+rather than duplicating it here.
+
+| Required closure | Evidence link / exact bounded decision |
+| --- | --- |
+| Source pins and extracted facts |  |
+| Authority boundary and excluded capabilities |  |
+| Admitted/rejected static parameters, aliases, sets, outputs, diagnostics |  |
+| Closed grammar/dialect and distinct typed inputs |  |
+| Collection/property-binding semantics |  |
+| Target-specific fixtures and mechanically derived count |  |
+| Deferred `requires-substrate` / unsupported remainder |  |
 
 ## Independent lens verdicts
 
