@@ -2,11 +2,12 @@
 
 ## Status and source
 
-**In progress — J0 design/review only; no executable adapter is registered.**
+**Queued command adapter — J0 codec foundation is integrated and reviewed; no
+executable adapter is registered.**
 
 - Original: `../../.upstream/PowerShell/src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertFromJsonCommand.cs`, `ConvertFromJsonCommand : Cmdlet`; helper closure `JsonObject.cs`.
 - Generated contract: `GeneratedCmdletPorts.ConvertFromJson`.
-- Target: proposed shared `AotJsonCodec`; no target cmdlet implementation.
+- Target: implemented shared `AotJsonCodec`; no target cmdlet implementation.
 - Review ledger: [json-codec-foundation.md](../reviews/json-codec-foundation.md).
 
 ## Port timing
@@ -16,7 +17,7 @@
 | UTC work started | `2026-09-23T13:05:01.6890880Z` |
 | UTC work ended | — |
 | Elapsed wall clock | — |
-| Scope note | J0 closed JSON-to-`AotValue` foundation research, including ConvertFrom-Json source contract. |
+| Scope note | J0 closed JSON-to-`AotValue` foundation is integrated; ConvertFrom-Json adapter remains queued. |
 
 ## Upstream reuse evidence matrix
 
@@ -35,5 +36,6 @@ materialization, and all pipeline buffering semantics remain unimplemented.
 
 ## Next action
 
-Obtain independent J0 AOT/data-plane/diagnostic review verdicts, then decide
-whether the proposed codec contract is sufficiently narrow to implement.
+Start a separate bounded adapter slice only after choosing its generated
+parameter subset and controlled stock/native input-output oracle. J0's
+foundation review is complete; it does not itself authorize command support.

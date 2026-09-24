@@ -1,6 +1,6 @@
 # Convert-Path port notes
 
-**Verified bounded Wave 3 release candidate.** `Convert-Path` is generated `Path` only
+**Integrated bounded Wave 3 native subset.** `Convert-Path` is generated `Path` only
 and is a thin consumer of `ResolveExistingDirectPhysicalPath`, not a provider
 converter.
 

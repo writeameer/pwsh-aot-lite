@@ -14,7 +14,7 @@ not an execution claim.
 
 ## Reusable-foundation order
 
-1. **J0 closed JSON codec/value plane**: bounded `System.Text.Json` ↔ `AotValue`, typed diagnostics, no `PSObject`/Newtonsoft/arbitrary CLR serialization.
+1. **J0 closed JSON codec/value plane — complete at `aff09b3`**: bounded `System.Text.Json` ↔ `AotValue`, typed diagnostics, no `PSObject`/Newtonsoft/arbitrary CLR serialization. This is a foundation only; its three JSON cmdlet adapters remain queued.
 2. **Direct physical read/path foundation**: parser-derived multi-positional binding plus captured-root, provider-free path operations.
 3. **Closed typed data plane**: record transforms, projections, ordering, aggregation, and text matching.
 4. **Terminal and stream contracts**: static views plus output/error/information streams, never ETS.

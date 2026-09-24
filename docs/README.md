@@ -43,7 +43,7 @@ The migration order and candidacy decisions are maintained in the
 | `Get-Item` | integrated bounded Wave 3 macOS-arm64 captured-root direct physical file-or-directory lookup slice; provider, wildcard, dynamic-parameter, pipeline, and interactive-prompt support remain deferred/fail closed | [Get-Item port notes](cmdlets/get-item.md) |
 | `Test-Path` | integrated bounded Wave 3 macOS-arm64 captured-root direct physical existence/kind probe; provider, literal, wildcard, `IsValid`, pipeline, and dynamic-parameter support remain deferred/fail closed | [Test-Path port notes](cmdlets/test-path.md) |
 | `Resolve-Path` | integrated bounded Wave 3 macOS-arm64 captured-root direct existing physical resolution; provider, literal, wildcard, relative/session, pipeline, and dynamic-parameter support remain deferred/fail closed | [Resolve-Path port notes](cmdlets/resolve-path.md) |
-| `Convert-Path` | in-progress generated Path-only canonical-text projection reusing the Resolve-Path physical resolution seam | [Convert-Path port notes](cmdlets/convert-path.md) |
+| `Convert-Path` | integrated bounded Wave 3 generated Path-only canonical-text projection reusing the Resolve-Path physical resolution seam | [Convert-Path port notes](cmdlets/convert-path.md) |
 | `New-Guid` | default UUID v7 and generated `-Empty` ported; typed input/output deferred | [New-Guid port notes](cmdlets/new-guid.md) |
 | `New-TimeSpan` | no-argument and typed direct component construction ported; date/pipeline input deferred | [New-TimeSpan port notes](cmdlets/new-timespan.md) |
 | `Start-Sleep` | generated `-Milliseconds`/`-ms` ported; seconds, duration, positional, and pipeline input deferred | [Start-Sleep port notes](cmdlets/start-sleep.md) |
@@ -94,6 +94,15 @@ same upstream parser output instead of allowing separate grammars to emerge.
 The [diagnostic-experience contract](architecture/diagnostic-contract.md)
 makes Rust-style, source-precise diagnostics a non-optional part of the AOT
 Execution Kernel rather than a later UI enhancement.
+
+## Phase 10 campaign
+
+The canonical campaign position, reusable-foundation order, completed ports,
+next batch, and evidence map are in the [Phase 10 campaign status and
+operating model](campaign/README.md). The
+[batch queue](campaign/phase10-batch-queue.md) and
+[archetype inventory](campaign/phase10-archetype-inventory.md) provide the
+deterministic execution order and source-family reasoning behind it.
 
 The [AOT Execution Kernel foundation](architecture/aot-execution-kernel.md)
 records the actual AST-to-plan implementation slice, its stable diagnostics,
