@@ -30,21 +30,24 @@ The runner must remain Native-AOT safe:
    gates.  PowerShell grammar is upstream source, not a new grammar to grow.
 6. `docs/architecture/reviewer-personas.md` — mandatory independent-review
    personas, dispatch matrix, verdict authority, and review-ledger process.
-7. `docs/architecture/language-tooling-contract.md` — the shared parser
+7. `docs/architecture/dual-lens-architecture-review.md` — mandatory DLAR
+   gate for profile families, shared substrates, value/pipeline boundaries,
+   formatting/diagnostics, and compatibility-affecting behavior.
+8. `docs/architecture/language-tooling-contract.md` — the shared parser
    contract for execution, CLI tooling, and eventual editor/LSP consumers.
-8. `docs/architecture/diagnostic-contract.md` — mandatory Phase-1 structured
+9. `docs/architecture/diagnostic-contract.md` — mandatory Phase-1 structured
    diagnostics, renderer, and negative-test requirements.
-9. `docs/architecture/language-compatibility-core.md` — the current reviewed
+10. `docs/architecture/language-compatibility-core.md` — the current reviewed
    block-plan, lexical-scope, expression, and delayed-binder boundary.
-10. `docs/architecture/terminal-presentation.md` — ANSI policy, sanitization,
-    and the shared-parser boundary for future interactive highlighting.
-11. `docs/architecture/provider-host-substrate.md` — capability authority map
-    for physical files, process inspection, host/platform state, and explicit
-    unavailable credential/network boundaries.
-12. `docs/campaign/phase10-built-in-cmdlets.md` — checked 290-declaration
-    campaign classification; do not port outside its prerequisites or silently
-    reclassify a row.
-13. `docs/architecture/upstream-reuse-governance.md` — mandatory anti-NIH
+11. `docs/architecture/terminal-presentation.md` — ANSI policy, sanitization,
+   and the shared-parser boundary for future interactive highlighting.
+12. `docs/architecture/provider-host-substrate.md` — capability authority map
+   for physical files, process inspection, host/platform state, and explicit
+   unavailable credential/network boundaries.
+13. `docs/campaign/phase10-built-in-cmdlets.md` — checked 290-declaration
+   campaign classification; do not port outside its prerequisites or silently
+   reclassify a row.
+14. `docs/architecture/upstream-reuse-governance.md` — mandatory anti-NIH
     evidence matrix, output/format-contract provenance, permitted AOT
     replacement exceptions, and reviewer BLOCK criteria.
 
@@ -72,6 +75,17 @@ evidence. Their report must state `PASS` or `BLOCK`, cite evidence, and name
 the smallest corrective action. Create a ledger entry under `docs/reviews/`
 from `docs/reviews/TEMPLATE.md`, and link it from the affected port or design
 note.
+
+## Dual-Lens Architecture Review (DLAR)
+
+Before integration, invoke the two independent DLAR lenses whenever a change
+adds or changes a cmdlet-profile family, shared substrate, pipeline/value
+boundary, formatting/diagnostic contract, or compatibility-affecting behavior.
+Use `docs/architecture/dual-lens-architecture-review.md` and retain the result
+with `docs/reviews/DLAR-TEMPLATE.md`. DLAR is not a substitute for the
+mandatory reviewer matrix above: one `BLOCK` from either DLAR lens prevents
+integration or a support claim. Lenses are evidence-backed design perspectives,
+never impersonations of real people.
 
 ## Slice branch and integration rule
 
