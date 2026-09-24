@@ -1,0 +1,18 @@
+{
+  "schema": "pwsh-aot-dlar-packet-checksums/v1",
+  "packet": "2026-09-25-j2-target-readiness-v2",
+  "algorithm": "SHA-256",
+  "files": {
+    "README.md": "74b0b7c77e57ef4766ad1c9eb3c99270a5fe6a33cc489ad78a509153e3e9cfa9",
+    "evidence.md": "c79b0ef5c1a3d69cd8bd088b223e543650bba34efc4ae9e4cf47b49745e515b8",
+    "findings.md": "f6e7b6f6a889eddc3fdaf380c1a85f246c2f75f1bf9caadd4c3c61d8be62b60d",
+    "reconciliation.md": "91c49c41aa9572eaf0e5b11ef3a6060eb2215c9cd8617011745cecfb38f16670",
+    "lenses/powershell-compatibility.md": "d764b4a72f8a755853989363278523f48570e0e82a10712d3bd7236addb32959",
+    "lenses/typed-data-plane-aot.md": "8ef2cce28573cbd846c1457b028006bc08191bad086715e8bfe20faa5ee5ec5b",
+    "../../../architecture/j2-static-record-transform-target-readiness-v2.md": "badfd23440af86c6883e0e9bc46991b3edaf7e63e02c6fcc179d26ad4005731a"
+  },
+  "excludes": [
+    "checksums.json",
+    "future lens amendments after this pending packet is superseded"
+  ]
+}

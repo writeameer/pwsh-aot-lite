@@ -5,7 +5,9 @@
 implementation containing only static-record adapters for `Where-Object` and
 `Select-Object`. It authorizes no code, registration, converter profile,
 support claim, or migration-count change.  
-**Outcome:** **PENDING** — ready for both DLAR lenses.
+**Outcome:** **BLOCK** — both lenses found a design-only blocker. This packet
+is superseded by [v2](../2026-09-25-j2-target-readiness-v2/README.md), which
+must receive fresh verdicts.
 
 ## Required packet
 
@@ -28,16 +30,16 @@ support claim, or migration-count change.
 | Fixtures/count | [fixture plan](../../../architecture/j2-static-record-transform-target-readiness.md#fixture-and-oracle-plan) fixes 52 unique IDs |
 | Deferred remainder | [disposition](../../../architecture/j2-static-record-transform-target-readiness.md#j2-disposition-no-silent-promotion) accounts for all 16 |
 
-## Requested verdicts
+## Lens verdicts
 
-Both lenses must return exactly `PASS` or `BLOCK`, cite evidence, and name the
-smallest corrective action. These are design perspectives, not real-person
-participation or endorsement.
+Both lenses returned `BLOCK`, cite evidence, and name the smallest corrective
+action. These are design perspectives, not real-person participation or
+endorsement.
 
-- [PowerShell semantic and compatibility lens](lenses/powershell-compatibility.md)
-- [Typed data-plane and Native AOT lens](lenses/typed-data-plane-aot.md)
+- [PowerShell semantic and compatibility lens — BLOCK](lenses/powershell-compatibility.md)
+- [Typed data-plane and Native AOT lens — BLOCK](lenses/typed-data-plane-aot.md)
 - [Normalized findings](findings.md)
 - [Reconciliation](reconciliation.md)
 
-A single BLOCK prevents implementation or a support claim. A PASS still leaves
-the ordinary reviewer matrix and all lifecycle implementation/release gates.
+A BLOCK prevents implementation or a support claim. Fresh v2 PASS verdicts
+still leave the ordinary reviewer matrix and all lifecycle release gates.
