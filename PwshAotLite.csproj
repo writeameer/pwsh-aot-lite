@@ -37,6 +37,9 @@
                      Link="PowerShellSource/%(RecursiveDir)%(Filename)%(Extension)" />
     <AdditionalFiles Include="$(PowerShellSourceRoot)/System.Management.Automation/resources/VerbDescriptionStrings.resx"
                      Link="PowerShellSource/System.Management.Automation/resources/VerbDescriptionStrings.resx" />
+    <!-- Runtime self-test corpus; embedded so published Native AOT verification
+         executes the exact checked-in evidence, not a duplicated list. -->
+    <EmbeddedResource Include="tests/j1-lexical-path-corpus.json" LogicalName="PwshAotLite.J1LexicalPathCorpus" />
   </ItemGroup>
   <Target Name="EnsurePowerShellSource" BeforeTargets="CoreCompile">
     <Error Condition="!Exists('$(PowerShellSourceRoot)')"

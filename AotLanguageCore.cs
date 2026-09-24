@@ -638,9 +638,11 @@ internal sealed class AotLiteralExpressionPlan : AotExpressionPlan
     internal override AotValue Evaluate(AotScope scope) => Value;
 }
 
-internal sealed class AotListExpressionPlan(IReadOnlyList<AotExpressionPlan> elements, AotSourceSpan span) : AotExpressionPlan(span)
+internal sealed class AotListExpressionPlan : AotExpressionPlan
 {
-    internal override AotValue Evaluate(AotScope scope) => AotValue.FromList(elements.Select(element => element.Evaluate(scope)));
+    internal AotListExpressionPlan(IReadOnlyList<AotExpressionPlan> elements, AotSourceSpan span) : base(span) => Elements = elements;
+    internal IReadOnlyList<AotExpressionPlan> Elements { get; }
+    internal override AotValue Evaluate(AotScope scope) => AotValue.FromList(Elements.Select(element => element.Evaluate(scope)));
 }
 
 internal sealed class AotVariableExpressionPlan(string name, AotSourceSpan span) : AotExpressionPlan(span)
@@ -673,12 +675,14 @@ internal sealed class AotParameterArgumentPlan : AotCommandArgumentPlan
         string name,
         AotSourceSpan span,
         AotExpressionPlan? attachedValue = null,
-        AotSourceSpan? attachedValueSpan = null)
+        AotSourceSpan? attachedValueSpan = null,
+        bool preserveAsJ1Group = false)
         : base(span)
     {
         Name = name;
         AttachedValue = attachedValue;
         AttachedValueSpan = attachedValueSpan;
+        PreserveAsJ1Group = preserveAsJ1Group;
     }
 
     internal string Name { get; }
@@ -689,6 +693,7 @@ internal sealed class AotParameterArgumentPlan : AotCommandArgumentPlan
     // extraction make a truthful decision without text reparsing.
     internal AotExpressionPlan? AttachedValue { get; }
     internal AotSourceSpan? AttachedValueSpan { get; }
+    internal bool PreserveAsJ1Group { get; }
 
     internal override void AppendResolved(AotScope scope, List<CommandSyntaxAtom> atoms)
     {
@@ -699,12 +704,30 @@ internal sealed class AotParameterArgumentPlan : AotCommandArgumentPlan
                 && literal.Value.TryGetBoolean(out bool value)
                     ? value
                     : null;
-            AotCommandArgumentConverter.Append(
-                AttachedValue.Evaluate(scope),
-                AttachedValueSpan ?? Span,
-                atoms,
-                isAttachedParameterValue: true,
-                attachedDirectBoolean: directBoolean);
+            if (PreserveAsJ1Group)
+            {
+                AotCommandArgumentConverter.Append(AttachedValue.Evaluate(scope), AttachedValueSpan ?? Span, atoms,
+                    isAttachedParameterValue: true, attachedDirectBoolean: directBoolean,
+                    groupId: AotCommandValueGroupPlan.AllocateGroupId());
+            }
+            else if (AttachedValue is AotListExpressionPlan list)
+            {
+                int groupId = AotCommandValueGroupPlan.AllocateGroupId();
+                foreach (AotExpressionPlan element in list.Elements)
+                {
+                    AotCommandArgumentConverter.Append(element.Evaluate(scope), element.Span, atoms,
+                        isAttachedParameterValue: true, attachedDirectBoolean: directBoolean, groupId: groupId);
+                }
+            }
+            else
+            {
+                AotCommandArgumentConverter.Append(
+                    AttachedValue.Evaluate(scope),
+                    AttachedValueSpan ?? Span,
+                    atoms,
+                    isAttachedParameterValue: true,
+                    attachedDirectBoolean: directBoolean);
+            }
         }
     }
 }
@@ -721,6 +744,24 @@ internal sealed class AotValueArgumentPlan : AotCommandArgumentPlan
 
     internal override void AppendResolved(AotScope scope, List<CommandSyntaxAtom> atoms) =>
         AotCommandArgumentConverter.Append(Expression.Evaluate(scope), Span, atoms);
+}
+
+// Preserves one upstream ArrayLiteralAst command element as one atomic source
+// group for the sole J1 sequential binding mode.  It never reparses text and
+// legacy descriptors continue to receive their historical flattened atoms.
+internal sealed class AotCommandValueGroupPlan(IReadOnlyList<AotExpressionPlan> expressions, AotSourceSpan span) : AotCommandArgumentPlan(span)
+{
+    private static int _nextGroupId;
+    internal static int AllocateGroupId() => Interlocked.Increment(ref _nextGroupId);
+
+    internal override void AppendResolved(AotScope scope, List<CommandSyntaxAtom> atoms)
+    {
+        int groupId = AllocateGroupId();
+        foreach (AotExpressionPlan expression in expressions)
+        {
+            AotCommandArgumentConverter.Append(expression.Evaluate(scope), expression.Span, atoms, groupId: groupId);
+        }
+    }
 }
 
 internal sealed class AotCommandPlan(string name, AotSourceSpan commandSpan, IReadOnlyList<AotCommandArgumentPlan> arguments)
@@ -892,13 +933,14 @@ internal static class AotCommandArgumentConverter
         AotSourceSpan span,
         List<CommandSyntaxAtom> atoms,
         bool isAttachedParameterValue = false,
-        bool? attachedDirectBoolean = null)
+        bool? attachedDirectBoolean = null,
+        int? groupId = null)
     {
         if (value.TryGetItems(out IReadOnlyList<AotValue>? items))
         {
             foreach (AotValue item in items!)
             {
-                Append(item, span, atoms, isAttachedParameterValue, attachedDirectBoolean);
+                Append(item, span, atoms, isAttachedParameterValue, attachedDirectBoolean, groupId);
             }
 
             return;
@@ -925,7 +967,8 @@ internal static class AotCommandArgumentConverter
             IsParameter: false,
             span,
             isAttachedParameterValue,
-            attachedDirectBoolean));
+            attachedDirectBoolean,
+            groupId));
     }
 }
 

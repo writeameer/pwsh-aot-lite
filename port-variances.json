@@ -410,6 +410,48 @@
       ]
     },
     {
+      "command": "Join-Path",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/CombinePathCommand.cs",
+      "state": "in-review-j1-lexical-posix-v1",
+      "variances": [
+        {
+          "id": "j1-lexical-no-provider-authority",
+          "sourceFeature": "SessionState.Path.Combine and provider/dynamic parameter behavior",
+          "targetDecision": "Pure POSIX-v1 PathText composition; no filesystem, provider, current directory, drive, or resolver authority.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j1-join-static-binder",
+          "sourceFeature": "PowerShell dynamic binding, path arrays, and remaining arguments",
+          "targetDecision": "Generated metadata plus a descriptor-owned J1 group-preserving static binding mode; unsupported parameters fail closed.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Split-Path",
+      "source": "src/Microsoft.PowerShell.Commands.Management/commands/management/ParsePathCommand.cs",
+      "state": "in-review-j1-lexical-posix-v1",
+      "variances": [
+        {
+          "id": "j1-split-static-selector",
+          "sourceFeature": "Provider/session-state parse routes and dynamic parameter-set selection",
+          "targetDecision": "Pure POSIX-v1 Parent/Leaf/LeafBase/Extension/IsAbsolute selector table; conflicting selectors fail closed.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j1-lexical-text-record",
+          "sourceFeature": "WriteObject string/bool through PowerShell objects and formatting",
+          "targetDecision": "Closed TextRecord/BooleanRecord output and existing static presentation.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Get-FileHash",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetHash.cs",
       "state": "complete-direct-physical-file-target",
