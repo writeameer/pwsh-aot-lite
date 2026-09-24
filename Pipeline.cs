@@ -42,6 +42,10 @@ internal sealed class AotPublishedTerminatingException(AotDiagnostic diagnostic)
 // ports do not flatten those semantics into untyped string switches.
 internal enum AotParameterShape { Scalar, Array, Switch }
 
+// Only J1's two reviewed lexical profiles select this branch.  It is a
+// descriptor-owned closed mapping, not a second/general PowerShell binder.
+internal enum StaticBindingMode { Legacy, JoinPathSequential, SplitPathSelector }
+
 [Flags]
 internal enum PipelineBindingSource { None = 0, ByValue = 1, ByPropertyName = 2, RemainingArguments = 4 }
 
@@ -87,7 +91,8 @@ internal sealed record ParameterSpec(
 internal sealed record CmdletDescriptor(
     string Name,
     IReadOnlyList<ParameterSpec> Parameters,
-    string? DefaultParameterName = null);
+    string? DefaultParameterName = null,
+    StaticBindingMode BindingMode = StaticBindingMode.Legacy);
 
 internal sealed record SourceCmdletMetadata(
     string Name,
@@ -124,7 +129,8 @@ internal sealed class CommandInvocation(
     IReadOnlyDictionary<string, string[]> parameters,
     AotSourceSpan? sourceSpan = null,
     IReadOnlyDictionary<string, AotSourceSpan?[]>? valueSpans = null,
-    AotCommonParameters? commonParameters = null)
+    AotCommonParameters? commonParameters = null,
+    IReadOnlyDictionary<string, AotSourceSpan?>? parameterSpans = null)
 {
     internal CmdletDescriptor Descriptor { get; } = descriptor;
     internal AotSourceSpan? SourceSpan { get; } = sourceSpan;
@@ -139,9 +145,11 @@ internal sealed class CommandInvocation(
         && index < spans.Length
             ? spans[index]
             : SourceSpan;
+    internal AotSourceSpan? GetParameterSpan(string name) =>
+        parameterSpans is not null && parameterSpans.TryGetValue(name, out AotSourceSpan? span) ? span : SourceSpan;
 
     internal CommandInvocation WithCommonParameters(AotCommonParameters commonParameters) =>
-        new(Descriptor, parameters, SourceSpan, valueSpans, commonParameters);
+        new(Descriptor, parameters, SourceSpan, valueSpans, commonParameters, parameterSpans);
 }
 
 // Parser-independent syntax atoms. The upstream AST lowerer and the legacy
@@ -155,7 +163,8 @@ internal sealed record CommandSyntaxAtom(
     bool IsParameter,
     AotSourceSpan? Span = null,
     bool IsAttachedParameterValue = false,
-    bool? AttachedDirectBoolean = null);
+    bool? AttachedDirectBoolean = null,
+    int? GroupId = null);
 
 internal sealed class CommandError(AotDiagnostic diagnostic)
 {
@@ -890,7 +899,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
@@ -949,6 +958,11 @@ internal static class AotCmdletRegistry
         if (cmdlet is null)
         {
             throw new ScriptException(AotDiagnostics.Binding("AOT2001", $"Unsupported source command '{commandName}'.", commandSpan));
+        }
+
+        if (cmdlet.Descriptor.BindingMode is StaticBindingMode.JoinPathSequential or StaticBindingMode.SplitPathSelector)
+        {
+            return BindJ1(cmdlet, arguments.ToArray(), commandSpan);
         }
 
         Dictionary<string, List<CommandSyntaxAtom>> bound = new(StringComparer.OrdinalIgnoreCase);
@@ -1043,6 +1057,248 @@ internal static class AotCmdletRegistry
         }
 
         return (cmdlet, new CommandInvocation(cmdlet.Descriptor, frozen, commandSpan, spans));
+    }
+
+    private static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindJ1(
+        IAotCmdlet cmdlet,
+        CommandSyntaxAtom[] atoms,
+        AotSourceSpan? commandSpan)
+    {
+        return cmdlet.Descriptor.BindingMode == StaticBindingMode.JoinPathSequential
+            ? BindJoinPath(cmdlet, atoms, commandSpan)
+            : BindSplitPath(cmdlet, atoms, commandSpan);
+    }
+
+    private static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindJoinPath(IAotCmdlet cmdlet, CommandSyntaxAtom[] atoms, AotSourceSpan? span)
+    {
+        Dictionary<string, List<CommandSyntaxAtom>> bound = NewBound();
+        Dictionary<string, AotSourceSpan?> parameterSpans = new(StringComparer.OrdinalIgnoreCase);
+        List<CommandSyntaxAtom> positional = [];
+        ParameterSpec? active = null;
+        foreach (CommandSyntaxAtom atom in atoms)
+        {
+            if (atom.IsParameter)
+            {
+                active = FindJ1Parameter(cmdlet, atom, span);
+                if (bound.ContainsKey(active.Name)) throw J1("AOT6212", $"Join-Path parameter '-{active.Name}' was specified more than once.", atom.Span ?? span);
+                bound.Add(active.Name, []);
+                parameterSpans[active.Name] = atom.Span;
+                continue;
+            }
+
+            if (active is not null) bound[active.Name].Add(atom); else positional.Add(atom);
+        }
+
+        if (bound.Count == 0)
+        {
+            AssignJoinPositional(positional, bound, span);
+        }
+        else if (!bound.ContainsKey("Path") && positional.Count > 0)
+        {
+            bound["Path"] = positional;
+        }
+        else if (positional.Count > 0)
+        {
+            throw J1("AOT6212", "Join-Path does not admit positional values after named J1 parameters.", positional[0].Span ?? span);
+        }
+
+        if (!bound.TryGetValue("ChildPath", out List<CommandSyntaxAtom>? children) || children.Count == 0)
+        {
+            throw J1("AOT6211", "Join-Path requires ChildPath.", span);
+        }
+
+        if (!bound.TryGetValue("Path", out List<CommandSyntaxAtom>? paths) || paths.Count == 0)
+        {
+            if (cmdlet is not IAotPipelineInputCmdlet) throw J1("AOT6211", "Join-Path requires Path.", span);
+        }
+
+        return (cmdlet, Freeze(cmdlet.Descriptor, bound, span, parameterSpans));
+    }
+
+    private static void AssignJoinPositional(List<CommandSyntaxAtom> positional, Dictionary<string, List<CommandSyntaxAtom>> bound, AotSourceSpan? span)
+    {
+        if (positional.Count < 2) throw J1("AOT6211", "Join-Path requires Path and ChildPath.", positional.FirstOrDefault()?.Span ?? span);
+        int firstGroup = positional[0].GroupId ?? -1;
+        int index = 0;
+        List<CommandSyntaxAtom> paths = [];
+        if (firstGroup >= 0)
+        {
+            while (index < positional.Count && positional[index].GroupId == firstGroup) paths.Add(positional[index++]);
+        }
+        else paths.Add(positional[index++]);
+        if (index >= positional.Count) throw J1("AOT6211", "Join-Path requires ChildPath.", span);
+        int childGroup = positional[index].GroupId ?? -1;
+        List<CommandSyntaxAtom> children = [];
+        if (childGroup >= 0) while (index < positional.Count && positional[index].GroupId == childGroup) children.Add(positional[index++]);
+        else children.Add(positional[index++]);
+        bound["Path"] = paths;
+        bound["ChildPath"] = children;
+        if (index < positional.Count) bound["AdditionalChildPath"] = positional.Skip(index).ToList();
+    }
+
+    private static (IAotCmdlet Cmdlet, CommandInvocation Invocation) BindSplitPath(IAotCmdlet cmdlet, CommandSyntaxAtom[] atoms, AotSourceSpan? span)
+    {
+        Dictionary<string, List<CommandSyntaxAtom>> bound = NewBound();
+        Dictionary<string, AotSourceSpan?> parameterSpans = new(StringComparer.OrdinalIgnoreCase);
+        List<CommandSyntaxAtom> positional = [];
+        ParameterSpec? active = null;
+        foreach (CommandSyntaxAtom atom in atoms)
+        {
+            if (!atom.IsParameter)
+            {
+                if (active is not null) bound[active.Name].Add(atom); else positional.Add(atom);
+                continue;
+            }
+            ParameterSpec parameter = FindJ1Parameter(cmdlet, atom, span);
+            if (bound.ContainsKey(parameter.Name)) throw J1("AOT6212", $"Split-Path parameter '-{parameter.Name}' was specified more than once.", atom.Span ?? span);
+            bound.Add(parameter.Name, parameter.Shape == AotParameterShape.Switch ? [new CommandSyntaxAtom("true", false, atom.Span)] : []);
+            parameterSpans[parameter.Name] = atom.Span;
+            active = parameter.Shape == AotParameterShape.Switch ? null : parameter;
+        }
+
+        string[] selectors = ["Parent", "Leaf", "LeafBase", "Extension", "IsAbsolute"];
+        string? selected = null;
+        foreach (CommandSyntaxAtom atom in atoms.Where(static atom => atom.IsParameter))
+        {
+            string? selector = selectors.FirstOrDefault(name => name.Equals(atom.Text, StringComparison.OrdinalIgnoreCase));
+            if (selector is null) continue;
+            if (selected is not null) throw J1("AOT6213", "Split-Path accepts exactly one static selector.", atom.Span ?? span);
+            selected = selector;
+        }
+        bool literal = bound.ContainsKey("LiteralPath");
+        if (literal && selected is not null)
+        {
+            CommandSyntaxAtom conflict = atoms.Last(atom => atom.IsParameter && (atom.Text.Equals("LiteralPath", StringComparison.OrdinalIgnoreCase) || atom.Text.Equals("PSPath", StringComparison.OrdinalIgnoreCase) || atom.Text.Equals("LP", StringComparison.OrdinalIgnoreCase) || selectors.Any(name => name.Equals(atom.Text, StringComparison.OrdinalIgnoreCase))));
+            throw J1("AOT6213", "LiteralPath is only admitted by the default parent route.", conflict.Span ?? span);
+        }
+        if (literal && positional.Count > 0) throw J1("AOT6212", "LiteralPath cannot be combined with positional paths.", positional[0].Span ?? span);
+        if (!literal)
+        {
+            if (positional.Count == 0)
+            {
+                if (cmdlet is not IAotPipelineInputCmdlet) throw J1("AOT6211", "Split-Path requires Path.", span);
+            }
+            else bound["Path"] = positional;
+        }
+        else if (bound["LiteralPath"].Count == 0) throw J1("AOT6211", "Split-Path LiteralPath requires a value.", span);
+        return (cmdlet, Freeze(cmdlet.Descriptor, bound, span, parameterSpans));
+    }
+
+    private static ParameterSpec FindJ1Parameter(IAotCmdlet cmdlet, CommandSyntaxAtom atom, AotSourceSpan? span) =>
+        cmdlet.Descriptor.Parameters.FirstOrDefault(parameter => parameter.Matches(atom.Text))
+        ?? throw J1("AOT6212", $"{cmdlet.Descriptor.Name} does not admit parameter '-{atom.Text}'.", atom.Span ?? span);
+
+    private static Dictionary<string, List<CommandSyntaxAtom>> NewBound() => new(StringComparer.OrdinalIgnoreCase);
+
+    private static CommandInvocation Freeze(CmdletDescriptor descriptor, Dictionary<string, List<CommandSyntaxAtom>> bound, AotSourceSpan? span, IReadOnlyDictionary<string, AotSourceSpan?>? parameterSpans = null) =>
+        new(descriptor,
+            bound.ToDictionary(static pair => pair.Key, static pair => pair.Value.Select(static atom => atom.Text).ToArray(), StringComparer.OrdinalIgnoreCase),
+            span,
+            bound.ToDictionary(static pair => pair.Key, static pair => pair.Value.Select(static atom => (AotSourceSpan?)atom.Span).ToArray(), StringComparer.OrdinalIgnoreCase),
+            parameterSpans: parameterSpans);
+
+    private static ScriptException J1(string id, string message, AotSourceSpan? span) =>
+        new(AotDiagnostics.Binding(id, message, span));
+}
+
+// Static adapters for the reviewed J1 lexical profile.  They deliberately use
+// only PathText; no host capability is injected because lexical text has zero
+// filesystem/provider authority.
+internal sealed class JoinPathCmdlet : AotPipelineInputCmdletBase<TextRecord>
+{
+    private static readonly CmdletDescriptor JoinPathDescriptor = new(
+        GeneratedCmdletPorts.JoinPath.Name,
+        GeneratedCmdletPorts.JoinPath.CreateAotDescriptor("Path", "ChildPath", "AdditionalChildPath").Parameters,
+        "Path",
+        StaticBindingMode.JoinPathSequential);
+
+    public override CmdletDescriptor Descriptor => JoinPathDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+        => Execute(invocation, null, context);
+
+    protected override IEnumerable<IPipelineRecord> ProcessPipelineInput(CommandInvocation invocation, IReadOnlyList<TextRecord> input, AotExecutionContext context)
+        => Execute(invocation, input.Select(static record => (record.Value, (AotSourceSpan?)null)).ToArray(), context);
+
+    private static IEnumerable<IPipelineRecord> Execute(CommandInvocation invocation, IReadOnlyList<(string Value, AotSourceSpan? Span)>? pipelinePaths, AotExecutionContext context)
+    {
+        if (pipelinePaths is not null && invocation.TryGetValues("Path", out _))
+            throw new ScriptException(AotDiagnostics.Binding("AOT6212", "Join-Path cannot combine pipeline Path input with explicit Path.", invocation.GetParameterSpan("Path")));
+        IReadOnlyList<(string Value, AotSourceSpan? Span)> paths = pipelinePaths ?? Values(invocation, "Path", required: true);
+        List<(string Value, AotSourceSpan? Span)> childValues = [.. Values(invocation, "ChildPath", required: true)];
+        childValues.AddRange(Values(invocation, "AdditionalChildPath", required: false));
+
+        // Validate the entire invocation before producing an output record.
+        List<PathText> children = childValues.Select(value => PathText.Parse(value.Value, LexicalPathDialect.PosixV1, value.Span, child: true)).ToList();
+        List<TextRecord> output = [];
+        foreach ((string value, AotSourceSpan? valueSpan) in paths)
+        {
+            context.ThrowIfCancellationRequested();
+            output.Add(new TextRecord(PathText.Parse(value, LexicalPathDialect.PosixV1, valueSpan).Compose(children, valueSpan).Value));
+        }
+
+        return output;
+    }
+
+    internal static IReadOnlyList<(string Value, AotSourceSpan? Span)> Values(CommandInvocation invocation, string name, bool required)
+    {
+        if (!invocation.TryGetValues(name, out string[] values) || values.Length == 0)
+        {
+            if (required) throw new ScriptException(AotDiagnostics.Binding("AOT6211", $"{invocation.Descriptor.Name} requires '{name}'.", invocation.SourceSpan));
+            return [];
+        }
+
+        return values.Select((value, index) => (value, invocation.GetValueSpan(name, index))).ToArray();
+    }
+}
+
+internal sealed class SplitPathCmdlet : AotPipelineInputCmdletBase<TextRecord>
+{
+    private static readonly CmdletDescriptor SplitPathDescriptor = new(
+        GeneratedCmdletPorts.SplitPath.Name,
+        GeneratedCmdletPorts.SplitPath.CreateAotDescriptor("Path", "LiteralPath", "Parent", "Leaf", "LeafBase", "Extension", "IsAbsolute").Parameters,
+        "Path",
+        StaticBindingMode.SplitPathSelector);
+
+    public override CmdletDescriptor Descriptor => SplitPathDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+        => Execute(invocation, null, context);
+
+    protected override IEnumerable<IPipelineRecord> ProcessPipelineInput(CommandInvocation invocation, IReadOnlyList<TextRecord> input, AotExecutionContext context)
+        => Execute(invocation, input.Select(static record => (record.Value, (AotSourceSpan?)null)).ToArray(), context);
+
+    private static IEnumerable<IPipelineRecord> Execute(CommandInvocation invocation, IReadOnlyList<(string Value, AotSourceSpan? Span)>? pipelineValues, AotExecutionContext context)
+    {
+        if (pipelineValues is not null && (invocation.TryGetValues("Path", out _) || invocation.TryGetValues("LiteralPath", out _)))
+            throw new ScriptException(AotDiagnostics.Binding("AOT6212", "Split-Path cannot combine pipeline Path input with explicit Path or LiteralPath.", invocation.GetParameterSpan(invocation.TryGetValues("Path", out _) ? "Path" : "LiteralPath")));
+        string pathName = invocation.TryGetValues("LiteralPath", out _) ? "LiteralPath" : "Path";
+        IReadOnlyList<(string Value, AotSourceSpan? Span)> values = pipelineValues ?? JoinPathCmdlet.Values(invocation, pathName, required: true);
+        string mode = invocation.TryGetValues("Leaf", out _) ? "Leaf"
+            : invocation.TryGetValues("LeafBase", out _) ? "LeafBase"
+            : invocation.TryGetValues("Extension", out _) ? "Extension"
+            : invocation.TryGetValues("IsAbsolute", out _) ? "IsAbsolute"
+            : "Parent";
+
+        // Parse all values first: a mixed invalid batch has no partial output.
+        List<(PathText Path, AotSourceSpan? Span)> parsed = values.Select(value => (PathText.Parse(value.Value, LexicalPathDialect.PosixV1, value.Span), value.Span)).ToList();
+        List<IPipelineRecord> output = [];
+        foreach ((PathText path, AotSourceSpan? valueSpan) in parsed)
+        {
+            context.ThrowIfCancellationRequested();
+            output.Add(mode switch
+            {
+                "Leaf" => new TextRecord(path.Leaf()),
+                "LeafBase" => new TextRecord(path.LeafBase()),
+                "Extension" => new TextRecord(path.Extension()),
+                "IsAbsolute" => new BooleanRecord(path.IsAbsolute),
+                _ => new TextRecord(path.Parent(valueSpan)),
+            });
+        }
+
+        return output;
     }
 }
 
@@ -2467,6 +2723,7 @@ internal static class SelfTest
         AssertHostReplProjection();
         AssertClosedValuePlane();
         AssertClosedJsonCodec();
+        AssertJ1LexicalPaths();
 
         if (GeneratedCmdletPorts.Count != 290)
         {
@@ -6292,6 +6549,59 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             catch (ScriptException exception) when (exception.Message == "Where-Object does not accept NaN or infinity predicate literals in the AOT subset.")
             {
             }
+        }
+    }
+
+    private static void AssertJ1LexicalPaths()
+    {
+        static IReadOnlyList<IPipelineRecord> Execute(string script) => UpstreamAstPipelineLowerer.Parse(script).Execute(new AotExecutionContext());
+        if (!Execute("Join-Path alpha,beta gamma").Cast<TextRecord>().Select(static row => row.Value).SequenceEqual(["alpha/gamma", "beta/gamma"]))
+        {
+            throw new InvalidOperationException("J1 Join-Path did not preserve its upstream AST argument group.");
+        }
+
+        if (!Execute("Join-Path alpha child | Join-Path -ChildPath child2").Cast<TextRecord>().Select(static row => row.Value).SequenceEqual(["alpha/child/child2"]))
+        {
+            throw new InvalidOperationException("J1 did not preserve the admitted TextRecord pipeline path.");
+        }
+
+        if (!Execute("Join-Path alpha beta | Split-Path -Leaf").Cast<TextRecord>().Select(static row => row.Value).SequenceEqual(["beta"]))
+        {
+            throw new InvalidOperationException("J1 lexical path adapters did not compose through the typed TextRecord pipeline.");
+        }
+
+        if (Execute("Split-Path alpha/beta -IsAbsolute").SingleOrDefault() is not BooleanRecord { Value: false })
+        {
+            throw new InvalidOperationException("J1 Split-Path did not preserve the closed Boolean IsAbsolute output.");
+        }
+
+        try
+        {
+            _ = Execute("Join-Path alpha /rooted-child");
+            throw new InvalidOperationException("J1 Join-Path accepted a rooted child.");
+        }
+        catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT6210") { }
+
+        try
+        {
+            _ = Execute("Split-Path alpha/beta -Leaf -Extension");
+            throw new InvalidOperationException("J1 Split-Path accepted conflicting selectors.");
+        }
+        catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT6213") { }
+
+        try
+        {
+            _ = Execute("Join-Path alpha child | Join-Path -Path beta -ChildPath child2");
+            throw new InvalidOperationException("J1 Join-Path silently combined pipeline and explicit Path input.");
+        }
+        catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT6212") { }
+
+        // Keep the required fragment corpus mechanical: every admitted form is
+        // pure text and must not require an item to exist.
+        string[] fragments = ["a", "a/", "a-b", "a_b", "a.b", "0", "01", "a1", "abc", "x-y", "x.y", "x_y", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+        if (fragments.Length != 20 || fragments.Any(fragment => Execute($"Join-Path 'base' '{fragment}'").SingleOrDefault() is not TextRecord { Value: var value } || value != $"base/{fragment}"))
+        {
+            throw new InvalidOperationException("J1 lexical child-fragment corpus regressed.");
         }
     }
 

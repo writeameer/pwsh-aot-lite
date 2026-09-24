@@ -500,14 +500,16 @@ internal static class UpstreamAstPipelineLowerer
                     parameter.ParameterName,
                     AotScriptParser.ToSpan(parameter.Extent),
                     attachedValue,
-                    parameter.Argument is null ? null : AotScriptParser.ToSpan(parameter.Argument.Extent)));
+                    parameter.Argument is null ? null : AotScriptParser.ToSpan(parameter.Argument.Extent),
+                    commandName.Value.Equals("Join-Path", StringComparison.OrdinalIgnoreCase)));
 
                 continue;
             }
 
             if (element is ExpressionAst expression)
             {
-                AddCommandValueArguments(expression, arguments);
+                AddCommandValueArguments(expression, arguments,
+                    commandName.Value.Equals("Join-Path", StringComparison.OrdinalIgnoreCase));
                 continue;
             }
 
@@ -520,15 +522,20 @@ internal static class UpstreamAstPipelineLowerer
     // Comma-separated command arguments are already distinct upstream AST
     // elements semantically. Preserve that shape rather than asking the
     // binder to split text; assignment RHS arrays remain one closed AotValue.
-    private static void AddCommandValueArguments(ExpressionAst expression, List<AotCommandArgumentPlan> arguments)
+    private static void AddCommandValueArguments(ExpressionAst expression, List<AotCommandArgumentPlan> arguments, bool preserveJ1Group = false)
     {
+        if (preserveJ1Group)
+        {
+            arguments.Add(new AotCommandValueGroupPlan([LowerExpression(expression)], AotScriptParser.ToSpan(expression.Extent)));
+            return;
+        }
+
         if (expression is ArrayLiteralAst array)
         {
             foreach (ExpressionAst element in array.Elements)
             {
                 AddCommandValueArguments(element, arguments);
             }
-
             return;
         }
 

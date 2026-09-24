@@ -32,6 +32,8 @@ reuse, review, and verification work—not just target coding.
 | `Convert-Path` | 2026-09-23T08:40:00.0000000Z | 2026-09-23T09:29:55.0000000Z | 00:49:55 | Wave 3 Path-only canonical text projection over the released resolution seam. | integrated |
 | `ConvertFrom-Json` | 2026-09-23T13:05:01.6890880Z | — | — | J0 closed JSON-to-`AotValue` foundation is integrated; adapter work has not begun. | queued after J0 |
 | `ConvertTo-Json` | 2026-09-23T13:05:01.6890880Z | — | — | J0 closed `AotValue`-to-JSON foundation is integrated; adapter work has not begun. | queued after J0 |
+| `Join-Path` | 2026-09-24T19:50:10Z | 2026-09-24T20:06:38Z | 00:16:28 | J1 POSIX-v1 zero-authority lexical composition; reviewed branch evidence. | pending integration |
+| `Split-Path` | 2026-09-24T19:50:10Z | 2026-09-24T20:06:38Z | 00:16:28 | J1 POSIX-v1 lexical decomposition/selectors; reviewed branch evidence. | pending integration |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
