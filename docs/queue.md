@@ -1,5 +1,11 @@
 # Cmdlet migration queue
 
+> **Superseded for campaign scheduling.** Use the generated
+> [Phase 10 deterministic batch queue](campaign/phase10-batch-queue.md) and
+> the required [cmdlet-port lifecycle](campaign/cmdlet-port-lifecycle.md).
+> This page is retained as historical pre-Phase-10 triage evidence; its states
+> do not determine current migration counts or next work.
+
 This is the deliberate next-work queue, not a claim that a command is ported.
 It is ordered to add a small, reusable runtime capability at each step.  Every
 candidate must get `cmdlets/<command-name>.md` and a `port-variances.json`

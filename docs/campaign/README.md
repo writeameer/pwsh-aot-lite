@@ -10,15 +10,15 @@ row is a PowerShell compatibility claim.
 | Measure | Current state |
 | --- | --- |
 | Pinned upstream inventory | 290 declarations / 288 logical command names |
-| Native cmdlets integrated | 9 bounded, independently verified ports |
+| Native cmdlets integrated | 11 bounded, independently verified ports |
 | Completed foundations | J0 closed JSON codec/value plane, merged at `aff09b3` |
-| Commands still queued | 279 in 28 ten-command batches |
-| Next foundation | J1 direct physical read/path foundation |
-| Next queue batch | B02, beginning with `Join-Path` |
+| Commands still queued | 277 in 28 batches with queued work; B02 is partially complete |
+| Next campaign foundation | J2 typed data transforms, after a separately approved scope |
+| Next queued work | B02 remainder, beginning with `Get-Content` |
 
-The nine integrated cmdlets are `Get-ChildItem`, `Get-FileHash`, `New-Guid`,
-`New-TimeSpan`, `Start-Sleep`, `Get-Item`, `Test-Path`, `Resolve-Path`, and
-`Convert-Path`. Each is a bounded native subset; its per-cmdlet note and
+The 11 integrated cmdlets are `Get-ChildItem`, `Get-FileHash`, `New-Guid`,
+`New-TimeSpan`, `Start-Sleep`, `Get-Item`, `Test-Path`, `Resolve-Path`,
+`Convert-Path`, `Join-Path`, and `Split-Path`. Each is a bounded native subset; its per-cmdlet note and
 variance record define exactly what is admitted and what fails closed.
 
 J0 is complete as a reusable closed `System.Text.Json` ↔ `AotValue` codec. It
@@ -29,25 +29,25 @@ tests, variance evidence, and independent review.
 
 ## Stage progress
 
-The table below is the canonical progress view for the **279-command remaining
-set**. “Complete” counts integrated command adapters, not foundations. A
-completed foundation therefore does not make any cmdlet in its row complete.
+The table below is the canonical progress view for the original
+**279-command campaign cohort**, of which **277 commands remain unported**.
+“Complete” counts integrated command adapters, not foundations. A completed
+foundation therefore does not make any cmdlet in its row complete.
 
-| Stage | Cmdlets | Complete |
-| --- | ---: | --- |
-| J0 — structured codecs, including JSON | 18 | Foundation complete; 0/18 adapters |
-| J1 — direct physical paths/reads | 14 | 0/14 |
-| J2 — typed data transforms | 16 | 0/16 |
-| J3 — formatting, streams, metadata/modules | 43 | 0/43 |
-| J4 — filesystem mutation | 24 | 0/24 |
-| J5 — local platform/process/service/host | 39 | 0/39 |
-| J6 — security and network | 15 | 0/15 |
-| J7 — trusted sidecars | 62 | 0/62 |
-| J8 — explicitly unsupported dynamic-engine families | 48 | N/A |
-| **Total** | **279** | **0 ports in this remaining set** |
+| Stage | Original cohort | Complete | Remaining |
+| --- | ---: | --- | ---: |
+| J0 — structured codecs, including JSON | 18 | Foundation complete; 0/18 adapters | 18 |
+| J1 — direct physical paths/reads | 14 | 2/14 adapters | 12 (`requires-substrate`) |
+| J2 — typed data transforms | 16 | 0/16 | 16 |
+| J3 — formatting, streams, metadata/modules | 43 | 0/43 | 43 |
+| J4 — filesystem mutation | 24 | 0/24 | 24 |
+| J5 — local platform/process/service/host | 39 | 0/39 | 39 |
+| J6 — security and network | 15 | 0/15 | 15 |
+| J7 — trusted sidecars | 62 | 0/62 | 62 |
+| J8 — explicitly unsupported dynamic-engine families | 48 | N/A | 48 |
+| **Total** | **279** | **2/279 adapters** | **277** |
 
-The **nine previously integrated cmdlets are excluded** from this table and
-from the 279 remaining commands. J8 is included for complete inventory
+The **nine cmdlets integrated before this cohort is excluded** from this cohort. J8 is included for complete inventory
 accounting but is not an implementation queue: it records the currently
 unapproved dynamic-engine boundary.
 
@@ -76,7 +76,7 @@ profile and shared seam allow.
 | ID | Foundation | State | Purpose |
 | --- | --- | --- | --- |
 | J0 | Closed JSON codec/value plane | complete (`aff09b3`) | Bounded JSON ↔ closed `AotValue`, typed limits/diagnostics; no `PSObject` or arbitrary CLR serialization. |
-| J1 | Direct physical read/path | target implementation design accepted; coding next | Two closed, provider-free **lexical** path-text profiles (`Join-Path` / `Split-Path`); no resolver, captured-root, drive, or ambient-location authority. [Accepted profile design](../architecture/j1-direct-lexical-path-profiles.md); [target readiness packet](../architecture/j1-target-implementation-readiness.md). |
+| J1 | Direct physical read/path | lexical slice complete at `9a279d3`; 2/14 migrated, 12 `requires-substrate` | Two closed, provider-free **lexical** path-text adapters (`Join-Path` / `Split-Path`); no resolver, captured-root, drive, or ambient-location authority. [Accepted profile design](../architecture/j1-direct-lexical-path-profiles.md); [implementation review](../reviews/j1-lexical-path-implementation.md). |
 | J2 | Closed typed data plane | queued | Record transforms, projections, ordering, aggregation, and text matching. |
 | J3 | Terminal and stream contracts | queued | Static views and explicit output/error/information streams. |
 | J4 | Physical mutation authority | queued | `ShouldProcess`, confirmation, atomic write/rollback, and trust policy. |
@@ -85,27 +85,28 @@ profile and shared seam allow.
 | J7 | Trusted sidecar protocol | queued | Typed protocol/trust/lifecycle boundary for CIM, WSMan, remoting, jobs, and events. |
 | J8 | Dynamic-engine families | unavailable | No approved in-process AOT route for dynamic runspace, debugger, and mutable session/type-system behavior. |
 
-## Next: J1 and B02
+## B02 partial completion and next work
 
-J1 is the direct physical read/path foundation. Its first bounded slice is the
-accepted [direct lexical physical-path design](../architecture/j1-direct-lexical-path-profiles.md): a generic **multi-positional path binder** for
-`Join-Path` and static parameter-set binding for `Split-Path`. It preserves
-parser-derived argument groups, maps them atomically to declared static
-positions, and leaves the existing binder unchanged for every previous
-descriptor. The lexical profiles do not add providers, drives, captured-root
-resolution, ambient location, or an alternate grammar.
+J1's first bounded slice is complete: `Join-Path` and `Split-Path` implement
+the accepted [direct lexical physical-path design](../architecture/j1-direct-lexical-path-profiles.md).
+The generic multi-positional binder preserves parser-derived argument groups,
+maps them atomically to declared static positions, and leaves the existing
+binder unchanged for every previous descriptor. The lexical adapters do not add
+providers, drives, captured-root resolution, ambient location, or an alternate
+grammar. The other 12 J1 commands remain explicit `requires-substrate`
+outcomes, not failed or partially supported ports.
 
-B02 is the first remaining ten-command batch:
+B02 is partially complete:
 
-`Join-Path`, `Split-Path`, `Get-Content`, `Get-ItemProperty`,
-`Get-ItemPropertyValue`, `Test-FileCatalog`, `ConvertFrom-Json`,
-`ConvertTo-Json`, `Test-Json`, and `Get-Location`.
+`Join-Path` and `Split-Path` are integrated. `Get-Content`,
+`Get-ItemProperty`, `Get-ItemPropertyValue`, `Test-FileCatalog`,
+`ConvertFrom-Json`, `ConvertTo-Json`, `Test-Json`, and `Get-Location` remain
+queued behind their individual prerequisites.
 
-The batch is **not** a single atomic port. `Join-Path` leads after J1;
-filesystem commands follow only when their named direct-path/read seams are
-ready. The JSON rows can begin their own command-adapter work because J0 is
-integrated, but are not implemented by J0. `Test-Json` additionally needs a
-separate static validation contract.
+The batch is **not** a single atomic port. The remaining filesystem commands
+need reviewed direct-path/read seams. The JSON rows can begin command-adapter
+work because J0 is integrated, but J0 did not implement them. `Test-Json`
+additionally needs a separate static validation contract.
 
 ## Authoritative evidence
 
@@ -114,7 +115,10 @@ separate static validation contract.
 - [Deterministic batch queue](phase10-batch-queue.md) is the exact execution
   order and prerequisite list; verify/regenerate it through its checked tool.
 - [Engineering archetype inventory](phase10-archetype-inventory.md) explains
-  why 279 missing converter profiles collapse into reusable families.
+  how the original 279-command survey cohort is now a 277-command active
+  cohort grouped into reusable families.
+- [Cmdlet-port lifecycle](cmdlet-port-lifecycle.md) is the required nine-step
+  process and the only definition of when a command counts as migrated.
 - [All-builtins survey report](../../../pwsh-aot-conversion-survey/runs/all-builtins-survey-20260923/report.json)
   and its per-command evidence are the converter-coverage baseline.
 - [J0 codec contract](../architecture/json-codec-foundation.md) and

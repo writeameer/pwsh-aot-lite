@@ -1,5 +1,9 @@
 # DLAR: J1 lexical physical-path profiles v11
 
+> **Historical outcome:** this design-only PASS led to the bounded J1 runtime
+> implementation merged at `9a279d3`. It remains profile evidence, not the
+> current support claim; see the [implementation review](../../j1-lexical-path-implementation.md).
+
 **Review ID:** `2026-09-24-j1-lexical-path-profiles-v11`
 
 **Date:** `2026-09-24`

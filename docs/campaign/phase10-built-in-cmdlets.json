@@ -3,7 +3,7 @@
   "generatedFrom": "GeneratedCmdletPorts.g.cs after a fresh Release build",
   "upstreamCommit": "1e53f6bbab4b8791eae782474d21889f9e5d6038",
   "generatedContractSha256": "BCD10A049929638B334B1E6622813112EC730C3286DDC57DFCED184BDD68D21C",
-  "classifierSha256": "663BDB757F21B0732D437198B810534144ED1AAEE9AA1050CBC8CD4392319BBE",
+  "classifierSha256": "05890738B5A20F847E475AAF3662BB6FD0518446B2AACBCF90C42610F09842B8",
   "declarationCount": 290,
   "logicalCommandCount": 288,
   "categoryValues": [
@@ -2702,9 +2702,9 @@
         "physical filesystem read capability",
         "direct-path/provider rejection matrix"
       ],
-      "directBodyHelperReview": "required-before-port",
-      "implementedSubset": null,
-      "currentState": "catalogued-only; no execution claim"
+      "directBodyHelperReview": "reviewed-and-integrated-for-J1 lexical POSIX-v1 composition subset",
+      "implementedSubset": "Integrated: Path/PSPath, ChildPath, AdditionalChildPath, and string pipeline Path through the closed lexical POSIX-v1 adapter; provider, drive, resolver, filesystem, wildcard, property-binding, and unsupported-parameter behavior remain rejected.",
+      "currentState": "integrated-reviewed-J1 lexical POSIX-v1 subset; provider/drive/filesystem authority remains deferred"
     },
     {
       "declarationId": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Join-String.cs|JoinStringCommand|1",
@@ -4693,9 +4693,9 @@
         "physical filesystem read capability",
         "direct-path/provider rejection matrix"
       ],
-      "directBodyHelperReview": "required-before-port",
-      "implementedSubset": null,
-      "currentState": "catalogued-only; no execution claim"
+      "directBodyHelperReview": "reviewed-and-integrated-for-J1 lexical POSIX-v1 decomposition subset",
+      "implementedSubset": "Integrated: direct Path/LiteralPath and Parent/Leaf/LeafBase/Extension/IsAbsolute selectors through the closed lexical POSIX-v1 adapter; provider, drive, resolver, filesystem, wildcard, property-binding, and unsupported-parameter behavior remain rejected.",
+      "currentState": "integrated-reviewed-J1 lexical POSIX-v1 subset; provider/drive/filesystem authority remains deferred"
     },
     {
       "declarationId": "src/System.Management.Automation/engine/remoting/commands/StartJob.cs|StartJobCommand|1",

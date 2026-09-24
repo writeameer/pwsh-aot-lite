@@ -1,7 +1,13 @@
 # J1 target implementation readiness: lexical path adapters
 
-**Status:** design-ready pending independent DLAR. This authorizes no code,
-registration, or runtime-support claim.
+> **Historical outcome:** this pre-implementation readiness packet led to the
+> bounded J1 runtime implementation merged at `9a279d3`. Its design claim is
+> preserved as evidence; the current support/verification claim is the
+> [J1 implementation review](../reviews/j1-lexical-path-implementation.md).
+
+**Historical status:** design-ready pending independent DLAR. This packet
+authorized no code, registration, or runtime-support claim at the time it was
+written.
 
 **Work record:** started `2026-09-24T19:01:39Z`; ended
 `2026-09-24T19:17:43Z`; elapsed `00:16:04`. This covers the readiness-design
