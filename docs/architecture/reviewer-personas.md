@@ -61,3 +61,15 @@ Create one entry beneath `docs/reviews/` for every gated change, using
 architecture note. The ledger is deliberately short: it preserves the decision,
 evidence, blockers, and accepted variances without duplicating implementation
 documentation.
+
+## Dual-Lens Architecture Review (DLAR)
+
+For a new cmdlet-profile family, shared substrate, pipeline/value boundary,
+formatting/diagnostic contract, or compatibility-affecting behavior, dispatch
+the two independent lenses in the [DLAR process](dual-lens-architecture-review.md)
+before integration. DLAR supplements this dispatch matrix; it never replaces a
+required guardian. Use [the compact DLAR template](../reviews/DLAR-TEMPLATE.md)
+to retain the common evidence, verdicts, shared findings, and reconciliation.
+A `BLOCK` from either lens has the same integration authority as a reviewer
+`BLOCK`. The lenses are named design perspectives, not real-person
+impersonations or endorsements.

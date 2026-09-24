@@ -82,6 +82,12 @@ helper and compatibility facade; it is not a source parser.
 make the parser, AOT-boundary, and reuse controls operational for future
 agents.
 
+The [Dual-Lens Architecture Review (DLAR)](architecture/dual-lens-architecture-review.md)
+adds a reusable two-perspective gate for profile families, shared substrates,
+value/pipeline boundaries, formatting/diagnostics, and compatibility-affecting
+behavior. Use its compact [ledger template](reviews/DLAR-TEMPLATE.md) before
+integration when a trigger applies.
+
 The [upstream reuse and format-contract governance](architecture/upstream-reuse-governance.md)
 is the mandatory anti-NIH evidence gate for every cmdlet port: it requires
 pinned-source proof for reused behavior and for every output/default-display
