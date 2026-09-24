@@ -2,7 +2,7 @@
 
 ## Status and source
 
-**Implementation verified on branch; pending integration: bounded J1 lexical POSIX-v1 subset.**
+**Integrated at `9a279d3`: bounded J1 lexical POSIX-v1 subset.**
 
 - Original: `src/Microsoft.PowerShell.Commands.Management/commands/management/ParsePathCommand.cs`, `SplitPathCommand`.
 - Generated contract: `GeneratedCmdletPorts.SplitPath`.
@@ -36,6 +36,7 @@ before output.
 Managed build/self-test, parser guard/baselines, campaign/queue verification, and a fresh
 `osx-arm64` Native AOT smoke are recorded in the J1 review ledger.
 
-## Next action
+## Current boundary
 
-Merge the reviewed implementation branch; do not widen its lexical boundary.
+The reviewed implementation is merged. Do not widen its lexical boundary
+without a new lifecycle slice and review packet.

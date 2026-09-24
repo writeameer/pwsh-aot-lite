@@ -5,6 +5,10 @@ decisions. It is an index, not a dumping ground: use the appropriate
 structured location below and link the record from the affected design note,
 cmdlet note, profile decision, or campaign plan.
 
+Every review is a gate within the required [cmdlet-port lifecycle](../campaign/cmdlet-port-lifecycle.md).
+Only lifecycle step 9 changes the migrated count; a review PASS alone is never
+an integration claim.
+
 ## Dual-Lens Architecture Review packages
 
 Every Dual-Lens Architecture Review (DLAR) uses this immutable-on-completion
@@ -39,3 +43,7 @@ Existing date- and cmdlet-named Markdown files predate the DLAR package
 convention. Keep them as historical evidence; new DLAR work belongs under
 `dlar/`, while ordinary reviewer-matrix ledgers continue to use
 [TEMPLATE.md](TEMPLATE.md).
+
+The current J1 runtime-support claim is recorded in the ordinary
+[J1 lexical path implementation review](j1-lexical-path-implementation.md);
+the J1 DLAR packages above remain design and readiness evidence.

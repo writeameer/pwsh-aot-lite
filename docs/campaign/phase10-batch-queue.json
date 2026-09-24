@@ -3,22 +3,24 @@
   "generatedBy": "tools/Export-Phase10BatchQueue.ps1",
   "manifest": {
     "path": "docs/campaign/phase10-built-in-cmdlets.json",
-    "sha256": "68DFD140AD61540C897A3ACD08A44442C96C15A4455E99DC5F56995A464C97CE",
+    "sha256": "2C71936F86C123FCD797CFE0AD84552BEF6BA0C7C385C60B557F65115C12885B",
     "upstreamCommit": "1e53f6bbab4b8791eae782474d21889f9e5d6038",
     "declarationCount": 290,
     "logicalCommandCount": 288
   },
   "batchSize": 10,
-  "completedCommandCount": 9,
+  "completedCommandCount": 11,
   "completedBaselineCommandCount": 5,
-  "completedIntegratedCommandCount": 4,
-  "queuedCommandCount": 279,
+  "completedIntegratedCommandCount": 6,
+  "queuedCommandCount": 277,
   "queuedBatchCount": 28,
   "batches": [
     {
       "batchId": "B00",
       "kind": "completed-baseline",
       "commandCount": 5,
+      "completedCommandCount": 5,
+      "queuedCommandCount": 0,
       "commands": [
         {
           "command": "Get-ChildItem",
@@ -121,6 +123,8 @@
       "batchId": "B01",
       "kind": "completed-integrated",
       "commandCount": 4,
+      "completedCommandCount": 4,
+      "queuedCommandCount": 0,
       "commands": [
         {
           "command": "Get-Item",
@@ -202,25 +206,22 @@
     },
     {
       "batchId": "B02",
-      "kind": "queued",
+      "kind": "partially-complete",
       "commandCount": 10,
+      "completedCommandCount": 2,
+      "queuedCommandCount": 8,
       "commands": [
         {
           "command": "Join-Path",
           "category": "shared-substrate-dependency",
           "sourceWave": "W3",
           "queueWave": "W3",
-          "sourceRequiredPrerequisites": [
-            "direct-path/provider rejection matrix",
-            "physical filesystem read capability"
-          ],
           "requiredPrerequisites": [
-            "direct-path/provider rejection matrix",
-            "physical filesystem read capability"
+            "integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence"
           ],
-          "intendedOutcomeState": "native-subset-or-extend-shared-seam",
-          "status": "queued",
-          "queueRationale": "Reuses the direct physical path grammar/policy; no provider drive semantics are admitted.",
+          "intendedOutcomeState": "native-subset-proven",
+          "status": "completed-integrated",
+          "queueRationale": "Campaign command completed as a bounded native subset; it remains in B02 for exact historical batch accounting.",
           "declarationIds": [
             "src/Microsoft.PowerShell.Commands.Management/commands/management/CombinePathCommand.cs|JoinPathCommand|1"
           ],
@@ -234,17 +235,12 @@
           "category": "shared-substrate-dependency",
           "sourceWave": "W3",
           "queueWave": "W3",
-          "sourceRequiredPrerequisites": [
-            "direct-path/provider rejection matrix",
-            "physical filesystem read capability"
-          ],
           "requiredPrerequisites": [
-            "direct-path/provider rejection matrix",
-            "physical filesystem read capability"
+            "integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence"
           ],
-          "intendedOutcomeState": "native-subset-or-extend-shared-seam",
-          "status": "queued",
-          "queueRationale": "Reuses the direct physical path grammar/policy; no provider drive semantics are admitted.",
+          "intendedOutcomeState": "native-subset-proven",
+          "status": "completed-integrated",
+          "queueRationale": "Campaign command completed as a bounded native subset; it remains in B02 for exact historical batch accounting.",
           "declarationIds": [
             "src/Microsoft.PowerShell.Commands.Management/commands/management/ParsePathCommand.cs|SplitPathCommand|1"
           ],
@@ -450,6 +446,8 @@
       "batchId": "B03",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Get-PSDrive",
@@ -685,6 +683,8 @@
       "batchId": "B04",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "ConvertFrom-Csv",
@@ -900,6 +900,8 @@
       "batchId": "B05",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Export-Clixml",
@@ -1107,6 +1109,8 @@
       "batchId": "B06",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Format-Wide",
@@ -1338,6 +1342,8 @@
       "batchId": "B07",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Get-Random",
@@ -1561,6 +1567,8 @@
       "batchId": "B08",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Join-String",
@@ -1776,6 +1784,8 @@
       "batchId": "B09",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Out-String",
@@ -1999,6 +2009,8 @@
       "batchId": "B10",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Sort-Object",
@@ -2210,6 +2222,8 @@
       "batchId": "B11",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Write-Warning",
@@ -2471,6 +2485,8 @@
       "batchId": "B12",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "New-FileCatalog",
@@ -2738,6 +2754,8 @@
       "batchId": "B13",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Rename-ItemProperty",
@@ -2995,6 +3013,8 @@
       "batchId": "B14",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Get-Date",
@@ -3242,6 +3262,8 @@
       "batchId": "B15",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Read-Host",
@@ -3489,6 +3511,8 @@
       "batchId": "B16",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Start-Service",
@@ -3741,6 +3765,8 @@
       "batchId": "B17",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Wait-Process",
@@ -3988,6 +4014,8 @@
       "batchId": "B18",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Invoke-WebRequest",
@@ -4242,6 +4270,8 @@
       "batchId": "B19",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Disable-PSRemoting",
@@ -4509,6 +4539,8 @@
       "batchId": "B20",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Get-CimAssociatedInstance",
@@ -4776,6 +4808,8 @@
       "batchId": "B21",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Get-WinEvent",
@@ -5043,6 +5077,8 @@
       "batchId": "B22",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "New-Event",
@@ -5310,6 +5346,8 @@
       "batchId": "B23",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Register-CimIndicationEvent",
@@ -5577,6 +5615,8 @@
       "batchId": "B24",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Set-PSSessionConfiguration",
@@ -5844,6 +5884,8 @@
       "batchId": "B25",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Wait-Job",
@@ -6057,6 +6099,8 @@
       "batchId": "B26",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Disable-RunspaceDebug",
@@ -6264,6 +6308,8 @@
       "batchId": "B27",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "Get-PSCallStack",
@@ -6471,6 +6517,8 @@
       "batchId": "B28",
       "kind": "queued",
       "commandCount": 10,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 10,
       "commands": [
         {
           "command": "New-Alias",
@@ -6678,6 +6726,8 @@
       "batchId": "B29",
       "kind": "queued",
       "commandCount": 9,
+      "completedCommandCount": 0,
+      "queuedCommandCount": 9,
       "commands": [
         {
           "command": "Set-Alias",

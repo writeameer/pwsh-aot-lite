@@ -1,6 +1,10 @@
 # J1 accepted design: direct lexical physical-path profiles
 
-**Status:** accepted design; implementation has not started.
+> **Historical outcome:** this accepted design led to the bounded J1 runtime
+> implementation merged at `9a279d3`. It remains the profile-boundary record;
+> current behavior is evidenced by the [J1 implementation review](../reviews/j1-lexical-path-implementation.md).
+
+**Historical status:** accepted design before implementation.
 
 **Acceptance:** [J1 v11 DLAR package](../reviews/dlar/2026-09-24-j1-lexical-path-profiles-v11/README.md).
 **Scope:** the two J1 converter-profile families only: `Join-Path` and

@@ -1,7 +1,8 @@
 # Phase 10 engineering archetype inventory
 
-This is a source-backed, mutually exclusive grouping of the **279 unconverted
-survey outcomes**. It complements—not replaces—the authoritative
+This is a source-backed, mutually exclusive grouping of the **277 currently
+unconverted commands** from the original 279-command survey cohort. It
+complements—not replaces—the authoritative
 [Phase 10 manifest](phase10-built-in-cmdlets.json). It is planning evidence,
 not an execution claim.
 
@@ -9,13 +10,13 @@ not an execution claim.
 
 - Survey: [`all-builtins-survey-20260923/report.json`](../../../pwsh-aot-conversion-survey/runs/all-builtins-survey-20260923/report.json), completed `2026-09-23T12:47:29.6726310Z`.
 - `missing-profile` is a **compiler status**: no exact executable converter profile was registered. It is not a shared technical root cause. Route derives from the pinned source path, class/base family, helper closure, and manifest prerequisites.
-- The survey reports 279 `missing-profile` outcomes, but one, `Join-Path`, has a `related-foundation-only` binder profile rather than no profile at all. It remains part of this 279 because it has no executable profile.
-- Exact accounting: **77 native replacement + 92 shared substrate + 62 sidecar + 48 unsupported = 279**. Command allocation below is exhaustive and mutually exclusive.
+- The original survey reported 279 `missing-profile` outcomes. `Join-Path` and `Split-Path` are now integrated bounded J1 lexical adapters; the baseline remains retained evidence, while this document accounts for the active 277-command cohort.
+- Exact current accounting: **77 native replacement + 90 shared substrate + 62 sidecar + 48 unsupported = 277**. Command allocation below is exhaustive and mutually exclusive.
 
 ## Reusable-foundation order
 
 1. **J0 closed JSON codec/value plane — complete at `aff09b3`**: bounded `System.Text.Json` ↔ `AotValue`, typed diagnostics, no `PSObject`/Newtonsoft/arbitrary CLR serialization. This is a foundation only; its three JSON cmdlet adapters remain queued.
-2. **Direct physical read/path foundation**: parser-derived multi-positional binding plus captured-root, provider-free path operations.
+2. **J1 direct physical read/path foundation — lexical slice complete at `9a279d3`**: `Join-Path` and `Split-Path` are integrated provider-free lexical transforms; the other 12 direct-read/navigation commands remain separately scoped substrate work.
 3. **Closed typed data plane**: record transforms, projections, ordering, aggregation, and text matching.
 4. **Terminal and stream contracts**: static views plus output/error/information streams, never ETS.
 5. **Physical mutation authority**: `ShouldProcess`, confirmation, atomic write/rollback, and trust policy.
@@ -50,13 +51,13 @@ not an execution claim.
 
 `Disable-ExperimentalFeature`, `Enable-ExperimentalFeature`, `Export-FormatData`, `Export-ModuleMember`, `Get-Command`, `Get-Error`, `Get-ExperimentalFeature`, `Get-FormatData`, `Get-Help`, `Get-MarkdownOption`, `Get-Module`, `Get-PSSubsystem`, `Get-TraceSource`, `Get-Verb`, `Import-Module`, `New-Module`, `New-ModuleManifest`, `Remove-Module`, `Save-Help`, `Set-MarkdownOption`, `Set-TraceSource`, `Show-Command`, `Show-Markdown`, `Test-ModuleManifest`, `Trace-Command`.
 
-## Shared native substrate — 92
+## Shared native substrate — 90
 
-### Direct physical reads and navigation — 14 — medium
+### Direct physical reads and navigation — 12 — medium
 
-**Evidence:** `Navigation.cs`, content/property bases, `CombinePathCommand.cs`, `ParsePathCommand.cs`, `Out-File.cs`, catalog sources. **Route:** captured-root direct-path substrate; no providers/drives/ambient location. `Join-Path` first needs the generic multi-positional binder.
+**Evidence:** `Navigation.cs`, content/property bases, `Out-File.cs`, catalog sources. **Route:** captured-root direct-path substrate; no providers/drives/ambient location. The completed `Join-Path` / `Split-Path` lexical slice is retained in its per-cmdlet notes and is not allocated again here.
 
-`Get-Content`, `Get-ItemProperty`, `Get-ItemPropertyValue`, `Get-Location`, `Get-PSDrive`, `Import-PowerShellDataFile`, `Invoke-Item`, `Join-Path`, `Out-File`, `Pop-Location`, `Push-Location`, `Split-Path`, `Test-FileCatalog`, `Unblock-File`.
+`Get-Content`, `Get-ItemProperty`, `Get-ItemPropertyValue`, `Get-Location`, `Get-PSDrive`, `Import-PowerShellDataFile`, `Invoke-Item`, `Out-File`, `Pop-Location`, `Push-Location`, `Test-FileCatalog`, `Unblock-File`.
 
 ### Physical filesystem mutations — 24 — high
 

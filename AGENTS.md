@@ -19,35 +19,45 @@ The runner must remain Native-AOT safe:
 - no dynamic assembly loading;
 - no expression compilation or runtime code generation.
 
+## Required lifecycle entry point
+
+Before any cmdlet research, converter work, or runtime implementation, follow
+the canonical [cmdlet-port lifecycle](docs/campaign/cmdlet-port-lifecycle.md).
+A command counts as migrated only after its verified Native AOT implementation
+is non-fast-forward merged and pushed in lifecycle step 9. The detailed port
+checklist below expands lifecycle steps 6–9; it does not replace the lifecycle.
+
 ## Read before changing code
 
-1. `ARCHITECTURE.md` — architecture, guardrails, and non-negotiable port rules.
-2. `PORTING.md` — source-to-target mapping.
-3. `port-variances.json` — durable evidence of every intentional difference.
-4. `tools/PwshAotPortGenerator/PortManifestGenerator.cs` — compile-time source
+1. `docs/campaign/cmdlet-port-lifecycle.md` — required campaign entry point,
+   exact migration count rule, evidence locations, and release discipline.
+2. `ARCHITECTURE.md` — architecture, guardrails, and non-negotiable port rules.
+3. `PORTING.md` — source-to-target mapping.
+4. `port-variances.json` — durable evidence of every intentional difference.
+5. `tools/PwshAotPortGenerator/PortManifestGenerator.cs` — compile-time source
    contract extractor.
-5. `PARSER-REUSE-GUARD.md` — mandatory language-fidelity and AOT-boundary
+6. `PARSER-REUSE-GUARD.md` — mandatory language-fidelity and AOT-boundary
    gates.  PowerShell grammar is upstream source, not a new grammar to grow.
-6. `docs/architecture/reviewer-personas.md` — mandatory independent-review
+7. `docs/architecture/reviewer-personas.md` — mandatory independent-review
    personas, dispatch matrix, verdict authority, and review-ledger process.
-7. `docs/architecture/dual-lens-architecture-review.md` — mandatory DLAR
+8. `docs/architecture/dual-lens-architecture-review.md` — mandatory DLAR
    gate for profile families, shared substrates, value/pipeline boundaries,
    formatting/diagnostics, and compatibility-affecting behavior.
-8. `docs/architecture/language-tooling-contract.md` — the shared parser
+9. `docs/architecture/language-tooling-contract.md` — the shared parser
    contract for execution, CLI tooling, and eventual editor/LSP consumers.
-9. `docs/architecture/diagnostic-contract.md` — mandatory Phase-1 structured
+10. `docs/architecture/diagnostic-contract.md` — mandatory Phase-1 structured
    diagnostics, renderer, and negative-test requirements.
-10. `docs/architecture/language-compatibility-core.md` — the current reviewed
+11. `docs/architecture/language-compatibility-core.md` — the current reviewed
    block-plan, lexical-scope, expression, and delayed-binder boundary.
-11. `docs/architecture/terminal-presentation.md` — ANSI policy, sanitization,
+12. `docs/architecture/terminal-presentation.md` — ANSI policy, sanitization,
    and the shared-parser boundary for future interactive highlighting.
-12. `docs/architecture/provider-host-substrate.md` — capability authority map
+13. `docs/architecture/provider-host-substrate.md` — capability authority map
    for physical files, process inspection, host/platform state, and explicit
    unavailable credential/network boundaries.
-13. `docs/campaign/phase10-built-in-cmdlets.md` — checked 290-declaration
+14. `docs/campaign/phase10-built-in-cmdlets.md` — checked 290-declaration
    campaign classification; do not port outside its prerequisites or silently
    reclassify a row.
-14. `docs/architecture/upstream-reuse-governance.md` — mandatory anti-NIH
+15. `docs/architecture/upstream-reuse-governance.md` — mandatory anti-NIH
     evidence matrix, output/format-contract provenance, permitted AOT
     replacement exceptions, and reviewer BLOCK criteria.
 
@@ -132,7 +142,11 @@ names a single support claim.
   metadata plus `CmdletDescriptor` and `AotCmdletRegistry` for aliases,
   parameter sets, validation, help, and availability.
 
-## Port workflow
+## Port workflow (lifecycle steps 6–9 implementation detail)
+
+The canonical lifecycle owns planning, converter, target-readiness, and release
+state. This checklist begins once lifecycle step 6 has approved target work and
+expands steps 6–9 without changing their gates or migrated-count rule.
 
 1. Before research or implementation, create `docs/cmdlets/<command-name>.md`
    from `docs/cmdlets/TEMPLATE.md` and add an `in progress` row to

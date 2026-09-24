@@ -1,5 +1,9 @@
 # DLAR: J1 target implementation readiness v1
 
+> **Historical outcome:** this documentation-only readiness PASS preceded the
+> bounded J1 implementation merged at `9a279d3`. It is not the current support
+> claim; see the [implementation review](../../j1-lexical-path-implementation.md).
+
 **Date:** `2026-09-24`
 **Claim reviewed:** J1 has a complete, bounded target-design packet for future
 `Join-Path` / `Split-Path` implementation. It authorizes no code, registration,

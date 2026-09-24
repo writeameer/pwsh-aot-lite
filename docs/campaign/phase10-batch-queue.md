@@ -2,11 +2,11 @@
 
 This queue accounts for every logical command in the checked Phase 10 manifest exactly once. It is a dependency-aware migration schedule, **not** a compatibility claim: a command proceeds only when its listed prerequisite exists and has passed the normal source-reuse, architecture, diagnostic, managed, parser, and fresh Native AOT gates.
 
-- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `68DFD140AD61540C897A3ACD08A44442C96C15A4455E99DC5F56995A464C97CE`.
-- Accounting: 288 logical commands; 9 completed commands (5 baseline and 4 integrated during this campaign); 279 queued commands in 28 batches of ten (final queued batch may be smaller).
-- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue and includes the deliberately pulled-forward JSON rows as `W3a`; J0, the closed JSON codec/value-plane seam, is integrated at `aff09b3`, while each JSON command adapter remains separately gated.
+- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `2C71936F86C123FCD797CFE0AD84552BEF6BA0C7C385C60B557F65115C12885B`.
+- Accounting: 288 logical commands; 11 completed commands (5 baseline and 6 integrated during this campaign); 277 queued commands in 28 batches with queued work (final queued batch may be smaller).
+- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records the four campaign commands completed before J1. `B02` is deliberately retained as a **partially complete** historical batch: `Join-Path` and `Split-Path` are integrated; its eight remaining commands, including pulled-forward JSON rows as `W3a`, remain separately gated.
 - Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.
-- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the 279 unconverted survey outcomes. `missing-profile` means no exact compiler profile, not that every command has the same blocker.
+- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the current 277-command unconverted cohort and its original 279-command survey baseline. `missing-profile` means no exact compiler profile, not that every command has the same blocker.
 
 Regenerate or verify this queue:
 
@@ -34,12 +34,12 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Resolve-Path` | shared-substrate-dependency / W3 (source: W3) | Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
 | `Convert-Path` | shared-substrate-dependency / W3 (source: W3) | Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
 
-## B02 — queued (10 commands)
+## B02 — partially-complete (10 commands; 2 complete, 8 queued)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Join-Path` | shared-substrate-dependency / W3 (source: W3) | Reuses the direct physical path grammar/policy; no provider drive semantics are admitted. direct-path/provider rejection matrix; physical filesystem read capability | `native-subset-or-extend-shared-seam` | `queued` |
-| `Split-Path` | shared-substrate-dependency / W3 (source: W3) | Reuses the direct physical path grammar/policy; no provider drive semantics are admitted. direct-path/provider rejection matrix; physical filesystem read capability | `native-subset-or-extend-shared-seam` | `queued` |
+| `Join-Path` | shared-substrate-dependency / W3 (source: W3) | Campaign command completed as a bounded native subset; it remains in B02 for exact historical batch accounting. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
+| `Split-Path` | shared-substrate-dependency / W3 (source: W3) | Campaign command completed as a bounded native subset; it remains in B02 for exact historical batch accounting. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
 | `Get-Content` | shared-substrate-dependency / W3 (source: W3) | Extends the proven physical-file resolver with a reviewed bounded read/content seam. direct-path/provider rejection matrix; physical filesystem read capability | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-ItemProperty` | shared-substrate-dependency / W3 (source: W3) | Extends the physical-entry record through a reviewed static metadata projection. direct-path/provider rejection matrix; physical filesystem read capability | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-ItemPropertyValue` | shared-substrate-dependency / W3 (source: W3) | Depends on the Get-ItemProperty static metadata projection. direct-path/provider rejection matrix; physical filesystem read capability | `native-subset-or-extend-shared-seam` | `queued` |

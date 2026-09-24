@@ -95,7 +95,7 @@ $declarations = foreach ($match in $matches) {
         requiredPrerequisites = $classification.Required
         directBodyHelperReview = 'required-before-port'
         implementedSubset = $null
-        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -eq 'New-TimeSpan') { 'integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred' } elseif ($command -eq 'Start-Sleep') { 'integrated-reviewed-milliseconds/ms subset; seconds/duration/positional/pipeline behavior remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
+        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -eq 'New-TimeSpan') { 'integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred' } elseif ($command -eq 'Start-Sleep') { 'integrated-reviewed-milliseconds/ms subset; seconds/duration/positional/pipeline behavior remains deferred' } elseif ($command -in @('Join-Path', 'Split-Path')) { 'integrated-reviewed-J1 lexical POSIX-v1 subset; provider/drive/filesystem authority remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
     }
 }
 
@@ -117,6 +117,16 @@ foreach ($entry in $declarations | Where-Object command -eq 'New-TimeSpan') {
 foreach ($entry in $declarations | Where-Object command -eq 'Start-Sleep') {
     $entry.directBodyHelperReview = 'reviewed-and-integrated-for-milliseconds/ms bounded-delay subset'
     $entry.implementedSubset = 'Integrated: generated -Milliseconds and -ms direct integer wait through IAotDelay; Seconds, Duration/ts, positional, all property-name pipeline input, and command aliases remain rejected.'
+}
+
+foreach ($entry in $declarations | Where-Object command -eq 'Join-Path') {
+    $entry.directBodyHelperReview = 'reviewed-and-integrated-for-J1 lexical POSIX-v1 composition subset'
+    $entry.implementedSubset = 'Integrated: Path/PSPath, ChildPath, AdditionalChildPath, and string pipeline Path through the closed lexical POSIX-v1 adapter; provider, drive, resolver, filesystem, wildcard, property-binding, and unsupported-parameter behavior remain rejected.'
+}
+
+foreach ($entry in $declarations | Where-Object command -eq 'Split-Path') {
+    $entry.directBodyHelperReview = 'reviewed-and-integrated-for-J1 lexical POSIX-v1 decomposition subset'
+    $entry.implementedSubset = 'Integrated: direct Path/LiteralPath and Parent/Leaf/LeafBase/Extension/IsAbsolute selectors through the closed lexical POSIX-v1 adapter; provider, drive, resolver, filesystem, wildcard, property-binding, and unsupported-parameter behavior remain rejected.'
 }
 
 $duplicateNames = $declarations | Group-Object command | Where-Object Count -gt 1

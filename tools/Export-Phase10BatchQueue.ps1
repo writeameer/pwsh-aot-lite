@@ -33,16 +33,25 @@ $integratedDuringCampaign = @(
     'Convert-Path'
 )
 
+# B02 is retained as a stable, partially complete batch: the two completed J1
+# lexical adapters stay with their original cohort rather than being moved into
+# B01 retroactively. This preserves the historical schedule while keeping all
+# current queue counts deterministic.
+$partiallyCompletedBatchId = 'B02'
+$partiallyCompletedCommands = @(
+    'Join-Path',
+    'Split-Path'
+)
+
 # The remaining front of the queue is the direct physical-filesystem cluster.
 # Its first commands consume the captured-root/path seams proven by
 # Get-ChildItem, Get-Item, Test-Path, and Resolve-Path. The JSON group remains
 # deliberately pulled forward as W3a. Its J0 codec prerequisite is integrated;
 # each JSON command adapter still has independent lifecycle/oracle gates.
 $frontOfQueue = @(
-    'Get-Item', 'Test-Path', 'Resolve-Path', 'Convert-Path', 'Join-Path',
-    'Split-Path', 'Get-Content', 'Get-ItemProperty', 'Get-ItemPropertyValue',
-    'Test-FileCatalog',
-    'ConvertFrom-Json', 'ConvertTo-Json', 'Test-Json'
+    'Join-Path', 'Split-Path', 'Get-Content', 'Get-ItemProperty',
+    'Get-ItemPropertyValue', 'Test-FileCatalog', 'ConvertFrom-Json',
+    'ConvertTo-Json', 'Test-Json', 'Get-Location'
 )
 
 $queueOverrides = @{
@@ -103,6 +112,24 @@ function Get-QueueRank([string] $command, [string] $wave) {
     }
 
     return 1000 + [int]$waveOrder[$wave]
+}
+
+function New-QueuedRow($row) {
+    $override = $queueOverrides[$row.command]
+    return [pscustomobject][ordered]@{
+        command = $row.command
+        category = $row.category
+        sourceWave = $row.sourceWave
+        queueWave = if ($null -ne $override -and $row.command -match 'Json') { 'W3a' } else { $row.sourceWave }
+        sourceRequiredPrerequisites = $row.requiredPrerequisites
+        requiredPrerequisites = if ($effectivePrerequisites.ContainsKey($row.command)) { @($effectivePrerequisites[$row.command]) } else { $row.requiredPrerequisites }
+        intendedOutcomeState = Get-OutcomeState $row.category $false
+        status = 'queued'
+        queueRationale = if ($null -ne $override) { $override } else { 'Manifest order: execute only after the listed prerequisite is implemented and independently reviewed.' }
+        declarationIds = $row.declarationIds
+        sourcePaths = $row.sourcePaths
+        platformVariants = $row.platformVariants
+    }
 }
 
 function ConvertTo-MarkdownCell([object] $value) {
@@ -192,27 +219,35 @@ $integratedRows = @(
     }
 )
 
-$remaining = @(
-    $logical |
-        Where-Object { $alreadyProven -notcontains $_.command -and $integratedDuringCampaign -notcontains $_.command } |
-        Sort-Object @{ Expression = { Get-QueueRank $_.command $_.sourceWave } }, command |
-        ForEach-Object {
-            $override = $queueOverrides[$_.command]
+$partiallyCompletedRows = @(
+    foreach ($command in $frontOfQueue) {
+        $row = $logicalByName[$command]
+        if ($partiallyCompletedCommands -contains $command) {
             [pscustomobject][ordered]@{
-                command = $_.command
-                category = $_.category
-                sourceWave = $_.sourceWave
-                queueWave = if ($null -ne $override -and $_.command -match 'Json') { 'W3a' } else { $_.sourceWave }
-                sourceRequiredPrerequisites = $_.requiredPrerequisites
-                requiredPrerequisites = if ($effectivePrerequisites.ContainsKey($_.command)) { @($effectivePrerequisites[$_.command]) } else { $_.requiredPrerequisites }
-                intendedOutcomeState = Get-OutcomeState $_.category $false
-                status = 'queued'
-                queueRationale = if ($null -ne $override) { $override } else { 'Manifest order: execute only after the listed prerequisite is implemented and independently reviewed.' }
-                declarationIds = $_.declarationIds
-                sourcePaths = $_.sourcePaths
-                platformVariants = $_.platformVariants
+                command = $row.command
+                category = $row.category
+                sourceWave = $row.sourceWave
+                queueWave = $row.sourceWave
+                requiredPrerequisites = @('integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence')
+                intendedOutcomeState = Get-OutcomeState $row.category $true
+                status = 'completed-integrated'
+                queueRationale = 'Campaign command completed as a bounded native subset; it remains in B02 for exact historical batch accounting.'
+                declarationIds = $row.declarationIds
+                sourcePaths = $row.sourcePaths
+                platformVariants = $row.platformVariants
             }
         }
+        else {
+            New-QueuedRow $row
+        }
+    }
+)
+
+$remaining = @(
+    $logical |
+        Where-Object { $alreadyProven -notcontains $_.command -and $integratedDuringCampaign -notcontains $_.command -and $frontOfQueue -notcontains $_.command } |
+        Sort-Object @{ Expression = { Get-QueueRank $_.command $_.sourceWave } }, command |
+        ForEach-Object { New-QueuedRow $_ }
 )
 
 $batches = [System.Collections.Generic.List[object]]::new()
@@ -220,6 +255,8 @@ $batches.Add([pscustomobject][ordered]@{
     batchId = 'B00'
     kind = 'completed-baseline'
     commandCount = $provenRows.Count
+    completedCommandCount = $provenRows.Count
+    queuedCommandCount = 0
     commands = $provenRows
 })
 
@@ -227,16 +264,29 @@ $batches.Add([pscustomobject][ordered]@{
     batchId = 'B01'
     kind = 'completed-integrated'
     commandCount = $integratedRows.Count
+    completedCommandCount = $integratedRows.Count
+    queuedCommandCount = 0
     commands = $integratedRows
 })
 
-$batchNumber = 2
+$batches.Add([pscustomobject][ordered]@{
+    batchId = $partiallyCompletedBatchId
+    kind = 'partially-complete'
+    commandCount = $partiallyCompletedRows.Count
+    completedCommandCount = @($partiallyCompletedRows | Where-Object status -eq 'completed-integrated').Count
+    queuedCommandCount = @($partiallyCompletedRows | Where-Object status -eq 'queued').Count
+    commands = $partiallyCompletedRows
+})
+
+$batchNumber = 3
 for ($offset = 0; $offset -lt $remaining.Count; $offset += 10) {
     $batchRows = @($remaining | Select-Object -Skip $offset -First 10)
     $batches.Add([pscustomobject][ordered]@{
         batchId = ('B{0:d2}' -f $batchNumber)
         kind = 'queued'
         commandCount = $batchRows.Count
+        completedCommandCount = 0
+        queuedCommandCount = $batchRows.Count
         commands = $batchRows
     })
     $batchNumber++
@@ -254,8 +304,14 @@ foreach ($batch in @($batches | Where-Object { $_.kind -eq 'queued' })) {
         throw "Only the final queued batch may be smaller than ten commands; '$($batch.batchId)' has $($batch.commandCount)."
     }
 }
+if ($partiallyCompletedRows.Count -ne 10 -or $batches[2].completedCommandCount -ne 2 -or $batches[2].queuedCommandCount -ne 8) {
+    throw 'B02 partial-completion accounting regression.'
+}
 
 $manifestHash = (Get-FileHash -LiteralPath $manifestFullPath -Algorithm SHA256).Hash
+$completedCommandCount = @($flat | Where-Object status -like 'completed-*').Count
+$queuedCommandCount = @($flat | Where-Object status -eq 'queued').Count
+$queuedBatchCount = @($batches | Where-Object queuedCommandCount -gt 0).Count
 $queue = [pscustomobject][ordered]@{
     schemaVersion = 1
     generatedBy = 'tools/Export-Phase10BatchQueue.ps1'
@@ -267,11 +323,11 @@ $queue = [pscustomobject][ordered]@{
         logicalCommandCount = $manifest.logicalCommandCount
     }
     batchSize = 10
-    completedCommandCount = $provenRows.Count + $integratedRows.Count
+    completedCommandCount = $completedCommandCount
     completedBaselineCommandCount = $provenRows.Count
-    completedIntegratedCommandCount = $integratedRows.Count
-    queuedCommandCount = $remaining.Count
-    queuedBatchCount = $batchNumber - 2
+    completedIntegratedCommandCount = $completedCommandCount - $provenRows.Count
+    queuedCommandCount = $queuedCommandCount
+    queuedBatchCount = $queuedBatchCount
     batches = @($batches)
 }
 
@@ -282,10 +338,10 @@ $lines.Add('')
 $lines.Add('This queue accounts for every logical command in the checked Phase 10 manifest exactly once. It is a dependency-aware migration schedule, **not** a compatibility claim: a command proceeds only when its listed prerequisite exists and has passed the normal source-reuse, architecture, diagnostic, managed, parser, and fresh Native AOT gates.')
 $lines.Add('')
 $lines.Add(('- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `{0}`.' -f $manifestHash))
-$lines.Add("- Accounting: $($manifest.logicalCommandCount) logical commands; $($provenRows.Count + $integratedRows.Count) completed commands ($($provenRows.Count) baseline and $($integratedRows.Count) integrated during this campaign); $($remaining.Count) queued commands in $($batchNumber - 2) batches of ten (final queued batch may be smaller).")
-$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue and includes the deliberately pulled-forward JSON rows as `W3a`; J0, the closed JSON codec/value-plane seam, is integrated at `aff09b3`, while each JSON command adapter remains separately gated.')
+$lines.Add("- Accounting: $($manifest.logicalCommandCount) logical commands; $completedCommandCount completed commands ($($provenRows.Count) baseline and $($completedCommandCount - $provenRows.Count) integrated during this campaign); $queuedCommandCount queued commands in $queuedBatchCount batches with queued work (final queued batch may be smaller).")
+$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records the four campaign commands completed before J1. `B02` is deliberately retained as a **partially complete** historical batch: `Join-Path` and `Split-Path` are integrated; its eight remaining commands, including pulled-forward JSON rows as `W3a`, remain separately gated.')
 $lines.Add('- Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.')
-$lines.Add('- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the 279 unconverted survey outcomes. `missing-profile` means no exact compiler profile, not that every command has the same blocker.')
+$lines.Add('- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the current 277-command unconverted cohort and its original 279-command survey baseline. `missing-profile` means no exact compiler profile, not that every command has the same blocker.')
 $lines.Add('')
 $lines.Add('Regenerate or verify this queue:')
 $lines.Add('')
@@ -297,7 +353,8 @@ $lines.Add('```')
 foreach ($batch in $batches) {
     $commandNoun = if ($batch.commandCount -eq 1) { 'command' } else { 'commands' }
     $lines.Add('')
-    $lines.Add("## $($batch.batchId) — $($batch.kind) ($($batch.commandCount) $commandNoun)")
+    $batchProgress = if ($batch.kind -eq 'partially-complete') { "; $($batch.completedCommandCount) complete, $($batch.queuedCommandCount) queued" } else { '' }
+    $lines.Add("## $($batch.batchId) — $($batch.kind) ($($batch.commandCount) $commandNoun$batchProgress)")
     $lines.Add('')
     $lines.Add('| Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |')
     $lines.Add('| --- | --- | --- | --- | --- |')
@@ -326,11 +383,11 @@ if ($Verify) {
         throw 'Phase 10 batch queue is stale. Regenerate it with tools/Export-Phase10BatchQueue.ps1 and inspect the dependency/order diff.'
     }
 
-    Write-Host "Phase 10 batch queue verified: $($manifest.logicalCommandCount) logical commands; $($provenRows.Count + $integratedRows.Count) complete and $($batchNumber - 2) queued batches."
+    Write-Host "Phase 10 batch queue verified: $($manifest.logicalCommandCount) logical commands; $completedCommandCount complete and $queuedBatchCount batches with queued work."
     return
 }
 
 [System.IO.Directory]::CreateDirectory((Split-Path -Parent $OutJson)) | Out-Null
 [System.IO.File]::WriteAllText($OutJson, $json + "`n", [System.Text.UTF8Encoding]::new($false))
 [System.IO.File]::WriteAllText($OutMarkdown, $markdown, [System.Text.UTF8Encoding]::new($false))
-Write-Host "Wrote $OutJson and $OutMarkdown ($($manifest.logicalCommandCount) logical commands; $($provenRows.Count + $integratedRows.Count) complete and $($batchNumber - 2) queued batches)."
+Write-Host "Wrote $OutJson and $OutMarkdown ($($manifest.logicalCommandCount) logical commands; $completedCommandCount complete and $queuedBatchCount batches with queued work)."
