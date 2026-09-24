@@ -385,3 +385,9 @@ and running both commands above. `CPU -ge 0` makes the live-container example
 deterministic; the self-test includes the exact `CPU -gt 10` filter.
 
 There are no PowerShell SDK dependencies, reflection calls, dynamic assembly loads, expression compilation, or runtime code generation.
+
+## Phase 10 campaign
+
+The current campaign position, reusable-foundation order, completed ports, next
+batch, and evidence map are in the [Phase 10 campaign status and operating
+model](docs/campaign/README.md).

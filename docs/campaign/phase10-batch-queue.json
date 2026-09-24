@@ -359,12 +359,12 @@
             "trust/transport/error policy"
           ],
           "requiredPrerequisites": [
-            "J0 closed System.Text.Json-to-AotValue codec",
-            "typed JSON diagnostic/limits contract"
+            "J0 closed System.Text.Json-to-AotValue codec (integrated aff09b3)",
+            "separate generated descriptor, lifecycle/binding, output, and stock/native oracle gates"
           ],
           "intendedOutcomeState": "native-subset-or-extend-shared-seam",
           "status": "queued",
-          "queueRationale": "W3a pull-forward: blocked on J0, the closed System.Text.Json-to-AotValue codec; no PSObject materialization.",
+          "queueRationale": "W3a pull-forward: J0 closed System.Text.Json-to-AotValue codec is integrated at aff09b3; the command adapter remains separately gated and admits no PSObject materialization.",
           "declarationIds": [
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertFromJsonCommand.cs|ConvertFromJsonCommand|1"
           ],
@@ -383,12 +383,12 @@
             "trust/transport/error policy"
           ],
           "requiredPrerequisites": [
-            "J0 closed AotValue-to-System.Text.Json codec",
-            "typed JSON diagnostic/limits contract"
+            "J0 closed AotValue-to-System.Text.Json codec (integrated aff09b3)",
+            "separate generated descriptor, lifecycle/binding, output, and stock/native oracle gates"
           ],
           "intendedOutcomeState": "native-subset-or-extend-shared-seam",
           "status": "queued",
-          "queueRationale": "W3a pull-forward: blocked on J0, the closed AotValue-to-System.Text.Json codec; no arbitrary CLR serialization.",
+          "queueRationale": "W3a pull-forward: J0 closed AotValue-to-System.Text.Json codec is integrated at aff09b3; the command adapter remains separately gated and admits no arbitrary CLR serialization.",
           "declarationIds": [
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/ConvertToJsonCommand.cs|ConvertToJsonCommand|1"
           ],
@@ -405,10 +405,13 @@
           "sourceRequiredPrerequisites": [
             "typed value/pipeline or formatter contract"
           ],
-          "requiredPrerequisites": "J0 closed JSON validation and diagnostic contract",
+          "requiredPrerequisites": [
+            "J0 closed JSON validation and diagnostic contract (integrated aff09b3)",
+            "separate static validation surface and stock/native oracle gates"
+          ],
           "intendedOutcomeState": "extend-reviewed-static-seam-or-native-subset",
           "status": "queued",
-          "queueRationale": "W3a pull-forward: depends on J0 validation/diagnostic behavior and the closed JSON value contract.",
+          "queueRationale": "W3a pull-forward: J0 validation/diagnostic contract is integrated at aff09b3; Test-Json still requires its own static validation surface and oracle.",
           "declarationIds": [
             "src/Microsoft.PowerShell.Commands.Utility/commands/utility/TestJsonCommand.cs|TestJsonCommand|1"
           ],

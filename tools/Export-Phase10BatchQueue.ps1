@@ -36,8 +36,8 @@ $integratedDuringCampaign = @(
 # The remaining front of the queue is the direct physical-filesystem cluster.
 # Its first commands consume the captured-root/path seams proven by
 # Get-ChildItem, Get-Item, Test-Path, and Resolve-Path. The JSON group remains
-# deliberately pulled forward as W3a, but remains blocked on its explicit J0
-# seam.
+# deliberately pulled forward as W3a. Its J0 codec prerequisite is integrated;
+# each JSON command adapter still has independent lifecycle/oracle gates.
 $frontOfQueue = @(
     'Get-Item', 'Test-Path', 'Resolve-Path', 'Convert-Path', 'Join-Path',
     'Split-Path', 'Get-Content', 'Get-ItemProperty', 'Get-ItemPropertyValue',
@@ -56,15 +56,15 @@ $queueOverrides = @{
     'Get-ItemProperty' = 'Extends the physical-entry record through a reviewed static metadata projection.'
     'Get-ItemPropertyValue' = 'Depends on the Get-ItemProperty static metadata projection.'
     'Test-FileCatalog' = 'Extends the proven physical-file resolver/hash work with a reviewed catalog-validation seam.'
-    'ConvertFrom-Json' = 'W3a pull-forward: blocked on J0, the closed System.Text.Json-to-AotValue codec; no PSObject materialization.'
-    'ConvertTo-Json' = 'W3a pull-forward: blocked on J0, the closed AotValue-to-System.Text.Json codec; no arbitrary CLR serialization.'
-    'Test-Json' = 'W3a pull-forward: depends on J0 validation/diagnostic behavior and the closed JSON value contract.'
+    'ConvertFrom-Json' = 'W3a pull-forward: J0 closed System.Text.Json-to-AotValue codec is integrated at aff09b3; the command adapter remains separately gated and admits no PSObject materialization.'
+    'ConvertTo-Json' = 'W3a pull-forward: J0 closed AotValue-to-System.Text.Json codec is integrated at aff09b3; the command adapter remains separately gated and admits no arbitrary CLR serialization.'
+    'Test-Json' = 'W3a pull-forward: J0 validation/diagnostic contract is integrated at aff09b3; Test-Json still requires its own static validation surface and oracle.'
 }
 
 $effectivePrerequisites = @{
-    'ConvertFrom-Json' = @('J0 closed System.Text.Json-to-AotValue codec', 'typed JSON diagnostic/limits contract')
-    'ConvertTo-Json' = @('J0 closed AotValue-to-System.Text.Json codec', 'typed JSON diagnostic/limits contract')
-    'Test-Json' = @('J0 closed JSON validation and diagnostic contract')
+    'ConvertFrom-Json' = @('J0 closed System.Text.Json-to-AotValue codec (integrated aff09b3)', 'separate generated descriptor, lifecycle/binding, output, and stock/native oracle gates')
+    'ConvertTo-Json' = @('J0 closed AotValue-to-System.Text.Json codec (integrated aff09b3)', 'separate generated descriptor, lifecycle/binding, output, and stock/native oracle gates')
+    'Test-Json' = @('J0 closed JSON validation and diagnostic contract (integrated aff09b3)', 'separate static validation surface and stock/native oracle gates')
 }
 
 $waveOrder = @{
@@ -283,7 +283,7 @@ $lines.Add('This queue accounts for every logical command in the checked Phase 1
 $lines.Add('')
 $lines.Add(('- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `{0}`.' -f $manifestHash))
 $lines.Add("- Accounting: $($manifest.logicalCommandCount) logical commands; $($provenRows.Count + $integratedRows.Count) completed commands ($($provenRows.Count) baseline and $($integratedRows.Count) integrated during this campaign); $($remaining.Count) queued commands in $($batchNumber - 2) batches of ten (final queued batch may be smaller).")
-$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue and includes the deliberately pulled-forward JSON foundation as `W3a`; JSON work remains blocked on J0, the closed JSON codec/value-plane seam.')
+$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records commands integrated during this campaign; it is deliberately distinct from the baseline. `B02` starts the remaining direct physical-path queue and includes the deliberately pulled-forward JSON rows as `W3a`; J0, the closed JSON codec/value-plane seam, is integrated at `aff09b3`, while each JSON command adapter remains separately gated.')
 $lines.Add('- Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.')
 $lines.Add('- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the 279 unconverted survey outcomes. `missing-profile` means no exact compiler profile, not that every command has the same blocker.')
 $lines.Add('')

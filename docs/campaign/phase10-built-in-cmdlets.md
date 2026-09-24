@@ -7,6 +7,10 @@ separate until a port proves its platform condition.
 
 The manifest is a conservative planning decision, never an execution claim.
 
+For the current campaign position, foundation order, completed work, next
+batch, and evidence map, read the [Phase 10 campaign status and operating
+model](README.md). This manifest remains the classification authority.
+
 | Category | Declarations | Meaning |
 | --- | ---: | --- |
 | `native-port-candidate` | 3 | Only the reviewed W2 calibration allowlist; direct source review and an opt-in descriptor still apply. |
