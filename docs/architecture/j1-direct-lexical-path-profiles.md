@@ -77,11 +77,11 @@ shared substrate; this is not an availability or runtime-support claim.
 
 ## Next approval point
 
-The accepted design authorizes only the bounded Step 2 converter change:
-introduce P1/P2 profiles and explicit requirement records.  It does not
-authorize runtime registration or a support claim.  Those require the ordinary
-generated-metadata, reuse-governance, diagnostic, oracle, managed, and Native
-AOT gates.
+The converter profiles and explicit requirement records are available as
+read-only plan evidence. Runtime registration and a support claim remain
+unauthorized. The next gate is the [target implementation readiness
+design](j1-target-implementation-readiness.md), then the ordinary generated-
+metadata, reuse-governance, diagnostic, oracle, managed, and Native AOT gates.
 
 ## Related records
 

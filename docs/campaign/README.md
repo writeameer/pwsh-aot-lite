@@ -76,7 +76,7 @@ profile and shared seam allow.
 | ID | Foundation | State | Purpose |
 | --- | --- | --- | --- |
 | J0 | Closed JSON codec/value plane | complete (`aff09b3`) | Bounded JSON ↔ closed `AotValue`, typed limits/diagnostics; no `PSObject` or arbitrary CLR serialization. |
-| J1 | Direct physical read/path | design accepted; implementation next | Two closed, provider-free **lexical** path-text profiles (`Join-Path` / `Split-Path`); no resolver, captured-root, drive, or ambient-location authority. [Accepted design](../architecture/j1-direct-lexical-path-profiles.md). |
+| J1 | Direct physical read/path | target implementation design accepted; coding next | Two closed, provider-free **lexical** path-text profiles (`Join-Path` / `Split-Path`); no resolver, captured-root, drive, or ambient-location authority. [Accepted profile design](../architecture/j1-direct-lexical-path-profiles.md); [target readiness packet](../architecture/j1-target-implementation-readiness.md). |
 | J2 | Closed typed data plane | queued | Record transforms, projections, ordering, aggregation, and text matching. |
 | J3 | Terminal and stream contracts | queued | Static views and explicit output/error/information streams. |
 | J4 | Physical mutation authority | queued | `ShouldProcess`, confirmation, atomic write/rollback, and trust policy. |

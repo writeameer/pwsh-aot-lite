@@ -29,6 +29,7 @@ review record; its original source remains the immutable provenance artifact.
 
 | Review ID | Scope | Outcome | Package |
 | --- | --- | --- | --- |
+| `2026-09-24-j1-target-implementation-readiness-v1` | target design packet for future lexical `Join-Path` / `Split-Path` adapters | **PASS** for documentation-only readiness claim | [package](dlar/2026-09-24-j1-target-implementation-readiness-v1/README.md) |
 | `2026-09-24-j1-lexical-path-profiles-v11` | accepted closed lexical `Join-Path` / `Split-Path` profile design | **PASS** for design-only Step 2 claim | [package](dlar/2026-09-24-j1-lexical-path-profiles-v11/README.md) |
 | `2026-09-23-j1-physical-path-profiles` | `Join-Path` / `Split-Path` profile design | **BLOCK** pending plan amendments | [package](dlar/2026-09-23-j1-physical-path-profiles/README.md) |
 
