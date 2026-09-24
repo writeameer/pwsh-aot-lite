@@ -1,0 +1,16 @@
+{
+  "schema": "pwsh-aot-dlar-packet-checksums/v1",
+  "packet": "2026-09-25-j2-requirements-v2",
+  "algorithm": "SHA-256",
+  "files": {
+    "README.md": "f5274c313e2f0e652b215d890fd0e15eb807118114de577a469b854cbc13ee38",
+    "evidence.md": "3e335eef819694da9330315f837a076339dbb3e7aefbfbd7dcc26679a85063c0",
+    "findings.md": "87b8d1e37e81564043c7ceaeb0105113dc64641a3d7348ad49af910860704da6",
+    "reconciliation.md": "3faf1f385b6a8ffca35236c0e3a1f3f4ac63523fd50e367fd512e163fad25cc6",
+    "lenses/powershell-compatibility.md": "4a89cbd75b41c64bcabf05e1f0869f9e13d9cf9274f3f67c35b7aa0cec35c360",
+    "lenses/typed-data-plane-aot.md": "6a5b25c2e42d395dcccf3cb786bba3e3a61cc83dcb5e27b466cf37885ab08984"
+  },
+  "excludes": [
+    "checksums.json"
+  ]
+}

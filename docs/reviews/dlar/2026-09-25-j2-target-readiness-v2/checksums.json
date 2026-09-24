@@ -1,0 +1,17 @@
+{
+  "schema": "pwsh-aot-dlar-packet-checksums/v1",
+  "packet": "2026-09-25-j2-target-readiness-v2",
+  "algorithm": "SHA-256",
+  "files": {
+    "README.md": "0f5869232bede357e5a8b455419ff3ad7c6fa7f947bafaaa65b38f6f61ca127a",
+    "evidence.md": "0c71288e116cc29563bff9a3b0fa75bbf7a9b4f90cb12d51baf4b462450f09b6",
+    "findings.md": "a35d866a919c224aca02d2b6aaa6b58acf492787e06e87f1b61a1046ee84bd1e",
+    "reconciliation.md": "0e81fd79a0e4722c2281eb3a6637f99108094689a82fa547db5bda8ee496dda5",
+    "lenses/powershell-compatibility.md": "4ae1b65e8b808aa2ab50e2157b8bfd38f300dd851707fd7e426a067c818d0e7b",
+    "lenses/typed-data-plane-aot.md": "d0f60646d84aa704e01e789ce27d9bc65ab8746816e9908b6bd48f181b0f26a8",
+    "../../../architecture/j2-static-record-transform-target-readiness-v2.md": "badfd23440af86c6883e0e9bc46991b3edaf7e63e02c6fcc179d26ad4005731a"
+  },
+  "excludes": [
+    "checksums.json"
+  ]
+}
