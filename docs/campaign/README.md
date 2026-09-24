@@ -27,6 +27,30 @@ Those command adapters remain queued and require their own generated
 descriptor subset, lifecycle/binding design, controlled stock/native oracle,
 tests, variance evidence, and independent review.
 
+## Stage progress
+
+The table below is the canonical progress view for the **279-command remaining
+set**. “Complete” counts integrated command adapters, not foundations. A
+completed foundation therefore does not make any cmdlet in its row complete.
+
+| Stage | Cmdlets | Complete |
+| --- | ---: | --- |
+| J0 — structured codecs, including JSON | 18 | Foundation complete; 0/18 adapters |
+| J1 — direct physical paths/reads | 14 | 0/14 |
+| J2 — typed data transforms | 16 | 0/16 |
+| J3 — formatting, streams, metadata/modules | 43 | 0/43 |
+| J4 — filesystem mutation | 24 | 0/24 |
+| J5 — local platform/process/service/host | 39 | 0/39 |
+| J6 — security and network | 15 | 0/15 |
+| J7 — trusted sidecars | 62 | 0/62 |
+| J8 — explicitly unsupported dynamic-engine families | 48 | N/A |
+| **Total** | **279** | **0 ports in this remaining set** |
+
+The **nine previously integrated cmdlets are excluded** from this table and
+from the 279 remaining commands. J8 is included for complete inventory
+accounting but is not an implementation queue: it records the currently
+unapproved dynamic-engine boundary.
+
 ## How the campaign works
 
 1. The all-built-ins survey records the converter's deterministic outcome for
