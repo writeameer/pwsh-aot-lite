@@ -6649,8 +6649,18 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
 
         foreach (JsonElement @case in cases)
         {
-            string script = @case.GetProperty("script").GetString()!;
             string kind = @case.GetProperty("kind").GetString()!;
+            if (kind == "property-rejection")
+            {
+                AssertJ1PropertyBindingRejected(
+                    @case.GetProperty("command").GetString()!,
+                    @case.GetProperty("property").GetString()!,
+                    @case.GetProperty("value").GetString()!,
+                    @case.GetProperty("diagnostic").GetString()!);
+                continue;
+            }
+
+            string script = @case.GetProperty("script").GetString()!;
             if (kind == "child")
             {
                 string expected = @case.GetProperty("output").GetString()!;
@@ -6671,6 +6681,29 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
                 // proves the corpus's zero-output atomic outcome.
             }
         }
+    }
+
+    // A record with a field named like an upstream ByPropertyName target is
+    // deliberately not converted. The J1 input gate accepts TextRecord only;
+    // this is a real typed-pipeline property-binding attempt, not a fabricated
+    // parameter spelling or an object/reflection simulation.
+    private static void AssertJ1PropertyBindingRejected(string command, string property, string value, string diagnostic)
+    {
+        (IAotCmdlet cmdlet, CommandInvocation invocation) = AotCmdletRegistry.ParseSource(command);
+        if (cmdlet is not IAotPipelineInputCmdlet inputCmdlet)
+            throw new InvalidOperationException($"J1 property corpus command '{command}' is not a typed input adapter.");
+        try
+        {
+            _ = inputCmdlet.InvokeWithPipelineInput(invocation, [new J1NamedFieldRecord(property, value)], new AotExecutionContext(), 1, 2).ToArray();
+            throw new InvalidOperationException($"J1 property corpus bound '{property}' for '{command}'.");
+        }
+        catch (ScriptException exception) when (exception.Diagnostic.Id == diagnostic) { }
+    }
+
+    private sealed record J1NamedFieldRecord(string Field, string Value) : IPipelineRecord
+    {
+        public double NumberFor(string property) => throw new ScriptException(AotDiagnostics.Runtime("AOT4010", "J1 property test records have no numeric fields."));
+        public string TextFor(string column) => column.Equals(Field, StringComparison.OrdinalIgnoreCase) ? Value : throw new ScriptException(AotDiagnostics.Runtime("AOT4010", "J1 property test field is absent."));
     }
 
     private static void AssertClosedJsonCodec()

@@ -25,10 +25,10 @@
     {"id":"child-20","kind":"child","script":"Join-Path base eight","output":"base/eight"},
     {"id":"atomic-01","kind":"mixed-invalid","script":"Join-Path good,bad /rooted","diagnostic":"AOT6210","outputCount":0},
     {"id":"atomic-02","kind":"mixed-invalid","script":"Split-Path good/path,/ -Parent","diagnostic":"AOT6214","outputCount":0},
-    {"id":"property-01","kind":"property-rejection","script":"Join-Path -PathByPropertyName alpha beta","diagnostic":"AOT6212"},
-    {"id":"property-02","kind":"property-rejection","script":"Join-Path -ChildPathByPropertyName beta","diagnostic":"AOT6212"},
-    {"id":"property-03","kind":"property-rejection","script":"Split-Path -PathByPropertyName alpha/beta","diagnostic":"AOT6212"},
-    {"id":"property-04","kind":"property-rejection","script":"Split-Path -LiteralPathByPropertyName alpha/beta","diagnostic":"AOT6212"},
-    {"id":"property-05","kind":"property-rejection","script":"Split-Path -LeafByPropertyName alpha/beta","diagnostic":"AOT6212"}
+    {"id":"property-01","kind":"property-rejection","command":"Join-Path -ChildPath beta","property":"Path","value":"alpha","diagnostic":"AOT4010"},
+    {"id":"property-02","kind":"property-rejection","command":"Join-Path -ChildPath beta","property":"PSPath","value":"alpha","diagnostic":"AOT4010"},
+    {"id":"property-03","kind":"property-rejection","command":"Split-Path -Leaf","property":"Path","value":"alpha/beta","diagnostic":"AOT4010"},
+    {"id":"property-04","kind":"property-rejection","command":"Split-Path -Leaf","property":"LiteralPath","value":"alpha/beta","diagnostic":"AOT4010"},
+    {"id":"property-05","kind":"property-rejection","command":"Split-Path -Leaf","property":"LP","value":"alpha/beta","diagnostic":"AOT4010"}
   ]
 }
