@@ -13,8 +13,8 @@ row is a PowerShell compatibility claim.
 | Native cmdlets integrated | 11 bounded, independently verified ports |
 | Completed foundations | J0 closed JSON codec/value plane, merged at `aff09b3` |
 | Commands still queued | 277 in 28 batches with queued work; B02 is partially complete |
-| Next campaign foundation | J2 typed data transforms, after a separately approved scope |
-| Next queued work | B02 remainder, beginning with `Get-Content` |
+| Next campaign release batch | J2 typed data transforms (16 commands), after its separately approved scope |
+| Subsequent release batch | J1 remaining direct path/read commands (12 commands) |
 
 The 11 integrated cmdlets are `Get-ChildItem`, `Get-FileHash`, `New-Guid`,
 `New-TimeSpan`, `Start-Sleep`, `Get-Item`, `Test-Path`, `Resolve-Path`,
@@ -71,7 +71,37 @@ This ordering is deliberate: thinking happens in survey classification and
 foundation design; repeated command work is made as mechanical as the proven
 profile and shared seam allow.
 
-## Foundation order
+## Dependency-aware campaign release order
+
+This is the required order for new campaign work: **J2 → J1 → J0 → J3 → J4
+→ J5 → J7 → J6**. It orders cmdlet-release work, not the historical date on
+which a reusable foundation landed. In particular, J0's codec foundation is
+already integrated, but its 18 command adapters follow J1 in the release
+sequence.
+
+J7 follows J5 because the trusted sidecar needs the local process/host
+capability supplied there. It also follows J2 and J0 because its protocol must
+carry the closed typed values and codec-backed wire format they establish. J6
+is **not** a prerequisite of J7. J8 remains unavailable under the AOT
+boundary.
+
+| Release order | Batch | Command adapters in batch | Current adapter result |
+| ---: | --- | ---: | --- |
+| 1 | J2 — typed data transforms | 16 | 0 migrated; active |
+| 2 | J1 — direct physical paths/reads | 12 remaining | 2 already migrated |
+| 3 | J0 — structured codecs, including JSON | 18 | 0 migrated; codec foundation only |
+| 4 | J3 — formatting, streams, metadata/modules | 43 | 0 migrated |
+| 5 | J4 — filesystem mutation | 24 | 0 migrated |
+| 6 | J5 — local platform/process/service/host | 39 | 0 migrated |
+| 7 | J7 — trusted sidecars | 62 | 0 migrated |
+| 8 | J6 — security and network | 15 | 0 migrated |
+| — | J8 — dynamic-engine families | 48 | explicitly unsupported |
+
+The actual total remains **11 migrated cmdlets**. A row contributes to that
+total only after the lifecycle's release step; batch order, foundation work,
+and approved plans do not count as migrations.
+
+## Foundation inventory
 
 | ID | Foundation | State | Purpose |
 | --- | --- | --- | --- |
@@ -85,7 +115,7 @@ profile and shared seam allow.
 | J7 | Trusted sidecar protocol | queued | Typed protocol/trust/lifecycle boundary for CIM, WSMan, remoting, jobs, and events. |
 | J8 | Dynamic-engine families | unavailable | No approved in-process AOT route for dynamic runspace, debugger, and mutable session/type-system behavior. |
 
-## B02 partial completion and next work
+## B02 partial completion
 
 J1's first bounded slice is complete: `Join-Path` and `Split-Path` implement
 the accepted [direct lexical physical-path design](../architecture/j1-direct-lexical-path-profiles.md).
@@ -96,7 +126,8 @@ providers, drives, captured-root resolution, ambient location, or an alternate
 grammar. The other 12 J1 commands remain explicit `requires-substrate`
 outcomes, not failed or partially supported ports.
 
-B02 is partially complete:
+B02 is partially complete and follows J2 in the dependency-aware release
+order:
 
 `Join-Path` and `Split-Path` are integrated. `Get-Content`,
 `Get-ItemProperty`, `Get-ItemPropertyValue`, `Test-FileCatalog`,
