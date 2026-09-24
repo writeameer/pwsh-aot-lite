@@ -85,8 +85,9 @@ agents.
 The [Dual-Lens Architecture Review (DLAR)](architecture/dual-lens-architecture-review.md)
 adds a reusable two-perspective gate for profile families, shared substrates,
 value/pipeline boundaries, formatting/diagnostics, and compatibility-affecting
-behavior. Use its compact [ledger template](reviews/DLAR-TEMPLATE.md) before
-integration when a trigger applies.
+behavior. Each review is a discoverable package in the
+[review index](reviews/README.md), created from the [DLAR package
+template](reviews/DLAR-TEMPLATE.md), before integration when a trigger applies.
 
 The [upstream reuse and format-contract governance](architecture/upstream-reuse-governance.md)
 is the mandatory anti-NIH evidence gate for every cmdlet port: it requires

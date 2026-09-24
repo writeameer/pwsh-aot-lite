@@ -81,10 +81,12 @@ smallest corrective action.
 
 ## Ledger and evidence
 
-Create a compact DLAR entry from
-[DLAR-TEMPLATE.md](../reviews/DLAR-TEMPLATE.md). Link it from the affected
-architecture note, cmdlet note, converter-profile decision, or campaign plan.
-The entry must retain:
+Create one dated DLAR package under `docs/reviews/dlar/<review-id>/`, using the
+exact layout in [the review index](../reviews/README.md#dual-lens-architecture-review-packages)
+and [DLAR-TEMPLATE.md](../reviews/DLAR-TEMPLATE.md). Link the package index
+from the affected architecture note, cmdlet note, converter-profile decision,
+or campaign plan. A completed package is immutable: a revised claim creates a
+new dated package linked to the previous verdict. The package must retain:
 
 - both verdicts and shared findings;
 - source/metadata/capability/evidence links;
@@ -99,8 +101,8 @@ profiles. Both lenses returned `BLOCK`: lexical path text must be distinct from
 existing-path resolution, and each static parameter/output/diagnostic surface
 must be defined before profile generation.
 
-- [PowerShell semantic and compatibility lens](../../../pwsh-aot-conversion-survey/analysis/j1-conversion-plan-v1/reviews/powershell-creator-compatibility-lens.md)
-- [Typed data-plane and AOT lens](../../../pwsh-aot-conversion-survey/analysis/j1-conversion-plan-v1/reviews/nushell-structured-data-lens.md)
+- [Structured J1 DLAR package](../reviews/dlar/2026-09-23-j1-physical-path-profiles/README.md)
+- [Immutable external evidence and hashes](../reviews/dlar/2026-09-23-j1-physical-path-profiles/evidence.md)
 
 Those links are retained evidence only. They do not change the J1 conversion
 plan or authorize implementation.
