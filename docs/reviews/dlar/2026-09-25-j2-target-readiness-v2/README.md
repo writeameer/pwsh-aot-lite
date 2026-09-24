@@ -7,7 +7,9 @@ route for future static `Where-Object`/`Select-Object` adapters and a closed,
 unimplemented future batch-transport contract. It authorizes no runtime,
 converter, registration, support, sidecar, or migration-count change.
 
-**Outcome:** **PENDING** — fresh verdicts required.
+**Outcome:** **PASS** — both DLAR lenses approved this documentation-only
+readiness design. This is not runtime authorization, a support claim, or a
+migration-count change.
 
 ## Packet
 
@@ -15,8 +17,8 @@ converter, registration, support, sidecar, or migration-count change.
 - [v1 base readiness design](../../../architecture/j2-static-record-transform-target-readiness.md)
 - [v2 evidence](evidence.md)
 - [checksums](checksums.json)
-- [accepted J2 v2 plan](../../../../../../pwsh-aot-conversion-survey/analysis/j2-conversion-plan-v2/plan.json)
-- [canonical conversion run](../../../../../../pwsh-aot-conversion-survey/runs/j2-conversion-run-v2/report.json)
+- [accepted J2 v2 plan](../../../../../pwsh-aot-conversion-survey/analysis/j2-conversion-plan-v2/plan.json)
+- [canonical conversion run](../../../../../pwsh-aot-conversion-survey/runs/j2-conversion-run-v2/report.json)
 
 ## Preflight closure
 
@@ -39,3 +41,10 @@ converter, registration, support, sidecar, or migration-count change.
 
 Each lens must issue exactly `PASS` or `BLOCK`. A BLOCK prevents code or a
 support claim.
+
+## Closure
+
+Both fresh lenses issued `PASS`. The reconciled verdict is recorded in
+[reconciliation](reconciliation.md). The next lifecycle step may prepare the
+approved narrow implementation; all ordinary implementation, compatibility,
+Native AOT, diagnostic, verification, and release gates remain mandatory.
