@@ -15,7 +15,7 @@ adapters with no filesystem/provider authority.
   probes that fail closed before any property conversion).
 - Parser/campaign: parser reuse guard, 37-fixture parser baseline, Phase 10 campaign
   and queue verification passed.
-- Native: fresh `osx-arm64` publish at `artifacts/osx-arm64-j1-final/PwshAotLite`;
+- Native: fresh `osx-arm64` publish at `artifacts/osx-arm64-j1-final3/PwshAotLite`;
   self-test and Join/Split smoke commands passed. SHA-256:
   `54431bfc3565cf6e34790eb5b955e28de75ff58c7b82cff2107db2b3be3cffe6`.
 - Replacement exceptions: `j1-lexical-no-provider-authority`,
