@@ -76,7 +76,7 @@ profile and shared seam allow.
 | ID | Foundation | State | Purpose |
 | --- | --- | --- | --- |
 | J0 | Closed JSON codec/value plane | complete (`aff09b3`) | Bounded JSON ↔ closed `AotValue`, typed limits/diagnostics; no `PSObject` or arbitrary CLR serialization. |
-| J1 | Direct physical read/path | next | Parser-derived multi-positional binding and provider-free captured-root path operations. |
+| J1 | Direct physical read/path | design accepted; implementation next | Two closed, provider-free **lexical** path-text profiles (`Join-Path` / `Split-Path`); no resolver, captured-root, drive, or ambient-location authority. [Accepted design](../architecture/j1-direct-lexical-path-profiles.md). |
 | J2 | Closed typed data plane | queued | Record transforms, projections, ordering, aggregation, and text matching. |
 | J3 | Terminal and stream contracts | queued | Static views and explicit output/error/information streams. |
 | J4 | Physical mutation authority | queued | `ShouldProcess`, confirmation, atomic write/rollback, and trust policy. |
@@ -88,11 +88,12 @@ profile and shared seam allow.
 ## Next: J1 and B02
 
 J1 is the direct physical read/path foundation. Its first bounded slice is the
-generic **multi-positional path binder** required by `Join-Path`. It must
-preserve parser-derived argument groups, map them atomically to the declared
-static parameter positions, and leave the existing binder unchanged for every
-previous descriptor. It does not add providers, drives, ambient location, or
-an alternate grammar.
+accepted [direct lexical physical-path design](../architecture/j1-direct-lexical-path-profiles.md): a generic **multi-positional path binder** for
+`Join-Path` and static parameter-set binding for `Split-Path`. It preserves
+parser-derived argument groups, maps them atomically to declared static
+positions, and leaves the existing binder unchanged for every previous
+descriptor. The lexical profiles do not add providers, drives, captured-root
+resolution, ambient location, or an alternate grammar.
 
 B02 is the first remaining ten-command batch:
 

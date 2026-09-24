@@ -87,6 +87,13 @@ mandatory reviewer matrix above: one `BLOCK` from either DLAR lens prevents
 integration or a support claim. Lenses are evidence-backed design perspectives,
 never impersonations of real people.
 
+For a new profile family or shared substrate, complete
+`docs/architecture/profile-design-preflight.md` **before** dispatching DLAR.
+It is the required closure checklist for source pins, authority, static
+parameters/aliases/outputs/diagnostics, closed grammar and types, collection
+and property binding, target fixtures/counts, and deferred outcomes. Missing
+preflight evidence is a DLAR `BLOCK`, not work for the lenses to infer.
+
 ## Slice branch and integration rule
 
 Every implementation slice uses its own `codex/<slice-name>` branch. A

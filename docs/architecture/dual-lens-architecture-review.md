@@ -50,8 +50,22 @@ Each lens receives the same fixed packet:
    tables.
 5. Exact managed, parser/differential, stock-oracle, and Native AOT evidence
    available at the time of review.
+6. A completed [profile-design preflight](profile-design-preflight.md) for a
+   new profile family or shared substrate. It must establish the authority
+   boundary, complete static contract, closed input forms/grammar, batch and
+   property-binding semantics, target-specific proof design, fixture-accounting
+   derivation, and deferred remainder before either lens reviews the packet.
 
 An incomplete packet is a `BLOCK`, not an invitation to guess.
+
+## Preflight before review
+
+For profile families and shared substrates, complete the
+[profile-design preflight](profile-design-preflight.md) **before** DLAR. This
+turns iteration evidence into a repeatable gate: the lenses should validate a
+closed contract rather than discover missing aliases, authority leakage,
+untyped inputs, or ambiguous fixture counts. A missing preflight item is a
+`BLOCK` until the design is narrowed or the evidence is supplied.
 
 ## Questions each lens must answer
 
@@ -106,3 +120,7 @@ must be defined before profile generation.
 
 Those links are retained evidence only. They do not change the J1 conversion
 plan or authorize implementation.
+
+The revised packet resolved those blockers and both lenses passed its bounded
+design-only claim. The accepted target design and immutable v11 evidence are
+in [the accepted J1 DLAR package](../reviews/dlar/2026-09-24-j1-lexical-path-profiles-v11/README.md).
