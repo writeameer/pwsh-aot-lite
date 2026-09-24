@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace PwshAotLite;
 
@@ -6555,6 +6556,7 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
     private static void AssertJ1LexicalPaths()
     {
         static IReadOnlyList<IPipelineRecord> Execute(string script) => UpstreamAstPipelineLowerer.Parse(script).Execute(new AotExecutionContext());
+        AssertJ1Corpus(Execute);
         if (!Execute("Join-Path alpha,beta gamma").Cast<TextRecord>().Select(static row => row.Value).SequenceEqual(["alpha/gamma", "beta/gamma"]))
         {
             throw new InvalidOperationException("J1 Join-Path did not preserve its upstream AST argument group.");
@@ -6602,6 +6604,72 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
         if (fragments.Length != 20 || fragments.Any(fragment => Execute($"Join-Path 'base' '{fragment}'").SingleOrDefault() is not TextRecord { Value: var value } || value != $"base/{fragment}"))
         {
             throw new InvalidOperationException("J1 lexical child-fragment corpus regressed.");
+        }
+
+        foreach ((string script, string id) in new[]
+        {
+            ("Join-Path good,bad /rooted", "AOT6210"),
+            ("Split-Path good/path,/ -Parent", "AOT6214"),
+        })
+        {
+            try { _ = Execute(script); throw new InvalidOperationException($"J1 atomic corpus accepted '{script}'."); }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == id) { }
+        }
+
+        string[] propertyRoutes =
+        [
+            "Join-Path -PathByPropertyName alpha beta",
+            "Join-Path -ChildPathByPropertyName beta",
+            "Split-Path -PathByPropertyName alpha/beta",
+            "Split-Path -LiteralPathByPropertyName alpha/beta",
+            "Split-Path -LeafByPropertyName alpha/beta",
+        ];
+        if (propertyRoutes.Length != 5) throw new InvalidOperationException("J1 property rejection corpus count drifted.");
+        foreach (string script in propertyRoutes)
+        {
+            try { _ = Execute(script); throw new InvalidOperationException($"J1 accepted property route '{script}'."); }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT6212") { }
+        }
+    }
+
+    private static void AssertJ1Corpus(Func<string, IReadOnlyList<IPipelineRecord>> execute)
+    {
+        using Stream stream = typeof(SelfTest).Assembly.GetManifestResourceStream("PwshAotLite.J1LexicalPathCorpus")
+            ?? throw new InvalidOperationException("J1 lexical corpus was not embedded in the executable.");
+        using JsonDocument document = JsonDocument.Parse(stream);
+        JsonElement root = document.RootElement;
+        if (root.GetProperty("schemaVersion").GetInt32() != 1 || root.GetProperty("authority").GetString() != "none")
+            throw new InvalidOperationException("J1 lexical corpus schema/authority changed unexpectedly.");
+        JsonElement[] cases = root.GetProperty("cases").EnumerateArray().ToArray();
+        if (cases.Length != 27
+            || cases.Count(@case => @case.GetProperty("kind").GetString() == "child") != 20
+            || cases.Count(@case => @case.GetProperty("kind").GetString() == "mixed-invalid") != 2
+            || cases.Count(@case => @case.GetProperty("kind").GetString() == "property-rejection") != 5)
+            throw new InvalidOperationException("J1 lexical corpus must contain the reviewed 20/2/5 case distribution.");
+
+        foreach (JsonElement @case in cases)
+        {
+            string script = @case.GetProperty("script").GetString()!;
+            string kind = @case.GetProperty("kind").GetString()!;
+            if (kind == "child")
+            {
+                string expected = @case.GetProperty("output").GetString()!;
+                if (execute(script).SingleOrDefault() is not TextRecord { Value: var actual } || actual != expected)
+                    throw new InvalidOperationException($"J1 child corpus output drifted for '{@case.GetProperty("id").GetString()}'.");
+                continue;
+            }
+
+            string diagnostic = @case.GetProperty("diagnostic").GetString()!;
+            try
+            {
+                _ = execute(script);
+                throw new InvalidOperationException($"J1 negative corpus accepted '{@case.GetProperty("id").GetString()}'.");
+            }
+            catch (ScriptException exception) when (exception.Diagnostic.Id == diagnostic)
+            {
+                // A direct command throws before terminal materialization; this
+                // proves the corpus's zero-output atomic outcome.
+            }
         }
     }
 

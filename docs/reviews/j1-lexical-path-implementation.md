@@ -9,11 +9,14 @@ adapters with no filesystem/provider authority.
 - Source/provenance: generated `GeneratedCmdletPorts.JoinPath` / `.SplitPath`;
   upstream `CombinePathCommand.cs` / `ParsePathCommand.cs`.
 - Managed: `dotnet build -c Release --no-restore` and `dotnet run -c Release -- --self-test` passed.
-- Parser/campaign: parser reuse guard, 36-fixture parser baseline, Phase 10 campaign
+- Corpus: `tests/j1-lexical-path-corpus.json` is embedded and executed by
+  `AssertJ1Corpus`; it mechanically enforces exactly 27 cases (20 child, two
+  mixed-invalid atomic, five fail-closed synthetic property-route spellings).
+- Parser/campaign: parser reuse guard, 37-fixture parser baseline, Phase 10 campaign
   and queue verification passed.
 - Native: fresh `osx-arm64` publish at `artifacts/osx-arm64-j1-final/PwshAotLite`;
   self-test and Join/Split smoke commands passed. SHA-256:
-  `863e45b99eebf0d7d310e93e71895878f6540afb923877ec9bb0f53d04a3bd3b`.
+  `9c57afdd4f77b3e7c64234e0b9cd567b3487cbedda75cf800d2dd5ac916a25b0`.
 - Replacement exceptions: `j1-lexical-no-provider-authority`,
   `j1-join-static-binder`, `j1-split-static-selector`, and
   `j1-lexical-text-record` in `port-variances.json`.
