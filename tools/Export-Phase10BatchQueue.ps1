@@ -30,7 +30,9 @@ $integratedDuringCampaign = @(
     'Get-Item',
     'Test-Path',
     'Resolve-Path',
-    'Convert-Path'
+    'Convert-Path',
+    'Where-Object',
+    'Select-Object'
 )
 
 # B02 is retained as a stable, partially complete batch: the two completed J1
@@ -339,9 +341,9 @@ $lines.Add('This queue accounts for every logical command in the checked Phase 1
 $lines.Add('')
 $lines.Add(('- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `{0}`.' -f $manifestHash))
 $lines.Add("- Accounting: $($manifest.logicalCommandCount) logical commands; $completedCommandCount completed commands ($($provenRows.Count) baseline and $($completedCommandCount - $provenRows.Count) integrated during this campaign); $queuedCommandCount queued commands in $queuedBatchCount batches with queued work (final queued batch may be smaller).")
-$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records the four campaign commands completed before J1. `B02` is deliberately retained as a **partially complete** historical batch: `Join-Path` and `Split-Path` are integrated; its eight remaining commands, including pulled-forward JSON rows as `W3a`, remain separately gated.')
+$lines.Add('- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records campaign commands completed through their full release gates. `B02` is deliberately retained as a **partially complete** historical batch: `Join-Path` and `Split-Path` are integrated; its eight remaining commands, including pulled-forward JSON rows as `W3a`, remain separately gated.')
 $lines.Add('- Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.')
-$lines.Add('- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the current 277-command unconverted cohort and its original 279-command survey baseline. `missing-profile` means no exact compiler profile, not that every command has the same blocker.')
+$lines.Add('- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the current 275-command unconverted cohort and its original 279-command survey baseline. `missing-profile` means no exact compiler profile, not that every command has the same blocker.')
 $lines.Add('')
 $lines.Add('Regenerate or verify this queue:')
 $lines.Add('')

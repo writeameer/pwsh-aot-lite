@@ -3,7 +3,7 @@
   "generatedFrom": "GeneratedCmdletPorts.g.cs after a fresh Release build",
   "upstreamCommit": "1e53f6bbab4b8791eae782474d21889f9e5d6038",
   "generatedContractSha256": "BCD10A049929638B334B1E6622813112EC730C3286DDC57DFCED184BDD68D21C",
-  "classifierSha256": "05890738B5A20F847E475AAF3662BB6FD0518446B2AACBCF90C42610F09842B8",
+  "classifierSha256": "B18AE85071B9CEAA7E7004C0B83963D2CAE52C08AF8F3532CFDB8FEA77885874",
   "declarationCount": 290,
   "logicalCommandCount": 288,
   "categoryValues": [
@@ -4143,9 +4143,9 @@
       "requiredPrerequisites": [
         "typed value/pipeline or formatter contract"
       ],
-      "directBodyHelperReview": "required-before-port",
-      "implementedSubset": null,
-      "currentState": "catalogued-only; no execution claim"
+      "directBodyHelperReview": "reviewed-and-integrated-for-J2 explicit closed-record Property projection subset",
+      "implementedSubset": "Integrated: pipeline-only one positional Property group or one generated -Property group over literal closed-record fields; wildcards, calculated properties, PSObject/ETS, source position, and unreviewed parameters remain rejected.",
+      "currentState": "integrated-reviewed-J2 static closed-record transform subset; dynamic/ETS/script/property-expression routes remain deferred"
     },
     {
       "declarationId": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/MatchString.cs|SelectStringCommand|1",
@@ -5360,9 +5360,9 @@
       "requiredPrerequisites": [
         "typed value/pipeline or formatter contract"
       ],
-      "directBodyHelperReview": "required-before-port",
-      "implementedSubset": null,
-      "currentState": "catalogued-only; no execution claim"
+      "directBodyHelperReview": "reviewed-and-integrated-for-J2 static numeric closed-record predicate subset",
+      "implementedSubset": "Integrated: pipeline-only literal closed-record numeric Property/Value with one generated EQ/NE/GT/GE/LT/LE operator; ScriptBlocks, PSObject/ETS, dynamic properties, source position, and unreviewed parameters remain rejected.",
+      "currentState": "integrated-reviewed-J2 static closed-record transform subset; dynamic/ETS/script/property-expression routes remain deferred"
     },
     {
       "declarationId": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Write.cs|WriteDebugCommand|1",

@@ -2,11 +2,11 @@
 
 This queue accounts for every logical command in the checked Phase 10 manifest exactly once. It is a dependency-aware migration schedule, **not** a compatibility claim: a command proceeds only when its listed prerequisite exists and has passed the normal source-reuse, architecture, diagnostic, managed, parser, and fresh Native AOT gates.
 
-- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `2C71936F86C123FCD797CFE0AD84552BEF6BA0C7C385C60B557F65115C12885B`.
-- Accounting: 288 logical commands; 11 completed commands (5 baseline and 6 integrated during this campaign); 277 queued commands in 28 batches with queued work (final queued batch may be smaller).
-- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records the four campaign commands completed before J1. `B02` is deliberately retained as a **partially complete** historical batch: `Join-Path` and `Split-Path` are integrated; its eight remaining commands, including pulled-forward JSON rows as `W3a`, remain separately gated.
+- Authority: [`phase10-built-in-cmdlets.json`](phase10-built-in-cmdlets.json), SHA-256 `4214883518ED05D3DDFBCB52E3E00AA57E767079DC8D56FA77BC637C44F6F595`.
+- Accounting: 288 logical commands; 13 completed commands (5 baseline and 8 integrated during this campaign); 275 queued commands in 28 batches with queued work (final queued batch may be smaller).
+- `B00` is accounting-only: previously verified calibration ports are not scheduled again. `B01` records campaign commands completed through their full release gates. `B02` is deliberately retained as a **partially complete** historical batch: `Join-Path` and `Split-Path` are integrated; its eight remaining commands, including pulled-forward JSON rows as `W3a`, remain separately gated.
 - Outcomes are explicit: native subset, shared-seam extension, sidecar candidate, or explicitly unsupported. An unsupported parameter/path within an otherwise useful native subset is a successful bounded conversion, not a silent compatibility claim.
-- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the current 277-command unconverted cohort and its original 279-command survey baseline. `missing-profile` means no exact compiler profile, not that every command has the same blocker.
+- The [engineering archetype inventory](phase10-archetype-inventory.md) explains the current 275-command unconverted cohort and its original 279-command survey baseline. `missing-profile` means no exact compiler profile, not that every command has the same blocker.
 
 Regenerate or verify this queue:
 
@@ -25,7 +25,7 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `New-TimeSpan` | native-port-candidate / baseline (source: W2) | Calibration/proof command retained for accounting only; it is not scheduled for duplicate implementation. already integrated and native-verified; retain its existing per-cmdlet evidence | `native-subset-proven` | `completed-proven` |
 | `Start-Sleep` | native-port-candidate / baseline (source: W2) | Calibration/proof command retained for accounting only; it is not scheduled for duplicate implementation. already integrated and native-verified; retain its existing per-cmdlet evidence | `native-subset-proven` | `completed-proven` |
 
-## B01 — completed-integrated (4 commands)
+## B01 — completed-integrated (6 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
@@ -33,6 +33,8 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Test-Path` | shared-substrate-dependency / W3 (source: W3) | Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
 | `Resolve-Path` | shared-substrate-dependency / W3 (source: W3) | Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
 | `Convert-Path` | shared-substrate-dependency / W3 (source: W3) | Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
+| `Where-Object` | native-replacement-required / W1/W6 (source: W1/W6) | Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
+| `Select-Object` | native-replacement-required / W1/W6 (source: W1/W6) | Campaign command completed as a bounded native subset; it is retained for exact accounting and is not scheduled again. integrated after its recorded source-reuse, architecture, diagnostics, managed, parser, and fresh Native AOT gates; retain its per-cmdlet evidence | `native-subset-proven` | `completed-integrated` |
 
 ## B02 — partially-complete (10 commands; 2 complete, 8 queued)
 
@@ -146,35 +148,33 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Out-String` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Remove-Module` | native-replacement-required / W1/W6 (source: W1/W6) | direct body/helper review; typed value/pipeline contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Save-Help` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
-| `Select-Object` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Select-String` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Select-Xml` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Set-MarkdownOption` | native-replacement-required / W1/W6 (source: W1/W6) | direct body/helper review; typed value/pipeline contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Set-TraceSource` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Show-Command` | native-replacement-required / W1/W6 (source: W1/W6) | direct body/helper review; typed value/pipeline contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Show-Markdown` | native-replacement-required / W1/W6 (source: W1/W6) | direct body/helper review; typed value/pipeline contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
+| `Sort-Object` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 
 ## B10 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Sort-Object` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Tee-Object` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Test-ModuleManifest` | native-replacement-required / W1/W6 (source: W1/W6) | direct body/helper review; typed value/pipeline contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Trace-Command` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
-| `Where-Object` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Write-Error` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Write-Information` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Write-Output` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Write-Progress` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
 | `Write-Verbose` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
+| `Write-Warning` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
+| `Add-Content` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B11 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Write-Warning` | native-replacement-required / W1/W6 (source: W1/W6) | typed value/pipeline or formatter contract | `extend-reviewed-static-seam-or-native-subset` | `queued` |
-| `Add-Content` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Clear-Content` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Clear-Item` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Clear-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
@@ -183,13 +183,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Copy-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Move-Item` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Move-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
+| `New-FileCatalog` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
+| `New-Item` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B12 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `New-FileCatalog` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
-| `New-Item` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `New-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `New-PSDrive` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `New-TemporaryDirectory` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
@@ -198,13 +198,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Remove-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Remove-PSDrive` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Rename-Item` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
+| `Rename-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
+| `Set-Content` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B13 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Rename-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
-| `Set-Content` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Set-Item` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Set-ItemProperty` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
 | `Set-Location` | shared-substrate-dependency / W4 (source: W4) | atomic-write/trust policy; physical filesystem write capability; ShouldProcess/confirmation | `native-subset-or-extend-shared-seam` | `queued` |
@@ -213,13 +213,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Get-ComputerInfo` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-Counter` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-Culture` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Get-Date` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Get-Host` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B14 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Get-Date` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
-| `Get-Host` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-HotFix` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-Process` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
@@ -228,13 +228,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Get-Uptime` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `New-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Out-Host` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Read-Host` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Remove-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B15 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Read-Host` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
-| `Remove-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Rename-Computer` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Resume-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Set-Acl` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
@@ -243,13 +243,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Set-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Set-TimeZone` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Start-Process` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Start-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Start-Transcript` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B16 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Start-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
-| `Start-Transcript` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Stop-Computer` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Stop-Process` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Stop-Service` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
@@ -258,13 +258,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Switch-Process` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Update-Help` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `Update-List` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Wait-Process` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
+| `Write-Host` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B17 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Wait-Process` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
-| `Write-Host` | shared-substrate-dependency / W5 (source: W5) | AotHostSubstrate platform/process/host capability; OS/architecture/error matrix | `native-subset-or-extend-shared-seam` | `queued` |
 | `ConvertFrom-SecureString` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `ConvertTo-SecureString` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-AuthenticodeSignature` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
@@ -273,13 +273,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Get-ExecutionPolicy` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Get-PfxCertificate` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Invoke-RestMethod` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
+| `Invoke-WebRequest` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
+| `Protect-CmsMessage` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 
 ## B18 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Invoke-WebRequest` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
-| `Protect-CmsMessage` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Restart-Computer` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Restart-Service` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Send-MailMessage` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
@@ -288,13 +288,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Test-Connection` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Unprotect-CmsMessage` | shared-substrate-dependency / W7 (source: W7) | approved credential/network/security capability; trust/transport/error policy | `native-subset-or-extend-shared-seam` | `queued` |
 | `Connect-WSMan` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Disable-PSRemoting` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Disable-PSSessionConfiguration` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 
 ## B19 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Disable-PSRemoting` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
-| `Disable-PSSessionConfiguration` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Disable-WSManCredSSP` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Disconnect-WSMan` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Enable-PSRemoting` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
@@ -303,13 +303,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Enter-PSHostProcess` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Exit-PSHostProcess` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Export-PSSession` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Get-CimAssociatedInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Get-CimClass` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 
 ## B20 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Get-CimAssociatedInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
-| `Get-CimClass` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Get-CimInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Get-CimSession` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Get-Event` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
@@ -318,13 +318,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Get-PSHostProcessInfo` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Get-PSSessionCapability` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Get-PSSessionConfiguration` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Get-WinEvent` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Get-WSManCredSSP` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 
 ## B21 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Get-WinEvent` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
-| `Get-WSManCredSSP` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Get-WSManInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Import-PSSession` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Invoke-CimMethod` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
@@ -333,13 +333,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `New-CimInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `New-CimSession` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `New-CimSessionOption` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `New-Event` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `New-PSRoleCapabilityFile` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 
 ## B22 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `New-Event` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
-| `New-PSRoleCapabilityFile` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `New-PSSessionConfigurationFile` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `New-PSSessionOption` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `New-PSTransportOption` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
@@ -348,13 +348,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `New-WSManSessionOption` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Receive-Job` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Receive-PSSession` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Register-CimIndicationEvent` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Register-EngineEvent` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 
 ## B23 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Register-CimIndicationEvent` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
-| `Register-EngineEvent` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Register-ObjectEvent` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Register-PSSessionConfiguration` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Remove-CimInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
@@ -363,13 +363,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Remove-Job` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Remove-WSManInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Set-CimInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Set-PSSessionConfiguration` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Set-WSManInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 
 ## B24 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Set-PSSessionConfiguration` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
-| `Set-WSManInstance` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Set-WSManQuickConfig` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Start-Job` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Stop-Job` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
@@ -378,13 +378,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Unregister-Event` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Unregister-PSSessionConfiguration` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
 | `Wait-Event` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Wait-Job` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
+| `Add-History` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 
 ## B25 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Wait-Job` | sidecar-candidate / W8 (source: W8) | sidecar protocol; trust policy; typed wire schema | `sidecar-candidate-only` | `queued` |
-| `Add-History` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Add-Type` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Clear-History` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Clear-Variable` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
@@ -393,13 +393,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Debug-Process` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Debug-Runspace` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Disable-PSBreakpoint` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `Disable-RunspaceDebug` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `Disconnect-PSSession` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 
 ## B26 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Disable-RunspaceDebug` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
-| `Disconnect-PSSession` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Enable-PSBreakpoint` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Enable-RunspaceDebug` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Enter-PSSession` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
@@ -408,13 +408,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Get-Alias` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Get-History` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Get-PSBreakpoint` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `Get-PSCallStack` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `Get-PSProvider` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 
 ## B27 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Get-PSCallStack` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
-| `Get-PSProvider` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Get-PSSession` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Get-Runspace` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Get-RunspaceDebug` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
@@ -423,13 +423,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Import-Alias` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Invoke-Expression` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Invoke-History` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `New-Alias` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `New-Object` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 
 ## B28 — queued (10 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `New-Alias` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
-| `New-Object` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `New-PSSession` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `New-Variable` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Register-ArgumentCompleter` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
@@ -438,13 +438,13 @@ pwsh -NoProfile -File ./tools/Export-Phase10BatchQueue.ps1 -Verify
 | `Remove-PSSession` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Remove-TypeData` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Remove-Variable` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `Set-Alias` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
+| `Set-PSBreakpoint` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 
-## B29 — queued (9 commands)
+## B29 — queued (7 commands)
 
 | Command | Source category / wave | Required seam or prerequisite | Intended outcome | Status |
 | --- | --- | --- | --- | --- |
-| `Set-Alias` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
-| `Set-PSBreakpoint` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Set-PSDebug` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Set-StrictMode` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
 | `Set-Variable` | explicitly-unsupported / deferred (source: deferred) | none; catalog-only until a separately approved architecture exists | `explicitly-unsupported` | `queued` |
