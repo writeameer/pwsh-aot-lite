@@ -6586,12 +6586,47 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
     // they are not a transport API, listener, or endpoint implementation.
     private static void AssertJ2DescriptorRedirectAndTransportContract()
     {
+        AssertJ2FixtureManifest();
         AssertJ2TailPlan(
             "Get-TimeZone -ListAvailable | Where-Object BaseUtcOffsetMinutes -GE -1000 | Select-Object Id, BaseUtcOffsetMinutes",
             "j2-positional-redirect.ps1");
         AssertJ2TailPlan(
             "Get-TimeZone -ListAvailable | Where-Object -Property BaseUtcOffsetMinutes -GE -Value -1000 | Select-Object -Property Id, BaseUtcOffsetMinutes",
             "j2-named-redirect.ps1");
+
+        AssertJ2DiagnosticSnapshot(
+            "Get-TimeZone -Id UTC | Select-Object Id -Property BaseUtcOffsetMinutes",
+            "j2-mixed-positional-named.ps1",
+            """
+error[AOT6404]: Select-Object does not permit a named -Property group after positional Property values.
+  --> j2-mixed-positional-named.ps1:1:41
+   |
+1 | Get-TimeZone -Id UTC | Select-Object Id -Property BaseUtcOffsetMinutes
+   |                                         ^^^^^^^^^ mixed projection binding
+   = help: Use either positional fields or one generated -Property field group, not both.
+""");
+        AssertJ2DiagnosticSnapshot(
+            "Get-TimeZone -Id UTC | Select-Object -Property Id BaseUtcOffsetMinutes",
+            "j2-mixed-named-positional.ps1",
+            """
+error[AOT6404]: Select-Object does not permit positional Property values after a named -Property group.
+  --> j2-mixed-named-positional.ps1:1:51
+   |
+1 | Get-TimeZone -Id UTC | Select-Object -Property Id BaseUtcOffsetMinutes
+   |                                                   ^^^^^^^^^^^^^^^^^^^^ mixed projection binding
+   = help: Use either positional fields or one generated -Property field group, not both.
+""");
+        AssertJ2DiagnosticSnapshot(
+            "Get-TimeZone -Id UTC | Select-Object I*",
+            "j2-wildcard-property.ps1",
+            """
+error[AOT6404]: Select-Object requires one direct non-wildcard Property field in this Native AOT subset.
+  --> j2-wildcard-property.ps1:1:38
+   |
+1 | Get-TimeZone -Id UTC | Select-Object I*
+   |                                      ^^ invalid projection field
+   = help: Use one literal field exposed by the preceding AOT record batch.
+""");
 
         foreach ((string source, string id) in new[]
         {
@@ -6602,6 +6637,10 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             ("Get-Process | Select-Object", "AOT6404"),
             ("Get-Process | Select-Object -ExcludeProperty Name", "AOT6406"),
             ("Get-Process | Select-Object Name, NAME", "AOT6405"),
+            ("Get-TimeZone -Id UTC | Select-Object Id -Property BaseUtcOffsetMinutes", "AOT6404"),
+            ("Get-TimeZone -Id UTC | Select-Object -Property Id BaseUtcOffsetMinutes", "AOT6404"),
+            ("Get-TimeZone -Id UTC | Select-Object Id BaseUtcOffsetMinutes", "AOT6404"),
+            ("Get-TimeZone -Id UTC | Select-Object I*", "AOT6404"),
         })
         {
             try
@@ -6658,6 +6697,70 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
         }
 
         _ = plan.Execute(new AotExecutionContext());
+    }
+
+    private static void AssertJ2DiagnosticSnapshot(string source, string documentName, string expected)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName);
+            throw new InvalidOperationException($"J2 diagnostic snapshot unexpectedly accepted '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT6404")
+        {
+            AssertDiagnosticSnapshot(error.Diagnostic, source, expected);
+        }
+    }
+
+    // The approved readiness packet requires a fixed 52-ID evidence corpus.
+    // Keep the inventory embedded in the artifact so a native self-test catches
+    // an accidental deleted/renamed fixture before reviewers read the ledger.
+    private static void AssertJ2FixtureManifest()
+    {
+        using Stream stream = typeof(SelfTest).Assembly.GetManifestResourceStream("PwshAotLite.J2StaticRecordTransformFixtures")
+            ?? throw new InvalidOperationException("J2 static record-transform fixture manifest was not embedded in the executable.");
+        using JsonDocument document = JsonDocument.Parse(stream);
+        JsonElement root = document.RootElement;
+        if (root.GetProperty("schemaVersion").GetInt32() != 1
+            || root.GetProperty("authority").GetString() != "j2-static-record-transform-implementation")
+        {
+            throw new InvalidOperationException("J2 static record-transform fixture manifest schema/authority changed unexpectedly.");
+        }
+
+        IReadOnlyDictionary<string, int> required = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["grammar-baseline"] = 12,
+            ["binder-diagnostic"] = 14,
+            ["batch-semantics"] = 12,
+            ["stock-oracle"] = 8,
+            ["native-aot-smoke"] = 6,
+        };
+        JsonElement categories = root.GetProperty("categories");
+        JsonElement[] fixtures = root.GetProperty("fixtures").EnumerateArray().ToArray();
+        if (fixtures.Length != 52)
+        {
+            throw new InvalidOperationException("J2 static record-transform fixture corpus must retain exactly 52 IDs.");
+        }
+
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, int> category in required)
+        {
+            if (categories.GetProperty(category.Key).GetInt32() != category.Value
+                || fixtures.Count(fixture => fixture.GetProperty("category").GetString() == category.Key) != category.Value)
+            {
+                throw new InvalidOperationException($"J2 fixture corpus category '{category.Key}' drifted from its approved count.");
+            }
+        }
+
+        foreach (JsonElement fixture in fixtures)
+        {
+            string? id = fixture.GetProperty("id").GetString();
+            string? evidence = fixture.GetProperty("evidence").GetString();
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(evidence) || !ids.Add(id))
+            {
+                throw new InvalidOperationException("J2 fixture corpus contains an empty or duplicate ID/evidence record.");
+            }
+        }
     }
 
     private static AotValue J2FixtureEncodeBatch(AotRecordBatch batch) =>

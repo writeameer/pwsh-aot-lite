@@ -231,21 +231,54 @@ internal sealed class AotSelectStaticFieldsDescriptor : AotStaticRecordStageDesc
     {
         List<AotValueArgumentPlan> fields = [];
         bool namedProperty = false;
+        bool acceptedPositionalGroup = false;
         for (int index = 0; index < command.Arguments.Count; index++)
         {
             switch (command.Arguments[index])
             {
+                case AotCommandValueGroupPlan positionalGroup when !namedProperty:
+                    if (acceptedPositionalGroup)
+                    {
+                        throw Binding("AOT6404", "Select-Object accepts exactly one positional Property group.", positionalGroup.Span, "extra positional projection field", "Use one comma-separated literal property group, for example 'Select-Object Name, Id'.");
+                    }
+
+                    AddProjectionGroup(fields, positionalGroup);
+                    acceptedPositionalGroup = true;
+                    break;
+                case AotCommandValueGroupPlan positionalGroup:
+                    throw Binding("AOT6404", "Select-Object does not permit positional Property values after a named -Property group.", positionalGroup.Span, "mixed projection binding", "Use either positional fields or one generated -Property field group, not both.");
                 case AotValueArgumentPlan positional when !namedProperty:
+                    // This is retained solely for direct plan fixtures. AST
+                    // lowering always carries Select property values as a
+                    // source group, preserving the generated boundary.
+                    if (acceptedPositionalGroup)
+                    {
+                        throw Binding("AOT6404", "Select-Object accepts exactly one positional Property group.", positional.Span, "extra positional projection field", "Use one comma-separated literal property group, for example 'Select-Object Name, Id'.");
+                    }
+
                     fields.Add(positional);
+                    acceptedPositionalGroup = true;
                     break;
                 case AotValueArgumentPlan positional:
-                    fields.Add(positional);
-                    break;
+                    throw Binding("AOT6404", "Select-Object does not permit positional Property values after a named -Property group.", positional.Span, "mixed projection binding", "Use either positional fields or one generated -Property field group, not both.");
                 case AotParameterArgumentPlan parameter when MatchesGeneratedParameter(parameter.Name) && !namedProperty:
+                    if (fields.Count != 0)
+                    {
+                        throw Binding("AOT6404", "Select-Object does not permit a named -Property group after positional Property values.", parameter.Span, "mixed projection binding", "Use either positional fields or one generated -Property field group, not both.");
+                    }
+
                     namedProperty = true;
                     if (parameter.AttachedValue is not null)
                     {
-                        fields.Add(new AotValueArgumentPlan(parameter.AttachedValue));
+                        AddProjectionExpression(fields, parameter.AttachedValue);
+                    }
+                    else if (++index < command.Arguments.Count && command.Arguments[index] is AotCommandValueGroupPlan namedGroup)
+                    {
+                        AddProjectionGroup(fields, namedGroup);
+                    }
+                    else
+                    {
+                        throw Binding("AOT6404", "Select-Object -Property requires one direct property group.", parameter.Span, "missing projection field", "Supply one literal field group, for example '-Property Name, Id'.");
                     }
 
                     break;
@@ -267,7 +300,7 @@ internal sealed class AotSelectStaticFieldsDescriptor : AotStaticRecordStageDesc
         HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
         foreach (AotValueArgumentPlan field in fields)
         {
-            string name = RequireLiteralField(field, Descriptor.Name);
+            string name = RequireSelectLiteralField(field);
             if (!seen.Add(name))
             {
                 throw Binding("AOT6405", "Select-Object does not permit duplicate fields that differ only by case in the AOT subset.", field.Span, "duplicate projection field", "Select each field only once.");
@@ -277,6 +310,42 @@ internal sealed class AotSelectStaticFieldsDescriptor : AotStaticRecordStageDesc
         }
 
         return new AotSelectStaticFieldsStagePlan(Descriptor, names, fields[0].Span);
+    }
+
+    private static void AddProjectionGroup(List<AotValueArgumentPlan> fields, AotCommandValueGroupPlan group)
+    {
+        foreach (AotExpressionPlan expression in group.GetExpressionsForStaticBinding())
+        {
+            AddProjectionExpression(fields, expression);
+        }
+    }
+
+    private static void AddProjectionExpression(List<AotValueArgumentPlan> fields, AotExpressionPlan expression)
+    {
+        if (expression is AotListExpressionPlan list)
+        {
+            foreach (AotExpressionPlan item in list.Elements)
+            {
+                AddProjectionExpression(fields, item);
+            }
+
+            return;
+        }
+
+        fields.Add(new AotValueArgumentPlan(expression));
+    }
+
+    private static string RequireSelectLiteralField(AotValueArgumentPlan value)
+    {
+        if (value.Expression is not AotLiteralExpressionPlan literal
+            || !literal.Value.TryGetString(out string? field)
+            || string.IsNullOrWhiteSpace(field)
+            || field.IndexOfAny(['*', '?', '[', ']']) >= 0)
+        {
+            throw Binding("AOT6404", "Select-Object requires one direct non-wildcard Property field in this Native AOT subset.", value.Span, "invalid projection field", "Use one literal field exposed by the preceding AOT record batch.");
+        }
+
+        return field;
     }
 
     private bool MatchesGeneratedParameter(string suppliedName) =>

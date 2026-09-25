@@ -49,6 +49,8 @@ Pending independent architecture/AOT and diagnostics/compatibility review: manag
 | Surface compared | Stock `pwsh` command/version | Native command/artifact/RID | Fixture/input | Normalization | Result / variance ID |
 | --- | --- | --- | --- | --- | --- |
 | numeric predicate plus explicit projection | `Get-TimeZone -Id UTC \| Where-Object { $_.BaseUtcOffset.TotalMinutes -eq 0 } \| Select-Object Id` | `/private/tmp/pwsh-aot-lite-j2-static-aot/PwshAotLite`, `osx-arm64`: `Get-TimeZone -Id UTC \| Where-Object BaseUtcOffsetMinutes -EQ 0 \| Select-Object Id` | `UTC` | stock object property is mapped to the target adapter's explicit numeric `BaseUtcOffsetMinutes` field | one `UTC` row and `Id` projection match; numeric-field naming is the closed-record variance `j2-where-static-record-predicate` |
+| named numeric predicate plus named projection | `Get-TimeZone -Id UTC \| Where-Object -Property BaseUtcOffset -EQ -Value ([TimeSpan]::Zero) \| Select-Object -Property Id` | `Get-TimeZone -Id UTC \| Where-Object -Property BaseUtcOffsetMinutes -EQ -Value 0 \| Select-Object -Property Id` | `UTC` | stock `TimeSpan` property is mapped to explicit closed numeric minutes | one `UTC` row and `Id` header match; closed-field naming remains `j2-where-static-record-predicate` |
+| culture projection control | `Get-Culture \| Select-Object Name` | `Get-Culture \| Select-Object Name` | host culture `en-AE` | table whitespace only | `Name` / `en-AE` match; this is controlled host normalization in the eight-case oracle matrix |
 
 ## Next action
 

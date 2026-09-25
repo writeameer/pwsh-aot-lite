@@ -29,7 +29,7 @@
 
 ## What did not transfer
 
-Only literal, nonblank, non-wildcard fields from a preceding `AotRecordBatch` are accepted. Every property expression, `InputObject`, queue/selection modifier, source-object wrapper, note property, and formatter-added member is explicitly deferred.
+Only literal, nonblank, non-wildcard fields from a preceding `AotRecordBatch` are accepted. The AST-preserved binding boundary is exactly **one** positional `Property` group **or** exactly one generated `-Property` group: positional/named mixing and a second bare group reject with source-spanned `AOT6404`. Every property expression, `InputObject`, queue/selection modifier, source-object wrapper, note property, and formatter-added member is explicitly deferred.
 
 ## Verification
 
@@ -46,9 +46,18 @@ The target intentionally displays exactly the requested field names and order. I
 
 ### Runtime oracle comparison
 
+Native evidence artifact: fresh self-contained `osx-arm64` publish
+`/private/tmp/pwsh-aot-lite-j2-static-aot/PwshAotLite`, SHA-256
+`77ddd76474bb848ec8e773a81321cd1f13411656dc02576f9cc02bc174682881`.
+
 | Surface compared | Stock `pwsh` command/version | Native command/artifact/RID | Fixture/input | Normalization | Result / variance ID |
 | --- | --- | --- | --- | --- | --- |
-| explicit `Id` projection after numeric filter | `Get-TimeZone -Id UTC \| Where-Object { $_.BaseUtcOffset.TotalMinutes -eq 0 } \| Select-Object Id` | `/private/tmp/pwsh-aot-lite-j2-static-aot/PwshAotLite`, `osx-arm64`: `Get-TimeZone -Id UTC \| Where-Object BaseUtcOffsetMinutes -EQ 0 \| Select-Object Id` | `UTC` | stock table whitespace versus target static table whitespace only | one `UTC` row and `Id` header match; selected-object ETS formatting remains `j2-select-explicit-shape-display` |
+| explicit `Id` projection after numeric filter | `Get-TimeZone -Id UTC \| Where-Object { $_.BaseUtcOffset.TotalMinutes -eq 0 } \| Select-Object Id` | native `osx-arm64`: `Get-TimeZone -Id UTC \| Where-Object BaseUtcOffsetMinutes -EQ 0 \| Select-Object Id` | `UTC` | stock table whitespace versus target static table whitespace only | one `UTC` row and `Id` header match; selected-object ETS formatting remains `j2-select-explicit-shape-display` |
+| positional `Property` projection | `Get-TimeZone -Id UTC \| Select-Object Id` | `Get-TimeZone -Id UTC \| Select-Object Id` | `UTC` | table whitespace only | `Id` / `UTC` match |
+| named `Property` projection | `Get-TimeZone -Id UTC \| Select-Object -Property Id` | `Get-TimeZone -Id UTC \| Select-Object -Property Id` | `UTC` | table whitespace only | `Id` / `UTC` match |
+| mixed positional then named | `Get-TimeZone -Id UTC \| Select-Object Id -Property BaseUtcOffsetMinutes` | same command | controlled invalid binding | both reject; stock wording is normalized to rejection | stock says positional parameter cannot accept `Id`; target emits source-spanned `AOT6404` |
+| mixed named then positional | `Get-TimeZone -Id UTC \| Select-Object -Property Id BaseUtcOffsetMinutes` | same command | controlled invalid binding | both reject; stock wording is normalized to rejection | stock says positional parameter cannot accept `BaseUtcOffsetMinutes`; target emits source-spanned `AOT6404` |
+| wildcard `Property` | `Get-TimeZone -Id UTC \| Select-Object I*` | same command | `UTC` | documented subset variance | stock projects `Id`; target rejects source-spanned `AOT6404` under `j2-select-dynamic-routes-deferred` |
 
 ## Next action
 

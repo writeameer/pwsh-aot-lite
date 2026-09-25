@@ -756,13 +756,14 @@ internal sealed class AotValueArgumentPlan : AotCommandArgumentPlan
         AotCommandArgumentConverter.Append(Expression.Evaluate(scope), Span, atoms);
 }
 
-// Preserves one upstream ArrayLiteralAst command element as one atomic source
-// group for the sole J1 sequential binding mode.  It never reparses text and
-// legacy descriptors continue to receive their historical flattened atoms.
+// Preserves one upstream command expression as one atomic source group for a
+// reviewed static descriptor. It never reparses text; J1 uses it for lexical
+// composition and J2 uses it to retain Select-Object's Property-group boundary.
 internal sealed class AotCommandValueGroupPlan(IReadOnlyList<AotExpressionPlan> expressions, AotSourceSpan span) : AotCommandArgumentPlan(span)
 {
     private static int _nextGroupId;
     internal static int AllocateGroupId() => Interlocked.Increment(ref _nextGroupId);
+    internal IReadOnlyList<AotExpressionPlan> GetExpressionsForStaticBinding() => expressions;
 
     internal override void AppendResolved(AotScope scope, List<CommandSyntaxAtom> atoms)
     {

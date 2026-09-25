@@ -905,6 +905,13 @@
           "automationCandidate": "yes"
         },
         {
+          "id": "j2-select-property-group-boundary",
+          "sourceFeature": "SelectObjectCommand binds one positional Property group or one named -Property group; mixed positional/named values are rejected by the source binder.",
+          "targetDecision": "AST-preserved groups enforce the same closed binding boundary: exactly one positional group or one generated -Property group. Mixed or repeated bare groups fail source-spanned AOT6404; there is no secondary or legacy route.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
           "id": "j2-select-static-record-projection",
           "sourceFeature": "Select-Object uses PSPropertyExpression, PSObject wrapping, note-property mutation, and output lifecycle queues.",
           "targetDecision": "The reviewed route projects only literal AotRecord fields through the existing immutable AotRecordShape/AotRecordBatch substrate.",
