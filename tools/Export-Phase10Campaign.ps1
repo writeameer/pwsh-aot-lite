@@ -95,7 +95,7 @@ $declarations = foreach ($match in $matches) {
         requiredPrerequisites = $classification.Required
         directBodyHelperReview = 'required-before-port'
         implementedSubset = $null
-        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -eq 'New-TimeSpan') { 'integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred' } elseif ($command -eq 'Start-Sleep') { 'integrated-reviewed-milliseconds/ms subset; seconds/duration/positional/pipeline behavior remains deferred' } elseif ($command -in @('Join-Path', 'Split-Path')) { 'integrated-reviewed-J1 lexical POSIX-v1 subset; provider/drive/filesystem authority remains deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
+        currentState = if ($command -eq 'New-Guid') { 'integrated-reviewed-empty-switch subset; typed Guid input/output remains deferred' } elseif ($command -eq 'New-TimeSpan') { 'integrated-reviewed-components subset; date/positional/pipeline behavior remains deferred' } elseif ($command -eq 'Start-Sleep') { 'integrated-reviewed-milliseconds/ms subset; seconds/duration/positional/pipeline behavior remains deferred' } elseif ($command -in @('Join-Path', 'Split-Path')) { 'integrated-reviewed-J1 lexical POSIX-v1 subset; provider/drive/filesystem authority remains deferred' } elseif ($command -in @('Where-Object', 'Select-Object')) { 'integrated-reviewed-J2 static closed-record transform subset; dynamic/ETS/script/property-expression routes remain deferred' } elseif ($command -in @('Get-Process', 'Get-Uptime', 'Get-UICulture', 'Get-Culture', 'Get-Verb', 'Get-TimeZone', 'Get-Date', 'Get-FileHash', 'Get-Help', 'Get-Command', 'Get-Module')) { 'existing-reviewed-adapter; reconcile before next port' } else { 'catalogued-only; no execution claim' }
     }
 }
 
@@ -127,6 +127,16 @@ foreach ($entry in $declarations | Where-Object command -eq 'Join-Path') {
 foreach ($entry in $declarations | Where-Object command -eq 'Split-Path') {
     $entry.directBodyHelperReview = 'reviewed-and-integrated-for-J1 lexical POSIX-v1 decomposition subset'
     $entry.implementedSubset = 'Integrated: direct Path/LiteralPath and Parent/Leaf/LeafBase/Extension/IsAbsolute selectors through the closed lexical POSIX-v1 adapter; provider, drive, resolver, filesystem, wildcard, property-binding, and unsupported-parameter behavior remain rejected.'
+}
+
+foreach ($entry in $declarations | Where-Object command -eq 'Where-Object') {
+    $entry.directBodyHelperReview = 'reviewed-and-integrated-for-J2 static numeric closed-record predicate subset'
+    $entry.implementedSubset = 'Integrated: pipeline-only literal closed-record numeric Property/Value with one generated EQ/NE/GT/GE/LT/LE operator; ScriptBlocks, PSObject/ETS, dynamic properties, source position, and unreviewed parameters remain rejected.'
+}
+
+foreach ($entry in $declarations | Where-Object command -eq 'Select-Object') {
+    $entry.directBodyHelperReview = 'reviewed-and-integrated-for-J2 explicit closed-record Property projection subset'
+    $entry.implementedSubset = 'Integrated: pipeline-only one positional Property group or one generated -Property group over literal closed-record fields; wildcards, calculated properties, PSObject/ETS, source position, and unreviewed parameters remain rejected.'
 }
 
 $duplicateNames = $declarations | Group-Object command | Where-Object Count -gt 1

@@ -860,7 +860,7 @@
     {
       "command": "Where-Object",
       "source": "src/System.Management.Automation/engine/InternalCommands.cs",
-      "state": "implementation-in-progress-not-migrated",
+      "state": "complete-j2-static-record-transform-subset",
       "variances": [
         {
           "id": "j2-where-generated-metadata",
@@ -895,7 +895,7 @@
     {
       "command": "Select-Object",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Select-Object.cs",
-      "state": "implementation-in-progress-not-migrated",
+      "state": "complete-j2-static-record-transform-subset",
       "variances": [
         {
           "id": "j2-select-generated-metadata",

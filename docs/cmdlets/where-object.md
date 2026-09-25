@@ -2,7 +2,7 @@
 
 ## Status and source
 
-**Implementation in progress; not migrated.** This branch contains only the pipeline-only static numeric-property route approved by J2 readiness v2. It is not yet integrated, catalogued as executable, or counted.
+**Integrated bounded native subset.** Lifecycle step 9 released this pipeline-only static numeric-property route on `main` at `0927d11`; it counts as one migrated cmdlet. All unadmitted routes remain explicitly deferred.
 
 - Original: `src/System.Management.Automation/engine/InternalCommands.cs:1281-2515`, `WhereObjectCommand : PSCmdlet`.
 - Generated contract: `GeneratedCmdletPorts.WhereObject`.
@@ -14,9 +14,9 @@
 | Field | Value |
 | --- | --- |
 | UTC work started | `2026-09-24T19:52:33Z` |
-| UTC work ended | — |
-| Elapsed wall clock | — |
-| Scope note | J2 descriptor-bound numeric record predicate only; shared with the `Select-Object` stage seam. |
+| UTC work ended | `2026-09-25T01:02:31Z` |
+| Elapsed wall clock | `05:09:58` |
+| Scope note | J2 descriptor-bound numeric record predicate only; released with the shared `Select-Object` stage seam at `0927d11`. |
 
 ## Upstream reuse evidence matrix
 
@@ -33,7 +33,7 @@ Only a preceding typed record batch may reach this adapter. A script block, `Inp
 
 ## Verification
 
-Both required independent reviews and the managed/parser/fresh-Native-AOT gates have passed. The slice remains unintegrated and uncounted until lifecycle step 9 release.
+Both required independent reviews and the managed/parser/fresh-Native-AOT gates passed before the lifecycle step 9 merge `0927d11`. The released subset is counted; unsupported routes remain fail-closed.
 
 ## Variances and reusable learnings
 
@@ -54,4 +54,4 @@ Both required independent reviews and the managed/parser/fresh-Native-AOT gates 
 
 ## Next action
 
-Proceed only to lifecycle step 9 integration/release; do not claim migration or change catalog availability beforehand.
+Future work may widen only an explicitly reviewed deferred route; it must not infer broader `Where-Object` compatibility from this released subset.

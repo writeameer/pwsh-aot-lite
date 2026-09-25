@@ -1,7 +1,8 @@
 # J2 static record-transform implementation review ledger
 
-**Status:** Both required independent reviews have passed. This remains a
-Step-7 code-evidence ledger, not a migration or release claim.
+**Status:** Both required independent reviews passed and lifecycle step 9
+released the accepted two-command slice to `main` at `0927d11`. This ledger
+still scopes the release: it does not claim the other fourteen J2 commands.
 
 ## Scope
 
@@ -180,13 +181,13 @@ against the prior compatibility block.
   and six native checks. The re-review native executable SHA-256 was
   `FDFC1E89E0A7A2DB1C8A3824204989642CBD958AA9096DFED185617BC3C9EA31`.
 - Managed and native self-tests exercised the embedded 52-ID corpus and its
-  required `12 + 14 + 12 + 8 + 6` category distribution. Per-cmdlet notes and
-  the open variance/timing records remain appropriately scoped: this verdict
-  validates only the closed J2 slice and does not claim migration or release
-  completion.
+  required `12 + 14 + 12 + 8 + 6` category distribution. The per-cmdlet
+  notes, timing ledger, and variance records now record the release while
+  retaining every unadmitted route and the other fourteen J2 commands as
+  explicitly deferred.
 
 ## Gate
 
-No merge, catalog availability change, migration count, timing end, or release
-is permitted until both independent verdicts PASS and all required managed,
-parser, fresh Native AOT, and focused smoke checks pass.
+The required gates passed before the non-fast-forward release merge `0927d11`.
+That release changes campaign accounting by exactly two cmdlets; no other J2
+command becomes available or counted by this ledger.
