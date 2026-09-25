@@ -45,7 +45,14 @@ internal enum AotParameterShape { Scalar, Array, Switch }
 
 // Only J1's two reviewed lexical profiles select this branch.  It is a
 // descriptor-owned closed mapping, not a second/general PowerShell binder.
-internal enum StaticBindingMode { Legacy, JoinPathSequential, SplitPathSelector }
+internal enum StaticBindingMode
+{
+    Legacy,
+    JoinPathSequential,
+    SplitPathSelector,
+    J2WhereStaticNumeric,
+    J2SelectStaticFields,
+}
 
 [Flags]
 internal enum PipelineBindingSource { None = 0, ByValue = 1, ByPropertyName = 2, RemainingArguments = 4 }
@@ -933,6 +940,16 @@ internal static class AotCmdletRegistry
     // entries and unknown names must reach the normal AOT2001 binder path.
     internal static bool IsStaticNativeCommand(string commandName) =>
         Cmdlets.Any(candidate => candidate.Descriptor.Name.Equals(commandName, StringComparison.OrdinalIgnoreCase));
+
+    // Record stages are executable only after a preceding source has crossed
+    // the one-way typed-record boundary. They deliberately are not IAotCmdlet
+    // entries: source-position execution would imply an object/input binder
+    // that this slice does not provide.
+    internal static bool IsStaticRecordStage(string commandName) =>
+        AotStaticRecordStageRegistry.IsRegistered(commandName);
+
+    internal static AotPipelineTailStagePlan BindStaticRecordStage(AotCommandPlan command) =>
+        AotStaticRecordStageRegistry.Bind(command);
 
     internal static IReadOnlySet<string>? DirectParameterNames(string commandName)
     {
@@ -2350,7 +2367,7 @@ internal sealed class PipelinePlan(
     IAotCmdlet source,
     CommandInvocation invocation,
     AotPipelineInputStage? inputStage,
-    IReadOnlyList<AotRecordTransform> transforms,
+    IReadOnlyList<IAotRecordBatchStage> stages,
     AotRecordShape shape,
     AotSourceSpan? boundarySpan,
     int pipelineLength = 1)
@@ -2361,7 +2378,7 @@ internal sealed class PipelinePlan(
     // runtime type: only a direct, untransformed cmdlet may request prose.
     // A typed input stage or structural transform produces a table contract.
     internal AotTerminalPresentation TerminalPresentation =>
-        inputStage is null && transforms.Count == 0
+        inputStage is null && stages.Count == 0
             ? source.TerminalPresentation
             : AotTerminalPresentation.Table;
 
@@ -2369,7 +2386,7 @@ internal sealed class PipelinePlan(
     // result. A typed input stage or structural projection owns a new shape,
     // so retaining the source view there would mislabel transformed data.
     internal AotTableLayout? TerminalTableLayout =>
-        inputStage is null && transforms.Count == 0
+        inputStage is null && stages.Count == 0
             ? source.DefaultTableLayout
             : null;
 
@@ -2393,7 +2410,7 @@ internal sealed class PipelinePlan(
                     pipelinePosition: 1,
                     pipelineLength));
         }
-        return ApplyTransforms(context, rows, transforms, boundarySpan);
+        return ApplyStages(context, rows, stages, boundarySpan);
     }
 
     // Transitional fixture seam retained for pre-Phase-7 port tests. The host
@@ -2418,22 +2435,22 @@ internal sealed class PipelinePlan(
                     pipelineLength));
         }
 
-        return transforms.Count == 0
+        return stages.Count == 0
             ? rows
-            : ApplyTransforms(context, rows, transforms, boundarySpan).ToTerminalRows(context);
+            : ApplyStages(context, rows, stages, boundarySpan).ToTerminalRows(context);
     }
 
     // The sole reusable record-transform seam. Native sources, static input
     // adapters, and function producers hand it concrete typed rows; no result
     // is flattened, rendered, or adapted through object.
-    internal static AotRecordBatch ApplyTransforms(
+    internal static AotRecordBatch ApplyStages(
         AotExecutionContext context,
         IReadOnlyList<IPipelineRecord> rows,
-        IReadOnlyList<AotRecordTransform> transforms,
+        IReadOnlyList<IAotRecordBatchStage> stages,
         AotSourceSpan? boundarySpan = null)
     {
         AotRecordBatch batch = AotRecordBatch.FromTypedRows(context, rows, boundarySpan);
-        return batch.Apply(context, transforms);
+        return batch.Apply(context, stages);
     }
 
     private static IReadOnlyList<IPipelineRecord> Materialize(
@@ -2458,13 +2475,14 @@ internal sealed class Filter(string property, Comparison comparison, AotValue va
     internal bool Matches(AotValue row)
     {
         if (!row.TryGetProperty(property, out AotValue propertyValue)
+            || propertyValue.Kind is not (AotValueKind.Integer or AotValueKind.Decimal or AotValueKind.FloatingPoint)
             || !AotValueComparison.TryCompare(propertyValue, value, out int result))
         {
             throw new ScriptException(AotDiagnostics.Runtime(
-                "AOT4005",
-                $"Where-Object does not support property '{property}' for this pipeline value.",
+                "AOT6402",
+                $"Where-Object Property '{property}' is not a numeric field on this AOT record batch.",
                 propertySpan,
-                "unsupported pipeline property",
+                "unsupported numeric record field",
                 "Use a numeric field exposed by the preceding AOT pipeline record."));
         }
 
@@ -2723,6 +2741,7 @@ internal static class SelfTest
         AssertTerminalPresentation();
         AssertHostReplProjection();
         AssertClosedValuePlane();
+        AssertJ2DescriptorRedirectAndTransportContract();
         AssertClosedJsonCodec();
         AssertJ1LexicalPaths();
 
@@ -3002,7 +3021,7 @@ internal static class SelfTest
             _ = UpstreamAstPipelineLowerer.Parse("Get-Process | Where-Object { $_.CPU -gt 10 }");
             throw new InvalidOperationException("Upstream AST lowerer accepted a script-block predicate.");
         }
-        catch (ScriptException exception) when (exception.Diagnostic is { Id: "AOT1001", Category: AotDiagnosticCategory.UnsupportedExecution })
+        catch (ScriptException exception) when (exception.Diagnostic is { Id: "AOT6406", Category: AotDiagnosticCategory.Binding })
         {
         }
 
@@ -4236,20 +4255,20 @@ internal static class SelfTest
         }
         catch (ScriptException error) when (error.Diagnostic is
             {
-                Id: "AOT1001",
-                Category: AotDiagnosticCategory.UnsupportedExecution,
+                Id: "AOT6406",
+                Category: AotDiagnosticCategory.Binding,
                 Span: { StartLine: 1, StartColumn: 28 },
                 Help: not null,
             })
         {
             string rendered = AotDiagnosticRenderer.Render(error.Diagnostic, source, "fixture.ps1", useAnsi: false);
             const string expected = """
-error[AOT1001]: expression 'ScriptBlockExpressionAst' is parsed but not executable by the Native AOT structural subset.
+error[AOT6406]: Where-Object ScriptBlock binding is outside the Native AOT static record subset.
   --> fixture.ps1:1:28
    |
 1 | Get-Process | Where-Object { $_.CPU -gt 10 }
-   |                            ^^^^^^^^^^^^^^^^^ unsupported execution feature
-   = help: Use only the documented Native AOT execution subset until this AST node has a reviewed plan.
+   |                            ^^^^^^^^^^^^^^^^^ unsupported static stage form
+   = help: Use the admitted direct Property/Value or Property field form; script blocks are not evaluated.
 """;
             if (!rendered.Equals(expected.TrimEnd(), StringComparison.Ordinal))
             {
@@ -4314,8 +4333,8 @@ error[EmptyPipeElement]: A pipeline cannot end with '|'.
         }
         catch (ScriptException error) when (error.Diagnostic is
             {
-                Id: "AOT4002",
-                Category: AotDiagnosticCategory.Runtime,
+                Id: "AOT6403",
+                Category: AotDiagnosticCategory.Binding,
                 Span: { DocumentName: "predicate.ps1", StartColumn: 36 },
             })
         {
@@ -4323,12 +4342,12 @@ error[EmptyPipeElement]: A pipeline cannot end with '|'.
                 error.Diagnostic,
                 "Get-Process | Where-Object CPU -gt NaN",
                 """
-error[AOT4002]: Where-Object does not accept NaN or infinity predicate literals in the AOT subset.
+error[AOT6403]: Where-Object requires a finite numeric Value in this Native AOT subset.
   --> predicate.ps1:1:36
    |
 1 | Get-Process | Where-Object CPU -gt NaN
-   |                                    ^^^ non-finite predicate value
-   = help: Provide a finite numeric comparison value.
+   |                                    ^^^ invalid numeric predicate
+   = help: Supply an integer, decimal, finite floating-point literal, or a reviewed closed-scope numeric value.
 """);
         }
 
@@ -4339,8 +4358,8 @@ error[AOT4002]: Where-Object does not accept NaN or infinity predicate literals 
         }
         catch (ScriptException error) when (error.Diagnostic is
             {
-                Id: "AOT4003",
-                Category: AotDiagnosticCategory.Runtime,
+                Id: "AOT6406",
+                Category: AotDiagnosticCategory.Binding,
                 Span: { DocumentName: "operator.ps1", StartColumn: 32 },
             })
         {
@@ -4348,12 +4367,12 @@ error[AOT4002]: Where-Object does not accept NaN or infinity predicate literals 
                 error.Diagnostic,
                 "Get-Process | Where-Object CPU -ft 2",
                 """
-error[AOT4003]: Unsupported comparison '-ft'.
+error[AOT6406]: Where-Object parameter '-ft' is outside the Native AOT static numeric subset.
   --> operator.ps1:1:32
    |
 1 | Get-Process | Where-Object CPU -ft 2
-   |                                ^^^ unsupported comparison
-   = help: Use -gt, -ge, -lt, -le, -eq, or -ne.
+   |                                ^^^ unsupported static stage parameter
+   = help: Use Property, Value, and one admitted case-insensitive numeric operator.
 """);
         }
 
@@ -4365,7 +4384,7 @@ error[AOT4003]: Unsupported comparison '-ft'.
         }
         catch (ScriptException error) when (error.Diagnostic is
             {
-                Id: "AOT4005",
+                Id: "AOT6402",
                 Category: AotDiagnosticCategory.Runtime,
                 Span: { DocumentName: "property.ps1", StartColumn: 28 },
             })
@@ -4374,11 +4393,11 @@ error[AOT4003]: Unsupported comparison '-ft'.
                 error.Diagnostic,
                 "Get-Process | Where-Object BadProperty -gt 2",
                 """
-error[AOT4005]: Where-Object does not support property 'BadProperty' for this pipeline value.
+error[AOT6402]: Where-Object Property 'BadProperty' is not a numeric field on this AOT record batch.
   --> property.ps1:1:28
    |
 1 | Get-Process | Where-Object BadProperty -gt 2
-   |                            ^^^^^^^^^^^ unsupported pipeline property
+   |                            ^^^^^^^^^^^ unsupported numeric record field
    = help: Use a numeric field exposed by the preceding AOT pipeline record.
 """);
         }
@@ -4391,7 +4410,7 @@ error[AOT4005]: Where-Object does not support property 'BadProperty' for this pi
         }
         catch (ScriptException error) when (error.Diagnostic is
             {
-                Id: "AOT4008",
+                Id: "AOT6404",
                 Category: AotDiagnosticCategory.Runtime,
                 Span: { DocumentName: "projection.ps1", StartColumn: 38 },
             })
@@ -4400,7 +4419,7 @@ error[AOT4005]: Where-Object does not support property 'BadProperty' for this pi
                 error.Diagnostic,
                 "Get-TimeZone -Id UTC | Select-Object NotAnAotField",
                 """
-error[AOT4008]: Select-Object requested a column not present on this pipeline value.
+error[AOT6404]: Select-Object requested a column not present on this pipeline value.
   --> projection.ps1:1:38
    |
 1 | Get-TimeZone -Id UTC | Select-Object NotAnAotField
@@ -4416,8 +4435,8 @@ error[AOT4008]: Select-Object requested a column not present on this pipeline va
         }
         catch (ScriptException error) when (error.Diagnostic is
             {
-                Id: "AOT4004",
-                Category: AotDiagnosticCategory.Runtime,
+                Id: "AOT6404",
+                Category: AotDiagnosticCategory.Binding,
                 Span: { DocumentName: "empty-projection.ps1", StartColumn: 15 },
             })
         {
@@ -4425,12 +4444,12 @@ error[AOT4008]: Select-Object requested a column not present on this pipeline va
                 error.Diagnostic,
                 "Get-Process | Select-Object",
                 """
-error[AOT4004]: Select-Object requires at least one column.
+error[AOT6404]: Select-Object requires one or more direct Property fields.
   --> empty-projection.ps1:1:15
    |
 1 | Get-Process | Select-Object
-   |               ^^^^^^^^^^^^^ missing projection column
-   = help: Provide one or more direct field names.
+   |               ^^^^^^^^^^^^^ missing projection field
+   = help: Supply direct literal field names, for example 'Select-Object Name, Id'.
 """);
         }
 
@@ -5254,18 +5273,18 @@ error[AOT3004]: Get-Process -Id expects a non-negative integer, got '-Name'.
                 .Execute(new AotExecutionContext());
             throw new InvalidOperationException("A non-numeric variable predicate was accepted.");
         }
-        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT5004", Span: { DocumentName: "predicate-variable.ps1", StartColumn: 57 } })
+        catch (ScriptException error) when (error.Diagnostic is { Id: "AOT6403", Category: AotDiagnosticCategory.Binding, Span: { DocumentName: "predicate-variable.ps1", StartColumn: 57 } })
         {
             AssertDiagnosticSnapshot(
                 error.Diagnostic,
                 "$threshold = 'many'; Get-Process | Where-Object CPU -gt $threshold",
                 """
-error[AOT5004]: Where-Object requires a finite numeric predicate value in the AOT subset.
+error[AOT6403]: Where-Object requires a finite numeric Value in this Native AOT subset.
   --> predicate-variable.ps1:1:57
    |
 1 | $threshold = 'many'; Get-Process | Where-Object CPU -gt $threshold
-   |                                                         ^^^^^^^^^^ non-numeric predicate variable
-   = help: Assign a finite numeric value before using it in this predicate.
+   |                                                         ^^^^^^^^^^ invalid numeric predicate
+   = help: Supply an integer, decimal, finite floating-point literal, or a reviewed closed-scope numeric value.
 """);
         }
 
@@ -5624,7 +5643,7 @@ error[AOT5011]: Function 'One' parameter '-value' requires a closed value.
         AssertFunctionFailure(
             "Get-TimeZone -ListAvailable | Select-Object Id | Where-Object BaseUtcOffsetMinutes -ge -1000",
             "typed-record-dropped-field.ps1",
-            "AOT4005");
+            "AOT6402");
         AssertFunctionFailure(
             "function Mixed() { Get-Verb -Verb Add | Select-Object Verb; Get-Date | Select-Object DateTime }; Mixed | Where-Object Verb -eq 0",
             "function-producer-heterogeneous-filter.ps1",
@@ -5767,7 +5786,7 @@ error[AOT4009]: This pipeline record type is not registered for the Native AOT r
         using CancellationTokenSource transformCancellation = new();
         AotExecutionContext transformContext = new(transformCancellation.Token);
         CancelAfterFirstTransform transform = new(transformCancellation);
-        AssertCancellation(() => batch.Apply(transformContext, [transform]));
+        AssertCancellation(() => batch.ApplyTransforms(transformContext, [transform]));
         if (transform.ApplyCount != 1)
         {
             throw new InvalidOperationException("Record-batch transformation did not cancel after its first row.");
@@ -6488,8 +6507,17 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
             fixtureInvocation,
             null,
             [
-                new AotRecordFilterTransform(new Filter("CPU", Comparison.GreaterThan, AotValue.FromInteger(10)), null),
-                new AotRecordProjectionTransform(["Name", "Id"], null),
+                new AotWhereStaticNumericStage(
+                    new CmdletDescriptor("Where-Object", []),
+                    "CPU",
+                    Comparison.GreaterThan,
+                    AotValue.FromInteger(10),
+                    null!,
+                    null!),
+                new AotSelectStaticFieldsStage(
+                    new CmdletDescriptor("Select-Object", []),
+                    ["Name", "Id"],
+                    null!),
             ],
             new AotRecordShape(["Name", "Id"]),
             null,
@@ -6547,10 +6575,254 @@ error[AOT5006]: Foreach requires a closed list value in the Native AOT subset.
                 _ = UpstreamAstPipelineLowerer.Parse($"Get-Process | Where-Object CPU -gt {literal}");
                 throw new InvalidOperationException($"Where-Object accepted non-finite literal '{literal}'.");
             }
-            catch (ScriptException exception) when (exception.Message == "Where-Object does not accept NaN or infinity predicate literals in the AOT subset.")
+            catch (ScriptException exception) when (exception.Diagnostic.Id == "AOT6403")
             {
             }
         }
+    }
+
+    // J2 redirect evidence: each spelling is lowered only to its descriptor
+    // stage. These fixture helpers are intentionally private to the self-test;
+    // they are not a transport API, listener, or endpoint implementation.
+    private static void AssertJ2DescriptorRedirectAndTransportContract()
+    {
+        AssertJ2FixtureManifest();
+        AssertJ2TailPlan(
+            "Get-TimeZone -ListAvailable | Where-Object BaseUtcOffsetMinutes -GE -1000 | Select-Object Id, BaseUtcOffsetMinutes",
+            "j2-positional-redirect.ps1");
+        AssertJ2TailPlan(
+            "Get-TimeZone -ListAvailable | Where-Object -Property BaseUtcOffsetMinutes -GE -Value -1000 | Select-Object -Property Id, BaseUtcOffsetMinutes",
+            "j2-named-redirect.ps1");
+
+        AssertJ2DiagnosticSnapshot(
+            "Get-TimeZone -Id UTC | Select-Object Id -Property BaseUtcOffsetMinutes",
+            "j2-mixed-positional-named.ps1",
+            """
+error[AOT6404]: Select-Object does not permit a named -Property group after positional Property values.
+  --> j2-mixed-positional-named.ps1:1:41
+   |
+1 | Get-TimeZone -Id UTC | Select-Object Id -Property BaseUtcOffsetMinutes
+   |                                         ^^^^^^^^^ mixed projection binding
+   = help: Use either positional fields or one generated -Property field group, not both.
+""");
+        AssertJ2DiagnosticSnapshot(
+            "Get-TimeZone -Id UTC | Select-Object -Property Id BaseUtcOffsetMinutes",
+            "j2-mixed-named-positional.ps1",
+            """
+error[AOT6404]: Select-Object does not permit positional Property values after a named -Property group.
+  --> j2-mixed-named-positional.ps1:1:51
+   |
+1 | Get-TimeZone -Id UTC | Select-Object -Property Id BaseUtcOffsetMinutes
+   |                                                   ^^^^^^^^^^^^^^^^^^^^ mixed projection binding
+   = help: Use either positional fields or one generated -Property field group, not both.
+""");
+        AssertJ2DiagnosticSnapshot(
+            "Get-TimeZone -Id UTC | Select-Object I*",
+            "j2-wildcard-property.ps1",
+            """
+error[AOT6404]: Select-Object requires one direct non-wildcard Property field in this Native AOT subset.
+  --> j2-wildcard-property.ps1:1:38
+   |
+1 | Get-TimeZone -Id UTC | Select-Object I*
+   |                                      ^^ invalid projection field
+   = help: Use one literal field exposed by the preceding AOT record batch.
+""");
+
+        foreach ((string source, string id) in new[]
+        {
+            ("Where-Object CPU -GT 10", "AOT6401"),
+            ("Select-Object Name", "AOT6401"),
+            ("Get-Process | Where-Object { $_.CPU -GT 10 }", "AOT6406"),
+            ("Get-Process | Where-Object CPU -GT '10'", "AOT6403"),
+            ("Get-Process | Select-Object", "AOT6404"),
+            ("Get-Process | Select-Object -ExcludeProperty Name", "AOT6406"),
+            ("Get-Process | Select-Object Name, NAME", "AOT6405"),
+            ("Get-TimeZone -Id UTC | Select-Object Id -Property BaseUtcOffsetMinutes", "AOT6404"),
+            ("Get-TimeZone -Id UTC | Select-Object -Property Id BaseUtcOffsetMinutes", "AOT6404"),
+            ("Get-TimeZone -Id UTC | Select-Object Id BaseUtcOffsetMinutes", "AOT6404"),
+            ("Get-TimeZone -Id UTC | Select-Object I*", "AOT6404"),
+        })
+        {
+            try
+            {
+                _ = AotExecutionKernel.Compile(source, "j2-redirect-boundary.ps1");
+                throw new InvalidOperationException($"J2 redirect fixture unexpectedly accepted '{source}'.");
+            }
+            catch (ScriptException error) when (error.Diagnostic.Id == id && !error.Diagnostic.Id.StartsWith("AOT400", StringComparison.Ordinal))
+            {
+                // A single descriptor-owned AOT640* route is the contract.
+            }
+        }
+
+        AotRecordBatch original = new(
+        [
+            new AotRecord(
+            [
+                new AotField("Name", AotValue.FromString("pwsh")),
+                new AotField("CPU", AotValue.FromDecimal(12.5m)),
+                new AotField("Bytes", AotValue.FromBytes(new byte[] { 1, 2, 3 })),
+                new AotField("Nested", AotValue.FromList([AotValue.FromBoolean(true), AotValue.FromRecord(new AotRecord([new AotField("Inner", AotValue.FromInteger(7))]))])),
+            ]),
+            new AotRecord([new AotField("ID", AotValue.FromInteger(2)), new AotField("Enabled", AotValue.FromBoolean(false))]),
+        ]);
+
+        AotValue payload = J2FixtureEncodeBatch(original);
+        AotRecordBatch reconstructed = J2FixtureReconstructBatch(payload);
+        if (!J2FixtureBatchesEquivalent(original, reconstructed))
+        {
+            throw new InvalidOperationException("J2 fixture-only list-of-record transport contract did not preserve row/field order, field casing, or closed values.");
+        }
+
+        try
+        {
+            _ = J2FixtureReconstructBatch(AotValue.FromRecord(original.Records[0]));
+            throw new InvalidOperationException("J2 fixture-only transport contract accepted a non-list root.");
+        }
+        catch (ArgumentException)
+        {
+            // The future contract accepts exactly List(Record...).
+        }
+    }
+
+    private static void AssertJ2TailPlan(string source, string documentName)
+    {
+        AotExecutionPlan plan = AotExecutionKernel.Compile(source, documentName);
+        AotPipelineStatementPlan pipeline = plan.Block.Statements.OfType<AotPipelineStatementPlan>().Single();
+        IReadOnlyList<AotPipelineTailStagePlan> stages = pipeline.GetTailStagesForEvidence();
+        if (stages.Count != 2
+            || stages[0] is not AotWhereStaticNumericStagePlan
+            || stages[1] is not AotSelectStaticFieldsStagePlan)
+        {
+            throw new InvalidOperationException("J2 command spelling did not lower to the sole generated descriptor-owned record stages.");
+        }
+
+        _ = plan.Execute(new AotExecutionContext());
+    }
+
+    private static void AssertJ2DiagnosticSnapshot(string source, string documentName, string expected)
+    {
+        try
+        {
+            _ = AotExecutionKernel.Compile(source, documentName);
+            throw new InvalidOperationException($"J2 diagnostic snapshot unexpectedly accepted '{source}'.");
+        }
+        catch (ScriptException error) when (error.Diagnostic.Id == "AOT6404")
+        {
+            AssertDiagnosticSnapshot(error.Diagnostic, source, expected);
+        }
+    }
+
+    // The approved readiness packet requires a fixed 52-ID evidence corpus.
+    // Keep the inventory embedded in the artifact so a native self-test catches
+    // an accidental deleted/renamed fixture before reviewers read the ledger.
+    private static void AssertJ2FixtureManifest()
+    {
+        using Stream stream = typeof(SelfTest).Assembly.GetManifestResourceStream("PwshAotLite.J2StaticRecordTransformFixtures")
+            ?? throw new InvalidOperationException("J2 static record-transform fixture manifest was not embedded in the executable.");
+        using JsonDocument document = JsonDocument.Parse(stream);
+        JsonElement root = document.RootElement;
+        if (root.GetProperty("schemaVersion").GetInt32() != 1
+            || root.GetProperty("authority").GetString() != "j2-static-record-transform-implementation")
+        {
+            throw new InvalidOperationException("J2 static record-transform fixture manifest schema/authority changed unexpectedly.");
+        }
+
+        IReadOnlyDictionary<string, int> required = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["grammar-baseline"] = 12,
+            ["binder-diagnostic"] = 14,
+            ["batch-semantics"] = 12,
+            ["stock-oracle"] = 8,
+            ["native-aot-smoke"] = 6,
+        };
+        JsonElement categories = root.GetProperty("categories");
+        JsonElement[] fixtures = root.GetProperty("fixtures").EnumerateArray().ToArray();
+        if (fixtures.Length != 52)
+        {
+            throw new InvalidOperationException("J2 static record-transform fixture corpus must retain exactly 52 IDs.");
+        }
+
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, int> category in required)
+        {
+            if (categories.GetProperty(category.Key).GetInt32() != category.Value
+                || fixtures.Count(fixture => fixture.GetProperty("category").GetString() == category.Key) != category.Value)
+            {
+                throw new InvalidOperationException($"J2 fixture corpus category '{category.Key}' drifted from its approved count.");
+            }
+        }
+
+        foreach (JsonElement fixture in fixtures)
+        {
+            string? id = fixture.GetProperty("id").GetString();
+            string? evidence = fixture.GetProperty("evidence").GetString();
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(evidence) || !ids.Add(id))
+            {
+                throw new InvalidOperationException("J2 fixture corpus contains an empty or duplicate ID/evidence record.");
+            }
+        }
+    }
+
+    private static AotValue J2FixtureEncodeBatch(AotRecordBatch batch) =>
+        AotValue.FromList(batch.Records.Select(AotValue.FromRecord));
+
+    private static AotRecordBatch J2FixtureReconstructBatch(AotValue payload)
+    {
+        if (!payload.TryGetItems(out IReadOnlyList<AotValue>? rows) || rows is null)
+        {
+            throw new ArgumentException("J2 fixture transport payload root must be List(Record...).", nameof(payload));
+        }
+
+        List<AotRecord> records = [];
+        foreach (AotValue row in rows)
+        {
+            if (!row.TryGetRecord(out AotRecord? record) || record is null)
+            {
+                throw new ArgumentException("J2 fixture transport payload items must be Record values.", nameof(payload));
+            }
+
+            records.Add(record);
+        }
+
+        return new AotRecordBatch(records);
+    }
+
+    private static bool J2FixtureBatchesEquivalent(AotRecordBatch left, AotRecordBatch right) =>
+        left.Records.Count == right.Records.Count
+        && left.Records.Zip(right.Records).All(static pair => J2FixtureRecordsEquivalent(pair.First, pair.Second));
+
+    private static bool J2FixtureRecordsEquivalent(AotRecord left, AotRecord right) =>
+        left.Fields.Count == right.Fields.Count
+        && left.Fields.Zip(right.Fields).All(static pair => pair.First.Name.Equals(pair.Second.Name, StringComparison.Ordinal)
+            && J2FixtureValuesEquivalent(pair.First.Value, pair.Second.Value));
+
+    private static bool J2FixtureValuesEquivalent(AotValue left, AotValue right)
+    {
+        if (left.Kind != right.Kind)
+        {
+            return false;
+        }
+
+        if (left.Kind == AotValueKind.Record)
+        {
+            return left.TryGetRecord(out AotRecord? leftRecord)
+                && right.TryGetRecord(out AotRecord? rightRecord)
+                && leftRecord is not null
+                && rightRecord is not null
+                && J2FixtureRecordsEquivalent(leftRecord, rightRecord);
+        }
+
+        if (left.Kind == AotValueKind.List)
+        {
+            return left.TryGetItems(out IReadOnlyList<AotValue>? leftItems)
+                && right.TryGetItems(out IReadOnlyList<AotValue>? rightItems)
+                && leftItems is not null
+                && rightItems is not null
+                && leftItems.Count == rightItems.Count
+                && leftItems.Zip(rightItems).All(static pair => J2FixtureValuesEquivalent(pair.First, pair.Second));
+        }
+
+        return left.Equals(right);
     }
 
     private static void AssertJ1LexicalPaths()
