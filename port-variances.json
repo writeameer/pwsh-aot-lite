@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Sort-Object",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Sort-Object.cs and OrderObjectBase.cs",
+      "state": "complete-static-text-pipeline-ordering-subset",
+      "variances": [
+        {
+          "id": "sort-object-static-text-ordering",
+          "sourceFeature": "SortObjectCommand buffers PSObject input and delegates property/value ordering to OrderByProperty comparers.",
+          "targetDecision": "Admit only static TextRecord pipeline values and preserve stable current-culture ordering with optional Descending and CaseSensitive.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "sort-object-dynamic-ordering-deferred",
+          "sourceFeature": "Property expressions, PSObject conversion, Unique, Top, Bottom, Stable, and source comparer modes require dynamic object semantics.",
+          "targetDecision": "Do not create a generic comparer or object adapter; unsupported parameters fail generated binding.",
+          "status": "deferred",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Group-Object",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Group-Object.cs",
       "state": "complete-explicit-noelement-static-text-pipeline-subset",

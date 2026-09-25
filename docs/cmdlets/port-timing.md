@@ -44,6 +44,7 @@ reuse, review, and verification work—not just target coding.
 | `Measure-Object` | unavailable (not recorded) | 2026-09-25T09:18:16.4954380Z | unavailable (start not recorded) | J2 direct named one-string TextMeasure (`Character`/`Word`/`Line`/`IgnoreWhiteSpace`) subset; managed/native evidence verified and main release complete at `e2530bb`. | integrated |
 | `Get-Unique` | unavailable (not recorded) | 2026-09-25T09:27:34.9777480Z | unavailable (start not recorded) | J2 explicit `AsString` static TextRecord pipeline subset; managed/native evidence verified and main release complete at `449cc3d`. | integrated |
 | `Group-Object` | unavailable (not recorded) | 2026-09-25T09:37:30.6291300Z | unavailable (start not recorded) | J2 explicit `NoElement` static TextRecord grouping subset; managed/native evidence verified and main release complete at `be698f8`. | integrated |
+| `Sort-Object` | unavailable (not recorded) | 2026-09-25T09:46:40.0701650Z | unavailable (start not recorded) | J2 static TextRecord ordering subset; managed/native evidence verified. | release-pending |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is

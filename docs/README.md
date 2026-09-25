@@ -60,6 +60,7 @@ The migration order and candidacy decisions are maintained in the
 | `Measure-Object` | integrated direct single-string text-statistics subset | [Measure-Object port notes](cmdlets/measure-object.md) |
 | `Get-Unique` | integrated explicit `-AsString` closed text-pipeline subset | [Get-Unique port notes](cmdlets/get-unique.md) |
 | `Group-Object` | integrated explicit `-NoElement` closed text-pipeline subset | [Group-Object port notes](cmdlets/group-object.md) |
+| `Sort-Object` | integrated closed text-pipeline ordering subset | [Sort-Object port notes](cmdlets/sort-object.md) |
 
 The ordered campaign backlog is in the [cmdlet migration queue](queue.md).
 Legacy-module registration experiments and their package contracts are indexed
