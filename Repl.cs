@@ -11,7 +11,19 @@ internal static class ScriptRunner
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(script);
-        return Execute(AotScriptParser.Parse(script, "<command>"), scope, colorMode, cancellationToken);
+        return Execute(script, "<command>", scope, colorMode, cancellationToken);
+    }
+
+    internal static int Execute(
+        string script,
+        string documentName,
+        AotScope? scope = null,
+        AotColorMode colorMode = AotColorMode.Auto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(script);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentName);
+        return Execute(AotScriptParser.Parse(script, documentName), scope, colorMode, cancellationToken);
     }
 
     // The REPL has already asked the shared parser whether its buffer needs a
