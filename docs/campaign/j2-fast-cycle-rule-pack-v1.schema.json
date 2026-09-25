@@ -7,6 +7,7 @@
   "required": [
     "schema",
     "sourceFactRun",
+    "trialLayers",
     "familyRules",
     "crossCuttingGuards",
     "generatedTestManifestContract",
@@ -15,6 +16,7 @@
   "properties": {
     "schema": { "const": "pwsh-aot-j2-fast-cycle-rule-pack/v1" },
     "sourceFactRun": { "type": "string", "minLength": 1 },
+    "trialLayers": { "$ref": "#/$defs/trialLayers" },
     "familyRules": {
       "type": "array",
       "minItems": 5,
@@ -31,6 +33,43 @@
     "timing": { "$ref": "#/$defs/timing" }
   },
   "$defs": {
+    "trialLayers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["behaviorProbe", "deterministicScreen", "nativeAotProof"],
+      "properties": {
+        "behaviorProbe": {
+          "type": "object", "additionalProperties": false,
+          "required": ["maxSeconds", "uses", "forbids", "onFailure"],
+          "properties": {
+            "maxSeconds": { "const": 5 },
+            "uses": { "const": ["stock-pwsh", "current-native-executable"] },
+            "forbids": { "const": ["manifest", "code", "build", "publish"] },
+            "onFailure": { "const": "stop-at-first-mismatch" }
+          }
+        },
+        "deterministicScreen": {
+          "type": "object", "additionalProperties": false,
+          "required": ["maxSeconds", "requires", "uses", "onFailure"],
+          "properties": {
+            "maxSeconds": { "const": 60 },
+            "requires": { "const": ["behavior-probe-concrete-bounded-route"] },
+            "uses": { "const": ["retained-source-hashes", "source-ast-facts", "generated-metadata", "static-native-route"] },
+            "onFailure": { "const": "stop-at-first-mismatch" }
+          }
+        },
+        "nativeAotProof": {
+          "type": "object", "additionalProperties": false,
+          "required": ["maxSeconds", "requires", "permits", "onFailure"],
+          "properties": {
+            "maxSeconds": { "const": 600 },
+            "requires": { "const": ["behavior-probe-concrete-bounded-route", "deterministic-screen-concrete-narrow-adapter-route"] },
+            "permits": { "const": ["generated-test-manifest", "disposable-proof-build", "disposable-proof-publish"] },
+            "onFailure": { "const": "stop-at-first-mismatch" }
+          }
+        }
+      }
+    },
     "commandName": { "type": "string", "pattern": "^[A-Za-z]+-[A-Za-z]+$" },
     "familyRule": {
       "type": "object",
