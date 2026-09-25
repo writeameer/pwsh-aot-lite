@@ -860,7 +860,7 @@
     {
       "command": "Compare-Object",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Compare-Object.cs and OrderObjectBase.cs",
-      "state": "release-pending-direct-string-sync-window-zero-subset",
+      "state": "complete-direct-string-sync-window-zero-subset",
       "variances": [
         {
           "id": "compare-object-direct-string-sync-zero",

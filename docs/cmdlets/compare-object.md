@@ -2,7 +2,7 @@
 
 ## Status and source
 
-Release-pending Native AOT subset:
+Integrated Native AOT subset:
 
 ```powershell
 Compare-Object -ReferenceObject <string[]> -DifferenceObject <string[]> -SyncWindow 0 [-CaseSensitive]
@@ -21,8 +21,8 @@ in its pairwise, zero-window order.
 | Field | Value |
 | --- | --- |
 | UTC work started | `2026-09-25T08:39:31Z` |
-| UTC work ended | `—` |
-| Elapsed wall clock | `—` |
+| UTC work ended | `2026-09-25T08:47:46.4113200Z` |
+| Elapsed wall clock | `00:08:15.4113200` |
 | Scope note | Direct string, `SyncWindow 0` pairwise comparison only. |
 
 ## Upstream reuse evidence matrix
@@ -59,5 +59,5 @@ stock. Missing `-SyncWindow 0` fails `AOT6725`; `-Property` fails `AOT2002`.
 
 ## Next action
 
-Merge and push the verified release; only then record completion timing and
-count the cmdlet as migrated.
+None. The verified slice is integrated to `main` at `9d8ddb1`; its completion
+timing is recorded in this follow-up release record.
