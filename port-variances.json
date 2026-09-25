@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Select-String",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/MatchString.cs",
+      "state": "release-pending-direct-raw-simple-file-subset",
+      "variances": [
+        {
+          "id": "select-string-raw-simple-file",
+          "sourceFeature": "SelectStringCommand resolves provider/wildcard paths and supports PSObject input, regex, MatchInfo, context, culture, encoding, and multiple output modes.",
+          "targetDecision": "Admit one named direct non-wildcard path and one named pattern only with required SimpleMatch and Raw. Stream it through the existing physical-file resolver using the source's current-culture literal comparison choice.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "select-string-raw-text-output",
+          "sourceFeature": "Raw source output is written into PowerShell's dynamic object pipeline; non-Raw output is MatchInfo with formatting and emphasis behavior.",
+          "targetDecision": "Emit only existing TextRecord values; no MatchInfo, PSObject, dynamic formatter, or downstream object adapter is introduced.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Compare-Object",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Compare-Object.cs and OrderObjectBase.cs",
       "state": "complete-direct-string-sync-window-zero-subset",
