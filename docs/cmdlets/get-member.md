@@ -21,4 +21,4 @@ known String.Length fact and adds no reflection or member discovery.
 
 Managed and fresh osx-arm64 Native AOT self-tests passed. `abc/x,de/x` input
 emitted `System.String | Length | Property | int Length {get;}`; `ToString`
-fails closed with `AOT6734`.
+fails closed with `AOT6734`. Integrated to `main` at `acd4232`.
