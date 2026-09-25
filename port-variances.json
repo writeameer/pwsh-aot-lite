@@ -860,7 +860,7 @@
     {
       "command": "Select-String",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/MatchString.cs",
-      "state": "release-pending-direct-raw-simple-file-subset",
+      "state": "complete-direct-raw-simple-file-subset",
       "variances": [
         {
           "id": "select-string-raw-simple-file",

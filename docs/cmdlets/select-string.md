@@ -2,7 +2,7 @@
 
 ## Status and source
 
-Release-pending Native AOT subset:
+Integrated Native AOT subset:
 
 ```powershell
 Select-String -Path <file> -Pattern <string> -SimpleMatch -Raw [-CaseSensitive]
@@ -21,8 +21,8 @@ as text in source order.
 | Field | Value |
 | --- | --- |
 | UTC work started | `2026-09-25T08:48:18Z` |
-| UTC work ended | `—` |
-| Elapsed wall clock | `—` |
+| UTC work ended | `2026-09-25T08:57:41.9616620Z` |
+| Elapsed wall clock | `00:09:23.9616620` |
 | Scope note | Direct one-file, one-pattern Raw SimpleMatch line search. |
 
 ## Upstream reuse evidence matrix
@@ -58,5 +58,5 @@ case-insensitive and the case-sensitive miss also matched stock. Missing
 
 ## Next action
 
-Merge and push the verified release; only then record completion timing and
-count the cmdlet as migrated.
+None. The verified slice is integrated to `main` at `922f083`; its completion
+timing is recorded in this follow-up release record.

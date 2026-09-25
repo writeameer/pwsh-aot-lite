@@ -40,7 +40,7 @@ reuse, review, and verification work—not just target coding.
 | `Get-SecureRandom` | unavailable (not recorded) | 2026-09-25T08:27:49.6113250Z | unavailable (start not recorded) | J2 named cryptographic Int32 (`Minimum`/`Maximum`) direct numeric subset; managed/native evidence and main release complete. | integrated |
 | `Join-String` | 2026-09-25T08:28:19Z | 2026-09-25T08:38:58.3240330Z | 00:10:39.3240330 | J2 direct named literal-string join (`InputObject`/`Separator`); managed/native evidence verified and main release complete at `681db04`. | integrated |
 | `Compare-Object` | 2026-09-25T08:39:31Z | 2026-09-25T08:47:46.4113200Z | 00:08:15.4113200 | J2 direct named string `SyncWindow 0` pairwise comparison; managed/native evidence verified and main release complete at `9d8ddb1`. | integrated |
-| `Select-String` | 2026-09-25T08:48:18Z | — | — | J2 direct named one-file one-pattern Raw SimpleMatch; managed and fresh Native AOT evidence complete, awaiting main release. | release-pending |
+| `Select-String` | 2026-09-25T08:48:18Z | 2026-09-25T08:57:41.9616620Z | 00:09:23.9616620 | J2 direct named one-file one-pattern Raw SimpleMatch; managed/native evidence verified and main release complete at `922f083`. | integrated |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
