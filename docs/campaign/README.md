@@ -150,6 +150,10 @@ additionally needs a separate static validation contract.
   cohort grouped into reusable families.
 - [Cmdlet-port lifecycle](cmdlet-port-lifecycle.md) is the required nine-step
   process and the only definition of when a command counts as migrated.
+- [J2 fast-cycle plan](j2-fast-cycle-plan.md) and its checked
+  [rule pack](j2-fast-cycle-rule-pack-v1.json) define the bounded,
+  evidence-first trial control for learning from J2. They do not replace the
+  lifecycle or make any port claim.
 - [All-builtins survey report](../../../pwsh-aot-conversion-survey/runs/all-builtins-survey-20260923/report.json)
   and its per-command evidence are the converter-coverage baseline.
 - [J0 codec contract](../architecture/json-codec-foundation.md) and

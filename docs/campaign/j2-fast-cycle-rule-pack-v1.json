@@ -1,0 +1,75 @@
+{
+  "schema": "pwsh-aot-j2-fast-cycle-rule-pack/v1",
+  "sourceFactRun": "j2-source-facts-v1",
+  "familyRules": [
+    {
+      "id": "dynamic-script-v1",
+      "commands": ["ForEach-Object", "Measure-Command", "Where-Object"],
+      "signals": ["declared parameter type exactly ScriptBlock"],
+      "generatedTestRule": "Assert exact three-command membership; preserve requires-substrate and assert no dynamic runtime registration.",
+      "defaultOutcome": "requires-substrate"
+    },
+    {
+      "id": "typed-property-ordering-v1",
+      "commands": ["Compare-Object", "Get-Unique", "Group-Object", "Join-String", "Measure-Object", "Select-Object", "Sort-Object"],
+      "signals": ["base chain intersects ObjectCmdletBase,ObjectBase,OrderObjectBase or retained source exposes PSObject or PSPropertyExpression"],
+      "generatedTestRule": "Assert exact seven-command membership and no generated PSObject, reflection, wildcard-property, or runtime-member-evaluation path.",
+      "defaultOutcome": "requires-substrate"
+    },
+    {
+      "id": "shared-base-closure-v1",
+      "commands": ["Get-Random", "Get-SecureRandom"],
+      "signals": ["same non-PSCmdlet base type GetRandomCommandBase"],
+      "generatedTestRule": "Assert one base/source-hash requirement shared by both commands and no inferred base behavior.",
+      "defaultOutcome": "requires-substrate"
+    },
+    {
+      "id": "ets-member-schema-v1",
+      "commands": ["Add-Member", "Get-Member"],
+      "signals": ["PSObject plus PSMemberTypes, PSMemberViewTypes, or IDictionary parameter types"],
+      "generatedTestRule": "Assert exact two-command membership and no ETS member mutation or discovery surface.",
+      "defaultOutcome": "requires-substrate"
+    },
+    {
+      "id": "external-authority-pipeline-v1",
+      "commands": ["Select-String", "Tee-Object"],
+      "signals": ["pipeline PSObject with path or file parameter and Encoding, or Variable"],
+      "generatedTestRule": "Assert exact two-command membership; name every authority parameter and reject provider and session fallback.",
+      "defaultOutcome": "requires-substrate"
+    }
+  ],
+  "crossCuttingGuards": [
+    {
+      "id": "single-command-route-v1",
+      "appliesTo": ["Where-Object", "Select-Object"],
+      "signal": "candidate command spelling intersects an upstream-AST lowerer special case",
+      "generatedTestRule": "Assert one registry/lowerer route and absence of a legacy tail plan after redirect.",
+      "onFailure": "stop-at-first-mismatch"
+    },
+    {
+      "id": "ast-property-group-v1",
+      "appliesTo": ["Select-Object"],
+      "signal": "named Property group plus bare group, or more than one bare Property group",
+      "generatedTestRule": "Assert each mixed form yields exactly one source-spanned AOT6404 and zero output.",
+      "onFailure": "stop-at-first-mismatch"
+    },
+    {
+      "id": "closed-batch-transport-v1",
+      "appliesTo": ["Where-Object", "Select-Object"],
+      "signal": "proposed AotRecordBatch stage lacks an explicit closed List(Record) payload and outer-boundary contract",
+      "generatedTestRule": "Assert closed List(Record) reconstruction equality and absence of endpoint, plugin, or object fields.",
+      "onFailure": "stop-at-first-mismatch"
+    }
+  ],
+  "generatedTestManifestContract": {
+    "schema": "pwsh-aot-fast-cycle-test-manifest/v1",
+    "preCodeGate": "validate-before-code",
+    "requiredFields": ["id", "familyRuleId", "commands", "sourceFacts", "guardIds", "assertions", "timing"]
+  },
+  "timing": {
+    "cycleStartedUtc": "2026-09-25T07:29:25Z",
+    "archetypeTrialSeconds": 600,
+    "cycleStopSeconds": 5517,
+    "automaticTrialFields": ["startedUtc", "deadlineUtc", "endedUtc", "elapsedSeconds", "cycleElapsedSeconds", "outcome", "firstMismatch"]
+  }
+}

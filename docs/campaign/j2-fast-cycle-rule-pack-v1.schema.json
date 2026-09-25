@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pwsh-aot-lite.local/schema/j2-fast-cycle-rule-pack-v1",
+  "title": "J2 deterministic fast-cycle rule pack v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sourceFactRun",
+    "familyRules",
+    "crossCuttingGuards",
+    "generatedTestManifestContract",
+    "timing"
+  ],
+  "properties": {
+    "schema": { "const": "pwsh-aot-j2-fast-cycle-rule-pack/v1" },
+    "sourceFactRun": { "type": "string", "minLength": 1 },
+    "familyRules": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/familyRule" }
+    },
+    "crossCuttingGuards": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/guardRule" }
+    },
+    "generatedTestManifestContract": { "$ref": "#/$defs/testManifestContract" },
+    "timing": { "$ref": "#/$defs/timing" }
+  },
+  "$defs": {
+    "commandName": { "type": "string", "pattern": "^[A-Za-z]+-[A-Za-z]+$" },
+    "familyRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "commands", "signals", "generatedTestRule", "defaultOutcome"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+-v[0-9]+$" },
+        "commands": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/commandName" } },
+        "signals": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "generatedTestRule": { "type": "string", "minLength": 1 },
+        "defaultOutcome": { "const": "requires-substrate" }
+      }
+    },
+    "guardRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "appliesTo", "signal", "generatedTestRule", "onFailure"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+-v[0-9]+$" },
+        "appliesTo": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/commandName" } },
+        "signal": { "type": "string", "minLength": 1 },
+        "generatedTestRule": { "type": "string", "minLength": 1 },
+        "onFailure": { "const": "stop-at-first-mismatch" }
+      }
+    },
+    "testManifestContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "preCodeGate", "requiredFields"],
+      "properties": {
+        "schema": { "const": "pwsh-aot-fast-cycle-test-manifest/v1" },
+        "preCodeGate": { "const": "validate-before-code" },
+        "requiredFields": {
+          "type": "array",
+          "const": ["id", "familyRuleId", "commands", "sourceFacts", "guardIds", "assertions", "timing"]
+        }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cycleStartedUtc", "archetypeTrialSeconds", "cycleStopSeconds", "automaticTrialFields"],
+      "properties": {
+        "cycleStartedUtc": { "const": "2026-09-25T07:29:25Z" },
+        "archetypeTrialSeconds": { "const": 600 },
+        "cycleStopSeconds": { "const": 5517 },
+        "automaticTrialFields": {
+          "type": "array",
+          "const": ["startedUtc", "deadlineUtc", "endedUtc", "elapsedSeconds", "cycleElapsedSeconds", "outcome", "firstMismatch"]
+        }
+      }
+    }
+  }
+}
