@@ -864,6 +864,99 @@ internal sealed class CompareObjectCmdlet : AotCmdletBase
     }
 }
 
+// Closed Raw/SimpleMatch file route of SelectStringCommand. It deliberately
+// reuses the existing physical-file capability and emits strings only, rather
+// than importing MatchInfo, regex compilation, provider resolution, or ETS.
+internal sealed class SelectStringCmdlet(IPhysicalFileResolver files) : AotCmdletBase
+{
+    private static readonly CmdletDescriptor SelectStringDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => SelectStringDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("Path", out string[] paths) || paths.Length != 1 || ContainsWildcard(paths[0]))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6726",
+                "Select-String requires named -Path with exactly one direct non-wildcard file path in this subset.",
+                invocation.SourceSpan,
+                "unsupported path route",
+                "Use one literal file path with -Path."));
+        }
+
+        if (!invocation.TryGetValues("Pattern", out string[] patterns) || patterns.Length != 1)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6727",
+                "Select-String requires named -Pattern with exactly one direct string value in this subset.",
+                invocation.SourceSpan,
+                "unsupported pattern route",
+                "Use one literal pattern with -Pattern."));
+        }
+
+        if (!invocation.TryGetValues("SimpleMatch", out _) || !invocation.TryGetValues("Raw", out _))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6728",
+                "Select-String requires both -SimpleMatch and -Raw in this subset.",
+                invocation.SourceSpan,
+                "missing static output or match mode",
+                "Use -SimpleMatch -Raw with direct Path and Pattern values."));
+        }
+
+        string[] resolved = files.ResolvePath(paths[0], context).ToArray();
+        if (resolved.Length != 1)
+        {
+            return [];
+        }
+
+        StringComparison comparison = invocation.TryGetValues("CaseSensitive", out _)
+            ? StringComparison.CurrentCulture
+            : StringComparison.CurrentCultureIgnoreCase;
+        List<IPipelineRecord> output = [];
+        try
+        {
+            using Stream stream = files.OpenRead(resolved[0]);
+            using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            string? line;
+            while ((line = reader.ReadLine()) is not null)
+            {
+                context.ThrowIfCancellationRequested();
+                if (line.IndexOf(patterns[0], comparison) >= 0)
+                {
+                    output.Add(new TextRecord(line));
+                }
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            context.WriteNonTerminatingError("ProcessingFile", error.Message);
+        }
+
+        return output;
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor source = GeneratedCmdletPorts.SelectString.CreateAotDescriptor(
+            "Path", "Pattern", "SimpleMatch", "Raw", "CaseSensitive");
+        ParameterSpec[] namedOnly = source.Parameters
+            .Select(parameter => parameter with
+            {
+                ParameterSets = parameter.ParameterSets
+                    .Select(parameterSet => parameterSet with { Position = null })
+                    .ToArray(),
+            })
+            .ToArray();
+        return new CmdletDescriptor(source.Name, namedOnly);
+    }
+
+    private static bool ContainsWildcard(string value) => value.IndexOfAny(['*', '?', '[']) >= 0;
+}
+
 // Exact seeded-only extraction of PolymorphicRandomNumberGenerator's helper
 // path from upstream GetRandomCommandBase. It deliberately contains no
 // cryptographic generator, runspace map, reflection, or PSObject behavior.
@@ -1237,7 +1330,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
