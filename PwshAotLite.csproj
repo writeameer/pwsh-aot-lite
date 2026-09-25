@@ -14,8 +14,15 @@
          using an existing checkout. The bootstrap script restores this pinned
          source tree for a fresh clone. -->
     <PowerShellSourceRoot Condition="'$(PowerShellSourceRoot)' == ''">$(MSBuildProjectDirectory)/.upstream/PowerShell/src</PowerShellSourceRoot>
+    <!-- Homebrew keeps OpenSSL outside the macOS SDK search path. This is an
+         optional local Native AOT link path, overridable by callers and inert
+         on machines where the directory is absent. -->
+    <NativeAotOpenSslLibraryPath Condition="'$(NativeAotOpenSslLibraryPath)' == '' and Exists('/opt/homebrew/opt/openssl@3/lib')">/opt/homebrew/opt/openssl@3/lib</NativeAotOpenSslLibraryPath>
+    <NativeAotBrotliLibraryPath Condition="'$(NativeAotBrotliLibraryPath)' == '' and Exists('/opt/homebrew/opt/brotli/lib')">/opt/homebrew/opt/brotli/lib</NativeAotBrotliLibraryPath>
   </PropertyGroup>
   <ItemGroup>
+    <LinkerArg Include="-L$(NativeAotOpenSslLibraryPath)" Condition="'$(NativeAotOpenSslLibraryPath)' != ''" />
+    <LinkerArg Include="-L$(NativeAotBrotliLibraryPath)" Condition="'$(NativeAotBrotliLibraryPath)' != ''" />
     <!-- The parser proof is a separate executable project.  SDK default globbing
          would otherwise compile its Program.cs into the host executable. -->
     <Compile Remove="frontend-spike/**/*.cs" />

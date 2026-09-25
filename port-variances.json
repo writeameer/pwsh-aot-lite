@@ -858,6 +858,34 @@
       ]
     },
     {
+      "command": "Get-Random",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetRandomCommand.cs and GetRandomCommandBase.cs",
+      "state": "release-pending-seeded-int32-subset",
+      "variances": [
+        {
+          "id": "random-seeded-upstream-algorithm",
+          "sourceFeature": "GetRandomCommand replaces Generator with PolymorphicRandomNumberGenerator(seed); the base uses Random.NextBytes, InternalSample, NextDouble, and bounded Next.",
+          "targetDecision": "Reuse the exact seeded-only helper sequence with Random(seed); do not replace it with Random.Next(minimum, maximum), which yields a different sequence.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "random-closed-seeded-int32-surface",
+          "sourceFeature": "GetRandomCommandBase also supports unseeded cryptographic random, object/list input, Count, Shuffle, Int64/double conversion, parameter-set selection, and pipeline lifecycle.",
+          "targetDecision": "Admit only named SetSeed, Minimum, and Maximum Int32 values, one output, and Minimum less than Maximum. All other parameter sets and value modes fail at binding or validation before execution.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "random-closed-text-output",
+          "sourceFeature": "PowerShell writes an Int32 object to its object pipeline and formats it later.",
+          "targetDecision": "Emit one invariant-culture TextRecord through the existing closed terminal contract; no generic CLR object pipeline is claimed.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Where-Object",
       "source": "src/System.Management.Automation/engine/InternalCommands.cs",
       "state": "complete-j2-static-record-transform-subset",
