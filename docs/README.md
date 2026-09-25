@@ -58,6 +58,7 @@ The migration order and candidacy decisions are maintained in the
 | `Compare-Object` | integrated direct named string `SyncWindow 0` subset | [Compare-Object port notes](cmdlets/compare-object.md) |
 | `Select-String` | integrated direct Raw SimpleMatch one-file subset | [Select-String port notes](cmdlets/select-string.md) |
 | `Measure-Object` | integrated direct single-string text-statistics subset | [Measure-Object port notes](cmdlets/measure-object.md) |
+| `Get-Unique` | integrated explicit `-AsString` closed text-pipeline subset | [Get-Unique port notes](cmdlets/get-unique.md) |
 
 The ordered campaign backlog is in the [cmdlet migration queue](queue.md).
 Legacy-module registration experiments and their package contracts are indexed
