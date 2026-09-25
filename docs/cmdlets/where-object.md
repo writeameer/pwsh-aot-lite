@@ -33,7 +33,7 @@ Only a preceding typed record batch may reach this adapter. A script block, `Inp
 
 ## Verification
 
-Pending independent architecture/AOT and diagnostics/compatibility review: managed build/self-test, parser-reuse guard, parser differential baseline, and fresh Native AOT publication/self-test/smoke.
+Both required independent reviews and the managed/parser/fresh-Native-AOT gates have passed. The slice remains unintegrated and uncounted until lifecycle step 9 release.
 
 ## Variances and reusable learnings
 
@@ -54,4 +54,4 @@ Pending independent architecture/AOT and diagnostics/compatibility review: manag
 
 ## Next action
 
-Run the required independent reviews; do not claim migration or change catalog availability until lifecycle step 9.
+Proceed only to lifecycle step 9 integration/release; do not claim migration or change catalog availability beforehand.

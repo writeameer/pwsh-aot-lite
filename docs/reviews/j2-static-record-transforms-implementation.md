@@ -1,8 +1,7 @@
 # J2 static record-transform implementation review ledger
 
-**Status:** Native AOT / typed-data boundary review passed. The diagnostic and
-compatibility correction is ready for a fresh review; this remains a Step-7
-code-evidence ledger, not a migration or release claim.
+**Status:** Both required independent reviews have passed. This remains a
+Step-7 code-evidence ledger, not a migration or release claim.
 
 ## Scope
 
@@ -21,7 +20,7 @@ transport endpoints remain outside the implementation.
 | Lens | Reviewer | Status | Evidence to check |
 | --- | --- | --- | --- |
 | Architecture / AOT | Native AOT Boundary Sentinel | **PASS** (2026-09-25) | `StaticRecordStages.cs`, closed `IAotRecordBatchStage`, generated metadata ownership, no transport/runtime registration |
-| Diagnostics / compatibility | Compatibility Proof Adversary | **re-review requested** (2026-09-25) | corrected `AOT6404` binding boundary, managed/native snapshots, stock oracle and 52-ID corpus |
+| Diagnostics / compatibility | Compatibility Proof Adversary | **PASS** (2026-09-25) | correction `44970a67f36c7978c7de5131467ac697b586a764`; exact `AOT6404` mixed-binding boundary, wildcard route, managed/native snapshots, stock oracle, and 52-ID corpus independently reproduced |
 
 ## Evidence prepared
 
@@ -160,6 +159,31 @@ route, parser baseline 38, managed/parser gates, and fresh native evidence.
 Timing and variance records remain deliberately in-progress/not-migrated:
 neither a review pass nor this correction changes catalog availability,
 migration count, or timing end.
+
+## Diagnostic / compatibility re-review — PASS (2026-09-25)
+
+Reviewed correction commit `44970a67f36c7978c7de5131467ac697b586a764`
+against the prior compatibility block.
+
+- Both stock-rejected forms now fail closed in the native executable with
+  `AOT6404`: positional then named `-Property` at `<command>:1:41`, and named
+  `-Property` then positional at `<command>:1:51`. Each has the intended
+  source span, caret, and actionable help; neither returns a projected table.
+- The `Select-Object I*` wildcard route is now `AOT6404`, source-spanned at
+  `<command>:1:38`, consistent with the Select projection-binding diagnostic
+  family and the fixture manifest.
+- Independently reproduced: Release managed build and self-test; parser reuse
+  guard; all 38 upstream parser differential baselines; a freshly published
+  self-contained `osx-arm64` Native AOT executable and self-test; and
+  `tools/Test-J2StaticRecordTransformCompatibility.ps1` against that fresh
+  executable. The compatibility tool completed all eight stock-oracle rows
+  and six native checks. The re-review native executable SHA-256 was
+  `FDFC1E89E0A7A2DB1C8A3824204989642CBD958AA9096DFED185617BC3C9EA31`.
+- Managed and native self-tests exercised the embedded 52-ID corpus and its
+  required `12 + 14 + 12 + 8 + 6` category distribution. Per-cmdlet notes and
+  the open variance/timing records remain appropriately scoped: this verdict
+  validates only the closed J2 slice and does not claim migration or release
+  completion.
 
 ## Gate
 
