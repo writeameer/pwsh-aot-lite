@@ -432,12 +432,20 @@ internal sealed class AotPipelineStatementPlan(
             boundInputStage = new AotPipelineInputStage(inputCmdlet, inputInvocation);
         }
 
+        // A typed input adapter owns the terminal record shape. The source
+        // command only seeds the pipeline; retaining its columns would reject
+        // a legitimate closed downstream record (for example, Value -> Count,
+        // Name) at the record boundary.
+        IReadOnlyList<string> outputColumns = boundInputStage is null
+            ? cmdlet.DefaultColumns
+            : boundInputStage.Cmdlet.DefaultColumns;
+
         return new PipelinePlan(
             cmdlet,
             invocation,
             boundInputStage,
             ResolveTail(scope),
-            ResolveOutputShape(cmdlet.DefaultColumns, source.CommandSpan),
+            ResolveOutputShape(outputColumns, source.CommandSpan),
             source.CommandSpan,
             pipelineLength);
     }

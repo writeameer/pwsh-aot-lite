@@ -592,6 +592,24 @@ internal sealed record MeasureTextRecord(int? Lines, int? Words, int? Characters
     };
 }
 
+// Closed GroupInfoNoElement projection for Group-Object's static TextRecord
+// route. It intentionally contains no source-object list or ETS state.
+internal sealed record GroupTextRecord(string Name, int Count) : IPipelineRecord
+{
+    public string TextFor(string property) => property switch
+    {
+        "Name" => Name,
+        "Count" => Count.ToString(CultureInfo.InvariantCulture),
+        _ => throw new ScriptException($"Select-Object does not support column '{property}' for Group-Object text values."),
+    };
+
+    public double NumberFor(string property) => property switch
+    {
+        "Count" => Count,
+        _ => throw new ScriptException($"Where-Object does not support property '{property}' for Group-Object text values."),
+    };
+}
+
 // Port boundary for Microsoft.PowerShell.Commands.NewGuidCommand. The
 // upstream process body is one BCL decision after generated binding: emit a
 // UUID v7 normally, or Guid.Empty when -Empty is true. The existing closed
@@ -1143,6 +1161,79 @@ internal sealed class GetUniqueCmdlet : AotPipelineInputCmdletBase<TextRecord>
     }
 }
 
+// Closed TextRecord/NoElement extraction of GroupObjectCommand. The source
+// buffers then sorts group keys; this adapter preserves that behavior only for
+// static text values and emits no GroupInfo element collection.
+internal sealed class GroupObjectCmdlet : AotPipelineInputCmdletBase<TextRecord>
+{
+    private static readonly CmdletDescriptor GroupObjectDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => GroupObjectDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Count", "Name"];
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        RequireNoElement(invocation);
+        return [];
+    }
+
+    protected override IEnumerable<IPipelineRecord> ProcessPipelineInput(
+        CommandInvocation invocation,
+        IReadOnlyList<TextRecord> input,
+        AotExecutionContext context)
+    {
+        RequireNoElement(invocation);
+        StringComparer comparer = invocation.TryGetValues("CaseSensitive", out _)
+            ? StringComparer.CurrentCulture
+            : StringComparer.CurrentCultureIgnoreCase;
+        Dictionary<string, (string Name, int Count)> groups = new(comparer);
+        foreach (TextRecord record in input)
+        {
+            context.ThrowIfCancellationRequested();
+            if (groups.TryGetValue(record.Value, out (string Name, int Count) group))
+            {
+                groups[record.Value] = (group.Name, group.Count + 1);
+            }
+            else
+            {
+                groups.Add(record.Value, (record.Value, 1));
+            }
+        }
+
+        return groups.Values
+            .OrderBy(static group => group.Name, comparer)
+            .Select(static group => (IPipelineRecord)new GroupTextRecord(group.Name, group.Count))
+            .ToArray();
+    }
+
+    private static void RequireNoElement(CommandInvocation invocation)
+    {
+        if (!invocation.TryGetValues("NoElement", out _))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6732",
+                "Group-Object requires explicit -NoElement in the static TextRecord subset.",
+                invocation.SourceSpan,
+                "unsupported dynamic group-element route",
+                "Use -NoElement with a preceding AOT command that emits TextRecord values."));
+        }
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor source = GeneratedCmdletPorts.GroupObject.CreateAotDescriptor("NoElement", "CaseSensitive");
+        ParameterSpec[] namedOnly = source.Parameters
+            .Select(parameter => parameter with
+            {
+                ParameterSets = parameter.ParameterSets
+                    .Select(parameterSet => parameterSet with { Position = null })
+                    .ToArray(),
+            })
+            .ToArray();
+        return new CmdletDescriptor(source.Name, namedOnly);
+    }
+}
+
 // Exact seeded-only extraction of PolymorphicRandomNumberGenerator's helper
 // path from upstream GetRandomCommandBase. It deliberately contains no
 // cryptographic generator, runspace map, reflection, or PSObject behavior.
@@ -1516,7 +1607,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new MeasureObjectCmdlet(), new GetUniqueCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new MeasureObjectCmdlet(), new GetUniqueCmdlet(), new GroupObjectCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {

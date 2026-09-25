@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Group-Object",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Group-Object.cs",
+      "state": "complete-explicit-noelement-static-text-pipeline-subset",
+      "variances": [
+        {
+          "id": "group-object-static-text-noelement",
+          "sourceFeature": "GroupObjectCommand buffers PSObject input, derives property expressions, sorts/group-compares values, and writes GroupInfo objects.",
+          "targetDecision": "Admit only TextRecord pipeline input with explicit NoElement. Preserve current-culture key sorting/grouping and emit closed Count/Name records.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "group-object-dynamic-group-routes-deferred",
+          "sourceFeature": "GroupInfo element collections, Property expressions, AsHashTable, PSObject comparison, and dynamic output are source runtime features.",
+          "targetDecision": "Require NoElement and omit those routes; no PSObject, ETS, reflection, generic comparer, or dynamic group list is introduced.",
+          "status": "deferred",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Get-Unique",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetUnique.cs",
       "state": "complete-explicit-asstring-static-text-pipeline-subset",
