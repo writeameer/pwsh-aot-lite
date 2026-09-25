@@ -1,6 +1,26 @@
 {
   "schema": "pwsh-aot-j2-fast-cycle-rule-pack/v1",
   "sourceFactRun": "j2-source-facts-v1",
+  "trialLayers": {
+    "behaviorProbe": {
+      "maxSeconds": 5,
+      "uses": ["stock-pwsh", "current-native-executable"],
+      "forbids": ["manifest", "code", "build", "publish"],
+      "onFailure": "stop-at-first-mismatch"
+    },
+    "deterministicScreen": {
+      "maxSeconds": 60,
+      "requires": ["behavior-probe-concrete-bounded-route"],
+      "uses": ["retained-source-hashes", "source-ast-facts", "generated-metadata", "static-native-route"],
+      "onFailure": "stop-at-first-mismatch"
+    },
+    "nativeAotProof": {
+      "maxSeconds": 600,
+      "requires": ["behavior-probe-concrete-bounded-route", "deterministic-screen-concrete-narrow-adapter-route"],
+      "permits": ["generated-test-manifest", "disposable-proof-build", "disposable-proof-publish"],
+      "onFailure": "stop-at-first-mismatch"
+    }
+  },
   "familyRules": [
     {
       "id": "dynamic-script-v1",

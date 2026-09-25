@@ -15,41 +15,51 @@ per-command records. It reads the checked
 [`j2-fast-cycle-rule-pack-v1.json`](j2-fast-cycle-rule-pack-v1.json), validated
 by [`j2-fast-cycle-rule-pack-v1.schema.json`](j2-fast-cycle-rule-pack-v1.schema.json).
 
-For each rule-selected archetype, the runner must first generate and retain a
-test manifest from the rule's exact commands, source hashes, signals, and
-guard expectations. No code trial starts before that manifest validates.
+Each archetype moves through three strictly ordered layers. A failure in a
+layer is the archetype result; it does not authorize a retry, repair, or a
+later layer.
 
 ## Deterministic cycle
 
-1. Verify the source-fact report, per-command index, rule-pack schema, and
-   rule-pack hashes.
-2. Apply the five exhaustive family rules. Every one of the 16 command names
+1. **A — behavior probe (under five seconds).** Run only stock `pwsh` and the
+   current already-built native executable against the smallest positive and
+   negative corpus. This layer creates no manifest, code, build, publish, or
+   semantic substitute. An unsupported native route is a stopped command-
+   viability result.
+2. **B — deterministic feasibility screen (under one minute).** Only when A
+   shows a concrete bounded behavioral route, verify the retained hashes,
+   source/AST facts, generated metadata shape, and exactly one static native
+   route. A missing route is a stopped feasibility result.
+3. **C — disposable Native AOT proof (at most 600 seconds).** Only when A and
+   B identify that concrete narrow adapter route, generate and validate a test
+   manifest, then run the bounded stock/native proof. This is the only layer
+   allowed to build or publish a disposable proof.
+4. Apply the five exhaustive family rules. Every one of the 16 command names
    must match exactly one family; a gap or overlap stops the cycle.
-3. Apply all three cross-cutting guards to every relevant selected command.
+5. Apply all three cross-cutting guards to every relevant selected command.
    A guard failure stops that archetype before a trial.
-4. Generate a test manifest before code from the matched rule IDs and command
-   evidence. Validate unique test IDs, exact command membership, and required
-   fail-closed assertions.
-5. Start a monotonic 600-second trial timer. At the first build, oracle,
-   native, diagnostic, or guard mismatch, stop immediately and retain the
-   mismatch evidence. Do not retry inside this cycle.
 6. At 5517 seconds from cycle start, stop all unstarted or active trials and
    write the cycle report with their automatic timing fields.
-7. Only a trial with no mismatch, its complete generated manifest, and all
+7. Only a Layer C trial with no mismatch, its complete generated manifest, and all
    required evidence may be marked `viable-for-normal-lifecycle`. That status
    is a handoff, not a profile, port, availability, or migration claim.
 
 ## Timing record contract
 
-Each generated trial record carries `startedUtc`, `deadlineUtc`,
-`endedUtc`, `elapsedSeconds`, `cycleElapsedSeconds`, `outcome`, and optional
+Layer A and B records carry their own automatic timestamps and elapsed fields.
+Layer C records carry `startedUtc`, `deadlineUtc`, `endedUtc`,
+`elapsedSeconds`, `cycleElapsedSeconds`, `outcome`, and optional
 first-mismatch fields. The runner calculates—never estimates—elapsed fields
-from a monotonic clock and records UTC timestamps separately. `deadlineUtc`
-is start plus 600 seconds; the cycle deadline is start plus 5517 seconds.
+from a monotonic clock and records UTC timestamps separately. The Layer C
+`deadlineUtc` is start plus 600 seconds; the cycle deadline is start plus 5517
+seconds. An environment-preflight failure (for example a missing linker
+library) is retained separately and is excluded from command evidence and all
+Layer C elapsed-trial metrics.
 
 ## Non-negotiable stop rules
 
-- First mismatch wins. Preserve it; do not infer a repair or run another form.
+- First mismatch at any layer wins. Preserve it; do not infer a repair or run
+  another form.
 - Missing evidence, source drift, a family overlap/gap, invalid generated test
   manifest, or expired timer is a stopped result.
 - A rule may not create a dynamic engine, `PSObject`, reflection, a provider,
