@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Compare-Object",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Compare-Object.cs and OrderObjectBase.cs",
+      "state": "release-pending-direct-string-sync-window-zero-subset",
+      "variances": [
+        {
+          "id": "compare-object-direct-string-sync-zero",
+          "sourceFeature": "CompareObjectCommand accepts PSObject arrays, a configurable matching window, property expressions, culture, and a source OrderByProperty comparer.",
+          "targetDecision": "Admit only named direct string arrays with named SyncWindow 0, optionally CaseSensitive. Reuse the source's zero-window unmatched emission order without crossing its object comparer or conversion boundary.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "compare-object-closed-record-output",
+          "sourceFeature": "The default source output is a PSObject whose InputObject and SideIndicator note properties are built dynamically; PassThru emits source objects.",
+          "targetDecision": "Emit only the closed CompareObjectRecord shape through the explicit PipelineValueAdapter case. PassThru and all dynamic object/format routes are deferred.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Join-String",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Join-String.cs",
       "state": "complete-direct-literal-string-subset",

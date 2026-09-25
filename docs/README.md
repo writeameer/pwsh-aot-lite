@@ -55,6 +55,7 @@ The migration order and candidacy decisions are maintained in the
 | `Where-Object` | J2 static numeric record-predicate implementation in review; not migrated | [Where-Object port notes](cmdlets/where-object.md) |
 | `Select-Object` | J2 static explicit-field projection implementation in review; not migrated | [Select-Object port notes](cmdlets/select-object.md) |
 | `Join-String` | integrated direct named literal-string join subset | [Join-String port notes](cmdlets/join-string.md) |
+| `Compare-Object` | release-pending direct named string `SyncWindow 0` subset | [Compare-Object port notes](cmdlets/compare-object.md) |
 
 The ordered campaign backlog is in the [cmdlet migration queue](queue.md).
 Legacy-module registration experiments and their package contracts are indexed
