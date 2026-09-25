@@ -45,7 +45,7 @@ reuse, review, and verification work—not just target coding.
 | `Get-Unique` | unavailable (not recorded) | 2026-09-25T09:27:34.9777480Z | unavailable (start not recorded) | J2 explicit `AsString` static TextRecord pipeline subset; managed/native evidence verified and main release complete at `449cc3d`. | integrated |
 | `Group-Object` | unavailable (not recorded) | 2026-09-25T09:37:30.6291300Z | unavailable (start not recorded) | J2 explicit `NoElement` static TextRecord grouping subset; managed/native evidence verified and main release complete at `be698f8`. | integrated |
 | `Sort-Object` | unavailable (not recorded) | 2026-09-25T09:47:39.9344860Z | unavailable (start not recorded) | J2 static TextRecord ordering subset; managed/native evidence verified and main release complete at `f4b3661`. | integrated |
-| `ForEach-Object` | unavailable (not recorded) | 2026-09-25T09:56:31.3376830Z | unavailable (start not recorded) | J2 exact static TextRecord `MemberName Length` subset; managed/native evidence verified. | release-pending |
+| `ForEach-Object` | unavailable (not recorded) | 2026-09-25T09:57:26.9327360Z | unavailable (start not recorded) | J2 exact static TextRecord `MemberName Length` subset; managed/native evidence verified and main release complete at `2911712`. | integrated |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
