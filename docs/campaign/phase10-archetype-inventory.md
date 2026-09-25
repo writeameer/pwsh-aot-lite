@@ -1,6 +1,6 @@
 # Phase 10 engineering archetype inventory
 
-This is a source-backed, mutually exclusive grouping of the **275 currently
+This is a source-backed, mutually exclusive grouping of the **264 currently
 unconverted commands** from the original 279-command survey cohort. It
 complements—not replaces—the authoritative
 [Phase 10 manifest](phase10-built-in-cmdlets.json). It is planning evidence,
@@ -10,14 +10,14 @@ not an execution claim.
 
 - Survey: [`all-builtins-survey-20260923/report.json`](../../../pwsh-aot-conversion-survey/runs/all-builtins-survey-20260923/report.json), completed `2026-09-23T12:47:29.6726310Z`.
 - `missing-profile` is a **compiler status**: no exact executable converter profile was registered. It is not a shared technical root cause. Route derives from the pinned source path, class/base family, helper closure, and manifest prerequisites.
-- The original survey reported 279 `missing-profile` outcomes. `Join-Path`, `Split-Path`, `Where-Object`, and `Select-Object` are now integrated bounded adapters; the baseline remains retained evidence, while this document accounts for the active 275-command cohort.
-- Exact current accounting: **75 native replacement + 90 shared substrate + 62 sidecar + 48 unsupported = 275**. Command allocation below is exhaustive and mutually exclusive.
+- The original survey reported 279 `missing-profile` outcomes. `Join-Path`, `Split-Path`, and thirteen J2 adapters are now integrated bounded adapters; the baseline remains retained evidence, while this document accounts for the active 264-command cohort.
+- Exact current accounting: **64 native replacement + 90 shared substrate + 62 sidecar + 48 unsupported = 264**. Command allocation below is exhaustive and mutually exclusive.
 
 ## Reusable-foundation order
 
 1. **J0 closed JSON codec/value plane — complete at `aff09b3`**: bounded `System.Text.Json` ↔ `AotValue`, typed diagnostics, no `PSObject`/Newtonsoft/arbitrary CLR serialization. This is a foundation only; its three JSON cmdlet adapters remain queued.
 2. **J1 direct physical read/path foundation — lexical slice complete at `9a279d3`**: `Join-Path` and `Split-Path` are integrated provider-free lexical transforms; the other 12 direct-read/navigation commands remain separately scoped substrate work.
-3. **Closed typed data plane — initial J2 slice released at `0927d11`**: `Where-Object` static numeric filtering and `Select-Object` explicit projection are integrated; the other 14 record-transform commands remain separately scoped.
+3. **Closed typed data plane — thirteen J2 slices released**: the released set is authoritative in the [campaign status table](README.md#canonical-release-status); `Add-Member`, `Measure-Command`, and `Tee-Object` remain current boundary outcomes.
 4. **Terminal and stream contracts**: static views plus output/error/information streams, never ETS.
 5. **Physical mutation authority**: `ShouldProcess`, confirmation, atomic write/rollback, and trust policy.
 6. **Local platform capabilities**: narrow process/service, host, and platform information interfaces with OS/error matrices.
@@ -25,13 +25,13 @@ not an execution claim.
 8. **Trusted sidecar protocol**: typed wire schema and trust/lifecycle boundary for CIM, WSMan, remoting, jobs, and events.
 9. **Dynamic-engine families remain unavailable** until a separately approved architecture exists.
 
-## Native replacement — 75
+## Native replacement — 64
 
-### Typed pipeline transforms — 14 — high
+### Typed pipeline transforms — 3 — high
 
 **Evidence:** `InternalCommands.cs`, `ObjectCmdletBase`, `OrderObjectBase`, and utility transforms. **Route:** native replacement over closed records/pipeline.
 
-`Add-Member`, `Compare-Object`, `ForEach-Object`, `Get-Member`, `Get-Random`, `Get-SecureRandom`, `Get-Unique`, `Group-Object`, `Join-String`, `Measure-Command`, `Measure-Object`, `Select-String`, `Sort-Object`, `Tee-Object`.
+`Add-Member`, `Measure-Command`, `Tee-Object`.
 
 ### Structured codecs — 18 — medium-high
 

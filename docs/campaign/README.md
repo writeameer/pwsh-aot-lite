@@ -10,15 +10,14 @@ row is a PowerShell compatibility claim.
 | Measure | Current state |
 | --- | --- |
 | Pinned upstream inventory | 290 declarations / 288 logical command names |
-| Native cmdlets integrated | 13 bounded, independently verified ports |
+| Native cmdlets integrated | 24 bounded, independently verified ports |
 | Completed foundations | J0 closed JSON codec/value plane, merged at `aff09b3` |
-| Commands still queued | 275 in 28 batches with queued work; B02 is partially complete |
+| Unprocessed command adapters | 213 |
+| Explicit current boundaries | 3 J2 commands plus 48 J8 dynamic-engine commands |
 | Next campaign release batch | J1 remaining direct path/read commands (12 commands) |
 | Subsequent release batch | J0 command adapters, then J3 formatting/stream work |
 
-The 13 integrated cmdlets are `Get-ChildItem`, `Get-FileHash`, `New-Guid`,
-`New-TimeSpan`, `Start-Sleep`, `Get-Item`, `Test-Path`, `Resolve-Path`,
-`Convert-Path`, `Join-Path`, `Split-Path`, `Where-Object`, and `Select-Object`. Each is a bounded native subset; its per-cmdlet note and
+Every release below is a bounded native subset; its per-cmdlet note and
 variance record define exactly what is admitted and what fails closed.
 
 J0 is complete as a reusable closed `System.Text.Json` ↔ `AotValue` codec. It
@@ -27,29 +26,31 @@ Those command adapters remain queued and require their own generated
 descriptor subset, lifecycle/binding design, controlled stock/native oracle,
 tests, variance evidence, and independent review.
 
-## Stage progress
+## Canonical release status
 
-The table below is the canonical progress view for the original
-**279-command campaign cohort**, of which **275 commands remain unported**.
-“Complete” counts integrated command adapters, not foundations. A completed
-foundation therefore does not make any cmdlet in its row complete.
+This is the live count authority. It is reconciled from integration commits
+and `docs/cmdlets/port-timing.md`, not from the currently stale generated
+batch queue. “Boundary” means a current explicit no-route disposition; a
+shared-seam prerequisite alone remains unprocessed.
 
-| Stage | Original cohort | Complete | Remaining |
-| --- | ---: | --- | ---: |
-| J0 — structured codecs, including JSON | 18 | Foundation complete; 0/18 adapters | 18 |
-| J1 — direct physical paths/reads | 14 | 2/14 adapters | 12 (`requires-substrate`) |
-| J2 — typed data transforms | 16 | 2/16 adapters | 14 |
-| J3 — formatting, streams, metadata/modules | 43 | 0/43 | 43 |
-| J4 — filesystem mutation | 24 | 0/24 | 24 |
-| J5 — local platform/process/service/host | 39 | 0/39 | 39 |
-| J6 — security and network | 15 | 0/15 | 15 |
-| J7 — trusted sidecars | 62 | 0/62 | 62 |
-| J8 — explicitly unsupported dynamic-engine families | 48 | N/A | 48 |
-| **Total** | **279** | **4/279 adapters** | **275** |
+| Batch | Total | Released / migrated | Explicit boundary | Unprocessed |
+| --- | ---: | --- | --- | ---: |
+| Pre-campaign baseline | 9 | 9 — `Get-ChildItem`, `Get-FileHash`, `New-Guid`, `New-TimeSpan`, `Start-Sleep`, `Get-Item`, `Test-Path`, `Resolve-Path`, `Convert-Path` | 0 | 0 |
+| J0 — structured codecs, including JSON | 18 | 0 | 0 | 18 |
+| J1 — direct physical paths/reads | 14 | 2 — `Join-Path`, `Split-Path` | 0 | 12 |
+| J2 — typed data transforms | 16 | 13 — `Where-Object`, `Select-Object`, `Get-Random`, `Get-SecureRandom`, `Join-String`, `Compare-Object`, `Select-String`, `Measure-Object`, `Get-Unique`, `Group-Object`, `Sort-Object`, `ForEach-Object`, `Get-Member` | 3 — `Add-Member`, `Measure-Command`, `Tee-Object` | 0 |
+| J3 — formatting, streams, metadata/modules | 43 | 0 | 0 | 43 |
+| J4 — filesystem mutation | 24 | 0 | 0 | 24 |
+| J5 — local platform/process/service/host | 39 | 0 | 0 | 39 |
+| J6 — security and network | 15 | 0 | 0 | 15 |
+| J7 — trusted sidecars | 62 | 0 | 0 | 62 |
+| J8 — explicitly unsupported dynamic-engine families | 48 | 0 | 48 — explicitly unsupported | 0 |
+| **Total** | **288** | **24** | **51** | **213** |
 
-The **nine cmdlets integrated before this cohort is excluded** from this cohort. J8 is included for complete inventory
-accounting but is not an implementation queue: it records the currently
-unapproved dynamic-engine boundary.
+The campaign cohort excludes the nine baseline releases: it therefore contains
+279 commands, 15 released, 51 current-boundary outcomes, and 213 unprocessed
+commands. J8 is an accounting boundary, not an implementation queue. J0’s
+foundation is complete, but no J0 cmdlet adapter is released.
 
 ## How the campaign works
 
@@ -73,11 +74,12 @@ profile and shared seam allow.
 
 ## Dependency-aware campaign release order
 
-This is the required order for new campaign work: **J2 → J1 → J0 → J3 → J4
-→ J5 → J7 → J6**. It orders cmdlet-release work, not the historical date on
-which a reusable foundation landed. In particular, J0's codec foundation is
-already integrated, but its 18 command adapters follow J1 in the release
-sequence.
+This is the required order for remaining release work: **J1 → J0 → J3 → J4 →
+J5 → J7 → J6**. J2 has no queued adapter: its thirteen bounded releases are
+complete and its remaining three commands are explicit boundary outcomes. The
+order does not change the historical date on which a reusable foundation
+landed. In particular, J0's codec foundation is already integrated, but its
+18 command adapters follow J1 in the release sequence.
 
 J7 follows J5 because the trusted sidecar needs the local process/host
 capability supplied there. It also follows J2 and J0 because its protocol must
@@ -87,17 +89,17 @@ boundary.
 
 | Release order | Batch | Command adapters in batch | Current adapter result |
 | ---: | --- | ---: | --- |
-| 1 | J2 — typed data transforms | 14 remaining | 2 migrated |
-| 2 | J1 — direct physical paths/reads | 12 remaining | 2 already migrated |
-| 3 | J0 — structured codecs, including JSON | 18 | 0 migrated; codec foundation only |
-| 4 | J3 — formatting, streams, metadata/modules | 43 | 0 migrated |
-| 5 | J4 — filesystem mutation | 24 | 0 migrated |
-| 6 | J5 — local platform/process/service/host | 39 | 0 migrated |
-| 7 | J7 — trusted sidecars | 62 | 0 migrated |
-| 8 | J6 — security and network | 15 | 0 migrated |
+| 1 | J1 — direct physical paths/reads | 12 unprocessed | 2 migrated |
+| 2 | J0 — structured codecs, including JSON | 18 unprocessed | 0 migrated; codec foundation only |
+| 3 | J3 — formatting, streams, metadata/modules | 43 unprocessed | 0 migrated |
+| 4 | J4 — filesystem mutation | 24 unprocessed | 0 migrated |
+| 5 | J5 — local platform/process/service/host | 39 unprocessed | 0 migrated |
+| 6 | J7 — trusted sidecars | 62 unprocessed | 0 migrated |
+| 7 | J6 — security and network | 15 unprocessed | 0 migrated |
+| — | J2 — typed data transforms | 3 current boundaries | 13 migrated |
 | — | J8 — dynamic-engine families | 48 | explicitly unsupported |
 
-The actual total is **13 migrated cmdlets**. A row contributes to that
+The actual total is **24 migrated cmdlets**. A row contributes to that
 total only after the lifecycle's release step; batch order, foundation work,
 and approved plans do not count as migrations.
 
@@ -106,8 +108,8 @@ and approved plans do not count as migrations.
 | ID | Foundation | State | Purpose |
 | --- | --- | --- | --- |
 | J0 | Closed JSON codec/value plane | complete (`aff09b3`) | Bounded JSON ↔ closed `AotValue`, typed limits/diagnostics; no `PSObject` or arbitrary CLR serialization. |
-| J1 | Direct physical read/path | lexical slice complete at `9a279d3`; 2/14 migrated, 12 `requires-substrate` | Two closed, provider-free **lexical** path-text adapters (`Join-Path` / `Split-Path`); no resolver, captured-root, drive, or ambient-location authority. [Accepted profile design](../architecture/j1-direct-lexical-path-profiles.md); [implementation review](../reviews/j1-lexical-path-implementation.md). |
-| J2 | Closed typed data plane | initial slice released at `0927d11`; 2/16 migrated, 14 deferred | `Where-Object` static numeric record filtering and `Select-Object` explicit closed-record projection are released; ordering, aggregation, text matching, and the other J2 commands remain separately scoped. |
+| J1 | Direct physical read/path | lexical slice complete at `9a279d3`; 2/14 migrated, 12 unprocessed | Two closed, provider-free **lexical** path-text adapters (`Join-Path` / `Split-Path`); no resolver, captured-root, drive, or ambient-location authority. [Accepted profile design](../architecture/j1-direct-lexical-path-profiles.md); [implementation review](../reviews/j1-lexical-path-implementation.md). |
+| J2 | Closed typed data plane | 13/16 migrated; 3 current boundaries | The released set is recorded in the canonical table above. `Add-Member`, `Measure-Command`, and `Tee-Object` remain explicit no-route outcomes; they need new object-schema, script-execution, or authority designs. |
 | J3 | Terminal and stream contracts | queued | Static views and explicit output/error/information streams. |
 | J4 | Physical mutation authority | queued | `ShouldProcess`, confirmation, atomic write/rollback, and trust policy. |
 | J5 | Local platform capabilities | queued | Narrow process, service, host, and platform interfaces with OS/error matrices. |
@@ -123,8 +125,9 @@ The generic multi-positional binder preserves parser-derived argument groups,
 maps them atomically to declared static positions, and leaves the existing
 binder unchanged for every previous descriptor. The lexical adapters do not add
 providers, drives, captured-root resolution, ambient location, or an alternate
-grammar. The other 12 J1 commands remain explicit `requires-substrate`
-outcomes, not failed or partially supported ports.
+grammar. The other 12 J1 commands remain unprocessed shared-seam candidates.
+Their earlier `requires-substrate` planning evidence is not a release or
+terminal boundary disposition.
 
 B02 is partially complete and follows J2 in the dependency-aware release
 order:
@@ -143,10 +146,12 @@ additionally needs a separate static validation contract.
 
 - [Built-in manifest](phase10-built-in-cmdlets.md) and its checked JSON are
   the source classification authority.
-- [Deterministic batch queue](phase10-batch-queue.md) is the exact execution
-  order and prerequisite list; verify/regenerate it through its checked tool.
+- [Deterministic batch queue](phase10-batch-queue.md) retains historical
+  execution order and prerequisites. Its generated completion counters are
+  currently stale, so it is not count authority; use the canonical release
+  status table above until its generator inputs are reconciled.
 - [Engineering archetype inventory](phase10-archetype-inventory.md) explains
-  how the original 279-command survey cohort is now a 275-command active
+  how the original 279-command survey cohort is now a 264-command unported
   cohort grouped into reusable families.
 - [Cmdlet-port lifecycle](cmdlet-port-lifecycle.md) is the required nine-step
   process and the only definition of when a command counts as migrated.
