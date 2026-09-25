@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "ForEach-Object",
+      "source": "src/System.Management.Automation/engine/InternalCommands.cs",
+      "state": "complete-static-text-member-length-subset",
+      "variances": [
+        {
+          "id": "foreach-object-static-text-length",
+          "sourceFeature": "ForEachObjectCommand property-and-method parameter set resolves a member against pipeline PSObject input.",
+          "targetDecision": "Admit only exact MemberName Length on TextRecord input and emit invariant text length values without dynamic member lookup.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "foreach-object-script-and-dynamic-members-deferred",
+          "sourceFeature": "ScriptBlock, Parallel, ArgumentList, dynamic members, methods, PSObject, and member enumeration require the PowerShell dynamic engine.",
+          "targetDecision": "Do not add runtime compilation, runspaces, reflection, or ETS; all other member routes fail closed.",
+          "status": "deferred",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Sort-Object",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Sort-Object.cs and OrderObjectBase.cs",
       "state": "complete-static-text-pipeline-ordering-subset",

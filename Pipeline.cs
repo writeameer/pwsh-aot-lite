@@ -1280,6 +1280,56 @@ internal sealed class SortObjectCmdlet : AotPipelineInputCmdletBase<TextRecord>
     }
 }
 
+// Closed TextRecord extraction of ForEachObjectCommand's property-and-method
+// parameter set. Only String.Length is a statically known member; this does
+// not create dynamic member lookup or script-block execution.
+internal sealed class ForEachObjectCmdlet : AotPipelineInputCmdletBase<TextRecord>
+{
+    private static readonly CmdletDescriptor ForEachObjectDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => ForEachObjectDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context) => [];
+
+    protected override IEnumerable<IPipelineRecord> ProcessPipelineInput(
+        CommandInvocation invocation,
+        IReadOnlyList<TextRecord> input,
+        AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("MemberName", out string[] members)
+            || members.Length != 1
+            || !members[0].Equals("Length", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6733",
+                "ForEach-Object supports only named -MemberName Length for static TextRecord input in this subset.",
+                invocation.GetValueSpan("MemberName", 0) ?? invocation.SourceSpan,
+                "unsupported dynamic member route",
+                "Use -MemberName Length with a preceding AOT command that emits TextRecord values."));
+        }
+
+        return input
+            .Select(record => (IPipelineRecord)new TextRecord(record.Value.Length.ToString(CultureInfo.InvariantCulture)))
+            .ToArray();
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor source = GeneratedCmdletPorts.ForEachObject.CreateAotDescriptor("MemberName");
+        ParameterSpec[] namedOnly = source.Parameters
+            .Select(parameter => parameter with
+            {
+                ParameterSets = parameter.ParameterSets
+                    .Select(parameterSet => parameterSet with { Position = null })
+                    .ToArray(),
+            })
+            .ToArray();
+        return new CmdletDescriptor(source.Name, namedOnly);
+    }
+}
+
 // Exact seeded-only extraction of PolymorphicRandomNumberGenerator's helper
 // path from upstream GetRandomCommandBase. It deliberately contains no
 // cryptographic generator, runspace map, reflection, or PSObject behavior.
@@ -1653,7 +1703,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new MeasureObjectCmdlet(), new GetUniqueCmdlet(), new GroupObjectCmdlet(), new SortObjectCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new MeasureObjectCmdlet(), new GetUniqueCmdlet(), new GroupObjectCmdlet(), new SortObjectCmdlet(), new ForEachObjectCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {

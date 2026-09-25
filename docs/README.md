@@ -61,6 +61,7 @@ The migration order and candidacy decisions are maintained in the
 | `Get-Unique` | integrated explicit `-AsString` closed text-pipeline subset | [Get-Unique port notes](cmdlets/get-unique.md) |
 | `Group-Object` | integrated explicit `-NoElement` closed text-pipeline subset | [Group-Object port notes](cmdlets/group-object.md) |
 | `Sort-Object` | integrated closed text-pipeline ordering subset | [Sort-Object port notes](cmdlets/sort-object.md) |
+| `ForEach-Object` | integrated static `-MemberName Length` text-pipeline subset | [ForEach-Object port notes](cmdlets/foreach-object.md) |
 
 The ordered campaign backlog is in the [cmdlet migration queue](queue.md).
 Legacy-module registration experiments and their package contracts are indexed
