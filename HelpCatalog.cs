@@ -47,7 +47,7 @@ internal static class BuiltInCommandAvailability
 {
     internal static IReadOnlySet<string> NativeAdapterNames { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "Get-Process", "Get-Uptime", "Get-UICulture", "Get-Culture", "Get-Verb", "Get-Random",
+        "Get-Process", "Get-Uptime", "Get-UICulture", "Get-Culture", "Get-Verb", "Get-Random", "Get-SecureRandom",
         "Get-TimeZone", "Get-Date", "Get-FileHash", "Get-ChildItem", "Get-Item", "Test-Path", "Resolve-Path", "Convert-Path", "Join-Path", "Split-Path", "New-Guid", "New-TimeSpan", "Start-Sleep", "Get-Help", "Get-Command",
         "Get-Module",
     };
