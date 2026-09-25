@@ -19,8 +19,8 @@ values. `-AsString` is mandatory; it is not a general object comparison port.
 
 | Field | Value |
 | --- | --- |
-| UTC work ended | `2026-09-25T09:26:31.9066670Z` |
-| Scope note | Explicit text pipeline, current-culture adjacent comparison; managed and fresh Native AOT verification completed. |
+| UTC work ended | `2026-09-25T09:27:34.9777480Z` |
+| Scope note | Explicit text pipeline, current-culture adjacent comparison; managed and fresh Native AOT verification completed; integrated to `main` at `449cc3d`. |
 
 ## Reuse and boundary
 
