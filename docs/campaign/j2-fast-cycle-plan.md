@@ -19,6 +19,10 @@ Each archetype moves through three strictly ordered layers. A failure in a
 layer is the archetype result; it does not authorize a retry, repair, or a
 later layer.
 
+The resulting Layer A command-boundary record is retained in
+[j2-fast-cycle-layer-a-results.md](j2-fast-cycle-layer-a-results.md). It is
+evidence only and does not change lifecycle or migration accounting.
+
 ## Deterministic cycle
 
 1. **A — behavior probe (under five seconds).** Run only stock `pwsh` and the
