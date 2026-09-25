@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Get-Member",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetMember.cs",
+      "state": "complete-static-text-member-length-metadata-subset",
+      "variances": [
+        {
+          "id": "get-member-static-text-length",
+          "sourceFeature": "GetMemberCommand resolves and enumerates PSObject member collections and writes MemberDefinition metadata.",
+          "targetDecision": "Admit only Name Length for TextRecord input and emit one fixed closed System.String Length definition.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "get-member-dynamic-discovery-deferred",
+          "sourceFeature": "Member names, member types, views, static members, type names, and ETS discovery are dynamic source behavior.",
+          "targetDecision": "Do not add PSObject, ETS, reflection, or dynamic metadata discovery; all other names fail closed.",
+          "status": "deferred",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "ForEach-Object",
       "source": "src/System.Management.Automation/engine/InternalCommands.cs",
       "state": "complete-static-text-member-length-subset",

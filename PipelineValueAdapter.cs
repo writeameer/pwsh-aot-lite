@@ -34,6 +34,7 @@ internal static class PipelineValueAdapter
             or CompareObjectRecord
             or MeasureTextRecord
             or GroupTextRecord
+            or MemberDefinitionRecord
             or FileHashRecord
             or PhysicalChildItemRecord
             or DirectPhysicalPathRecord
@@ -142,6 +143,11 @@ internal static class PipelineValueAdapter
             GroupTextRecord value => Record(
                 Field("Count", Integer(value.Count)),
                 Field("Name", Text(value.Name))),
+            MemberDefinitionRecord value => Record(
+                Field("TypeName", Text(value.TypeName)),
+                Field("Name", Text(value.Name)),
+                Field("MemberType", Text(value.MemberType)),
+                Field("Definition", Text(value.Definition))),
             FileHashRecord value => Record(
                 Field("Algorithm", Text(value.Algorithm)),
                 Field("Hash", Text(value.Hash)),
