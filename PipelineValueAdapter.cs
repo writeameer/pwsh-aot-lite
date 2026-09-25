@@ -32,6 +32,7 @@ internal static class PipelineValueAdapter
             or TextRecord
             or BooleanRecord
             or CompareObjectRecord
+            or MeasureTextRecord
             or FileHashRecord
             or PhysicalChildItemRecord
             or DirectPhysicalPathRecord
@@ -132,6 +133,11 @@ internal static class PipelineValueAdapter
             CompareObjectRecord value => Record(
                 Field("InputObject", Text(value.InputObject)),
                 Field("SideIndicator", Text(value.SideIndicator))),
+            MeasureTextRecord value => Record(
+                Field("Lines", value.Lines is int lines ? Integer(lines) : AotValue.Null),
+                Field("Words", value.Words is int words ? Integer(words) : AotValue.Null),
+                Field("Characters", value.Characters is int characters ? Integer(characters) : AotValue.Null),
+                Field("Property", AotValue.Null)),
             FileHashRecord value => Record(
                 Field("Algorithm", Text(value.Algorithm)),
                 Field("Hash", Text(value.Hash)),
