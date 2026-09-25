@@ -23,4 +23,4 @@ misrepresenting the resulting `Count`, `Name` records.
 
 Managed and fresh osx-arm64 Native AOT self-tests passed. Native probes matched
 stock grouping (`2|alpha/beta`; `1|a/A`, `2|b/A`); omitted `NoElement` fails
-closed with `AOT6732`.
+closed with `AOT6732`. Integrated to `main` at `be698f8`.
