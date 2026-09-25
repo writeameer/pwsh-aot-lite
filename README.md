@@ -223,23 +223,24 @@ Per-cmdlet migration evidence and reusable learnings are indexed in
 
 ## Run the migrated-cmdlet example
 
-[`examples/AllMigratedCmdlets.ps1`](examples/AllMigratedCmdlets.ps1) creates a
-disposable local fixture and runs every one of the 24 officially migrated
-cmdlets through the Native AOT executable. It uses only each cmdlet's released
-subset; it does not present deferred or boundary cmdlets as supported.
+[`examples/AllMigratedCmdlets.ps1`](examples/AllMigratedCmdlets.ps1) runs every
+one of the 24 officially migrated cmdlets directly through the Native AOT
+executable. Its checked-in `fixtures/` directory makes the direct filesystem
+examples reproducible. It uses only each cmdlet's released subset; it does not
+present deferred or boundary cmdlets as supported.
 
 Publish a native executable, then run the example from the repository root:
 
 ```powershell
 $env:LIBRARY_PATH = '/opt/homebrew/opt/openssl@3/lib:/opt/homebrew/opt/brotli/lib'
 dotnet publish -c Release -r osx-arm64 --self-contained true -o artifacts/osx-arm64
-pwsh -NoProfile -File examples/AllMigratedCmdlets.ps1
+./artifacts/osx-arm64/PwshAotLite "$PWD/examples/AllMigratedCmdlets.ps1"
 ```
 
 To use an executable published elsewhere, pass its path explicitly:
 
 ```powershell
-pwsh -NoProfile -File examples/AllMigratedCmdlets.ps1 -NativePwshPath /absolute/path/to/PwshAotLite
+/absolute/path/to/PwshAotLite /absolute/path/to/AllMigratedCmdlets.ps1
 ```
 
 ## Generic help catalog

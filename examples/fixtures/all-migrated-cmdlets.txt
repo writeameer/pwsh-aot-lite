@@ -1,0 +1,3 @@
+native AOT sample
+PowerShell-compatible literal search
+native AOT sample
