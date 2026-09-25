@@ -20,7 +20,7 @@ emits the closed `Lines`, `Words`, `Characters`, `Property` record shape.
 | Field | Value |
 | --- | --- |
 | UTC work ended | `2026-09-25T09:16:41.7643560Z` |
-| Scope note | Direct named one-string TextMeasure counters; managed and fresh Native AOT verification completed. |
+| Scope note | Direct named one-string TextMeasure counters; managed and fresh Native AOT verification completed; integrated to `main` at `e2530bb`. |
 
 ## Reuse and boundary
 
