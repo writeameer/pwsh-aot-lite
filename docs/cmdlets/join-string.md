@@ -2,7 +2,7 @@
 
 ## Status and source
 
-Release-pending Native AOT subset:
+Integrated Native AOT subset:
 
 ```powershell
 Join-String -InputObject <string[]> -Separator <string>
@@ -21,8 +21,8 @@ adapter emits their literal join as one text record.
 | Field | Value |
 | --- | --- |
 | UTC work started | `2026-09-25T08:28:19Z` |
-| UTC work ended | `—` |
-| Elapsed wall clock | `—` |
+| UTC work ended | `2026-09-25T08:38:58.3240330Z` |
+| Elapsed wall clock | `00:10:39.3240330` |
 | Scope note | Direct named literal-string join with an explicit separator; no object adaptation or formatting route. |
 
 ## Upstream reuse evidence matrix
@@ -65,5 +65,5 @@ binding as `AOT2002`.
 
 ## Next action
 
-Merge and push the verified release; only then record completion timing and
-count the cmdlet as migrated.
+None. The verified slice is integrated to `main` at `681db04`; its completion
+timing is recorded in this follow-up release record.
