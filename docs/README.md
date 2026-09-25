@@ -57,6 +57,7 @@ The migration order and candidacy decisions are maintained in the
 | `Join-String` | integrated direct named literal-string join subset | [Join-String port notes](cmdlets/join-string.md) |
 | `Compare-Object` | integrated direct named string `SyncWindow 0` subset | [Compare-Object port notes](cmdlets/compare-object.md) |
 | `Select-String` | integrated direct Raw SimpleMatch one-file subset | [Select-String port notes](cmdlets/select-string.md) |
+| `Add-Member` | explicitly deferred: dynamic ETS member mutation | [Add-Member boundary note](cmdlets/add-member.md) |
 
 The ordered campaign backlog is in the [cmdlet migration queue](queue.md).
 Legacy-module registration experiments and their package contracts are indexed

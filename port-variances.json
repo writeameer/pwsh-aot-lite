@@ -858,6 +858,20 @@
       ]
     },
     {
+      "command": "Add-Member",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/AddMember.cs",
+      "state": "explicit-boundary-dynamic-ets-mutation",
+      "variances": [
+        {
+          "id": "add-member-dynamic-ets-mutation-boundary",
+          "sourceFeature": "InputObject is PSObject and the source constructs a member dynamically before mutating _inputObject.Members.Add(member).",
+          "targetDecision": "Do not introduce PSObject, ETS, reflection, or a fake record-copy adapter. Object identity and dynamic-member semantics are outside the closed immutable AotRecord boundary.",
+          "status": "blocked",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Select-String",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/MatchString.cs",
       "state": "complete-direct-raw-simple-file-subset",
