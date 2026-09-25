@@ -36,6 +36,7 @@ reuse, review, and verification work—not just target coding.
 | `Split-Path` | 2026-09-24T19:50:10Z | 2026-09-24T20:06:38Z | 00:16:28 | J1 POSIX-v1 lexical decomposition/selectors; verified and merged at `9a279d3`. | integrated |
 | `Where-Object` | 2026-09-24T19:52:33Z | 2026-09-25T01:02:31Z | 05:09:58 | J2 descriptor-bound numeric record predicate; verified, reviewed, and released at `0927d11`. | integrated |
 | `Select-Object` | 2026-09-24T19:52:33Z | 2026-09-25T01:02:31Z | 05:09:58 | J2 descriptor-bound explicit record-field projection; verified, reviewed, and released at `0927d11`. | integrated |
+| `Get-Random` | 2026-09-25T07:50:03Z | pending main release | pending main release | J2 named seeded Int32 (`SetSeed`/`Minimum`/`Maximum`) direct numeric subset; managed/native evidence complete. | release-pending |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
