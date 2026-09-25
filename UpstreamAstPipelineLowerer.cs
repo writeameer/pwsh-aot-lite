@@ -353,86 +353,49 @@ internal static class UpstreamAstPipelineLowerer
                 throw Unsupported("pipeline elements must be command ASTs", pipeline.PipelineElements[index].Extent);
             }
 
+            // This is the only redirect for the two J2 names. It runs before
+            // the normal executable-command path, so the retired structural
+            // lowering route cannot bind, diagnose, or fall back for either
+            // spelling. The descriptor receives original AST-derived atoms.
+            if (TryGetStaticRecordStageName(command, out string? stageName))
+            {
+                if (index == 0)
+                {
+                    throw new ScriptException(AotDiagnostics.Binding(
+                        "AOT6401",
+                        $"{stageName} is a pipeline-only static record stage and cannot be the source command.",
+                        AotScriptParser.ToSpan(command.Extent)) with
+                    {
+                        Label = "static record stage requires input",
+                        Help = "Place it after a native AOT command that emits a closed record batch.",
+                    });
+                }
+
+                if (tailStages.Count >= MaxStructuralTailStages)
+                {
+                    throw Unsupported("more than four ordered Where-Object/Select-Object transforms", command.Extent);
+                }
+
+                if (command.CommandElements.Skip(1).OfType<ScriptBlockExpressionAst>().FirstOrDefault() is { } scriptBlock)
+                {
+                    throw new ScriptException(AotDiagnostics.Binding(
+                        "AOT6406",
+                        $"{stageName} ScriptBlock binding is outside the Native AOT static record subset.",
+                        AotScriptParser.ToSpan(scriptBlock.Extent)) with
+                    {
+                        Label = "unsupported static stage form",
+                        Help = "Use the admitted direct Property/Value or Property field form; script blocks are not evaluated.",
+                    });
+                }
+
+                tailStages.Add(AotCmdletRegistry.BindStaticRecordStage(LowerCommand(command)));
+                continue;
+            }
+
             AotCommandPlan lowered = LowerCommand(command);
             if (index == 0)
             {
                 source = lowered;
-                continue;
-            }
-
-            if (lowered.Name.Equals("Where-Object", StringComparison.OrdinalIgnoreCase))
-            {
-                if (tailStages.Count >= MaxStructuralTailStages)
-                {
-                    throw Unsupported("more than four ordered Where-Object/Select-Object transforms", command.Extent);
-                }
-
-                if (lowered.Arguments.Count != 3
-                    || lowered.Arguments[0] is not AotValueArgumentPlan propertyArgument
-                    || lowered.Arguments[1] is not AotParameterArgumentPlan operatorArgument
-                    || lowered.Arguments[2] is not AotValueArgumentPlan valueArgument
-                    || !TryGetDirectString(propertyArgument.Expression, out string? property))
-                {
-                    throw Unsupported("Where-Object accepts one direct property/operator/value predicate in this subset", command.Extent);
-                }
-
-                string comparisonText = "-" + operatorArgument.Name;
-                AotSourceSpan valueSpan = valueArgument.Span;
-                AotSourceSpan propertySpan = propertyArgument.Span;
-                AotSourceSpan operatorSpan = operatorArgument.Span;
-                if (TryGetDirectScalarText(valueArgument.Expression, out string? literalValue))
-                {
-                    tailStages.Add(new AotFilterTailStagePlan(
-                        new AotLiteralFilterStagePlan(ScriptParser.ParseFilterArguments(
-                            [property!, comparisonText, literalValue!],
-                            valueSpan,
-                            propertySpan,
-                            operatorSpan)),
-                        AotScriptParser.ToSpan(command.Extent)));
-                }
-                else
-                {
-                    Comparison comparison = ScriptParser.ParseComparison(comparisonText, operatorSpan);
-                    tailStages.Add(new AotFilterTailStagePlan(
-                        new AotVariableFilterStagePlan(property!, comparison, valueArgument.Expression, propertySpan),
-                        AotScriptParser.ToSpan(command.Extent)));
-                }
-
-                continue;
-            }
-
-            if (lowered.Name.Equals("Select-Object", StringComparison.OrdinalIgnoreCase))
-            {
-                if (tailStages.Count >= MaxStructuralTailStages)
-                {
-                    throw Unsupported("more than four ordered Where-Object/Select-Object transforms", command.Extent);
-                }
-
-                if (lowered.Arguments.Any(static argument => argument is AotParameterArgumentPlan))
-                {
-                    throw Unsupported("Select-Object accepts one direct property projection in this subset", command.Extent);
-                }
-
-                IReadOnlyList<string> columns;
-                AotSourceSpan projectionSpan;
-                if (lowered.Arguments.Count == 0)
-                {
-                    columns = ScriptParser.ParseColumns([], lowered.CommandSpan);
-                    projectionSpan = lowered.CommandSpan;
-                }
-                else
-                {
-                    string[] directColumns = lowered.Arguments
-                        .OfType<AotValueArgumentPlan>()
-                        .Select(argument => TryGetDirectString(argument.Expression, out string? column)
-                            ? column!
-                            : throw Unsupported("variable or expression Select-Object columns", argument.Span))
-                        .ToArray();
-                    columns = ScriptParser.ParseColumns(directColumns, lowered.Arguments[0].Span);
-                    projectionSpan = lowered.Arguments[0].Span;
-                }
-
-                tailStages.Add(new AotProjectionTailStagePlan(columns, projectionSpan));
                 continue;
             }
 
@@ -462,6 +425,15 @@ internal static class UpstreamAstPipelineLowerer
             inputStage,
             tailStages,
             pipeline.PipelineElements.Count);
+    }
+
+    private static bool TryGetStaticRecordStageName(CommandAst command, out string? name)
+    {
+        name = command.CommandElements.FirstOrDefault() is StringConstantExpressionAst commandName
+            && AotCmdletRegistry.IsStaticRecordStage(commandName.Value)
+                ? commandName.Value
+                : null;
+        return name is not null;
     }
 
     private static AotCommandPlan LowerCommand(CommandAst command)
@@ -544,8 +516,17 @@ internal static class UpstreamAstPipelineLowerer
 
     private static AotExpressionPlan LowerExpression(ExpressionAst expression) => expression switch
     {
-        StringConstantExpressionAst text => new AotLiteralExpressionPlan(AotValue.FromString(text.Value), AotScriptParser.ToSpan(text.Extent)),
+        StringConstantExpressionAst text => new AotLiteralExpressionPlan(
+            AotValue.FromString(text.Value),
+            AotScriptParser.ToSpan(text.Extent),
+            text.StringConstantType == StringConstantType.BareWord),
         ConstantExpressionAst constant => new AotLiteralExpressionPlan(ToAotLiteral(constant.Value, constant.Extent), AotScriptParser.ToSpan(constant.Extent)),
+        // PowerShell exposes a signed literal as a UnaryExpressionAst around
+        // its upstream constant.  Preserve that AST distinction and admit
+        // only a finite numeric negation; this is not general expression
+        // evaluation or a second grammar.
+        UnaryExpressionAst { TokenKind: TokenKind.Minus, Child: ConstantExpressionAst constant } unary =>
+            new AotLiteralExpressionPlan(NegateFiniteNumericLiteral(constant.Value, unary.Extent), AotScriptParser.ToSpan(unary.Extent)),
         VariableExpressionAst variable => LowerVariable(variable),
         ArrayLiteralAst array => new AotListExpressionPlan(array.Elements.Select(LowerExpression).ToArray(), AotScriptParser.ToSpan(array.Extent)),
         _ => throw Unsupported($"expression '{expression.GetType().Name}'", expression.Extent),
@@ -657,39 +638,20 @@ internal static class UpstreamAstPipelineLowerer
         _ => throw Unsupported($"literal CLR type '{value?.GetType().FullName ?? "null"}'", extent),
     };
 
-    private static bool TryGetDirectString(AotExpressionPlan expression, out string? value)
+    private static AotValue NegateFiniteNumericLiteral(object? value, IScriptExtent extent) => value switch
     {
-        if (expression is AotLiteralExpressionPlan literal && literal.Value.TryGetString(out value))
-        {
-            return true;
-        }
-
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetDirectScalarText(AotExpressionPlan expression, out string? text)
-    {
-        if (expression is not AotLiteralExpressionPlan literal || literal.Value.TryGetItems(out _))
-        {
-            text = null;
-            return false;
-        }
-
-        List<CommandSyntaxAtom> atoms = [];
-        try
-        {
-            AotCommandArgumentConverter.Append(literal.Value, expression.Span, atoms);
-        }
-        catch (ScriptException)
-        {
-            text = null;
-            return false;
-        }
-
-        text = atoms.Count == 1 ? atoms[0].Text : null;
-        return text is not null;
-    }
+        sbyte number => AotValue.FromInteger(-number),
+        byte number => AotValue.FromInteger(-number),
+        short number => AotValue.FromInteger(-number),
+        ushort number => AotValue.FromInteger(-number),
+        int number => AotValue.FromInteger(-(long)number),
+        uint number => AotValue.FromInteger(-(long)number),
+        long number when number != long.MinValue => AotValue.FromInteger(-number),
+        decimal number => AotValue.FromDecimal(-number),
+        float number when float.IsFinite(number) => AotValue.FromFloatingPoint(-number),
+        double number when double.IsFinite(number) => AotValue.FromFloatingPoint(-number),
+        _ => throw Unsupported("unary minus other than a representable finite numeric literal", extent),
+    };
 
     private static void ThrowIfParseFailed(AotParseResult parseResult)
     {

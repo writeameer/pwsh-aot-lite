@@ -36,7 +36,28 @@ internal sealed class AotRecordBatch
         return new AotRecordBatch(records);
     }
 
-    internal AotRecordBatch Apply(AotExecutionContext context, IReadOnlyList<AotRecordTransform> transforms)
+    // The command-stage seam has one closed input/output type. It is neither
+    // an object pipe nor a plugin callback: every admitted stage receives and
+    // returns only an immutable record batch.
+    internal AotRecordBatch Apply(AotExecutionContext context, IReadOnlyList<IAotRecordBatchStage> stages)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(stages);
+
+        AotRecordBatch current = this;
+        foreach (IAotRecordBatchStage stage in stages)
+        {
+            context.ThrowIfCancellationRequested();
+            current = stage.Apply(context, current);
+        }
+
+        context.ThrowIfCancellationRequested();
+        return current;
+    }
+
+    // Shared finite row operations remain internal substrate for descriptor
+    // stages and focused cancellation fixtures. They are not a command route.
+    internal AotRecordBatch ApplyTransforms(AotExecutionContext context, IReadOnlyList<AotRecordTransform> transforms)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(transforms);
@@ -90,6 +111,13 @@ internal sealed class AotRecordBatch
     }
 }
 
+internal interface IAotRecordBatchStage
+{
+    CmdletDescriptor Descriptor { get; }
+    AotRecordShape? OutputShape { get; }
+    AotRecordBatch Apply(AotExecutionContext context, AotRecordBatch input);
+}
+
 // These are data-plane operations, not commands. Their arguments are already
 // lowered from the upstream AST and they never inspect raw PowerShell source.
 internal abstract class AotRecordTransform(AotSourceSpan? span)
@@ -122,7 +150,7 @@ internal sealed class AotRecordProjectionTransform(
             if (!selected.Add(column))
             {
                 throw new ScriptException(AotDiagnostics.Runtime(
-                    "AOT4007",
+                    "AOT6405",
                     "Select-Object does not permit duplicate fields that differ only by case in the AOT subset.",
                     Span,
                     "duplicate projection field",
@@ -140,7 +168,7 @@ internal sealed class AotRecordProjectionTransform(
         catch (KeyNotFoundException)
         {
             throw new ScriptException(AotDiagnostics.Runtime(
-                "AOT4008",
+                "AOT6404",
                 "Select-Object requested a column not present on this pipeline value.",
                 Span,
                 "unknown projection field",

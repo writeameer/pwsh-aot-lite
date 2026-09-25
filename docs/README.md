@@ -52,6 +52,8 @@ The migration order and candidacy decisions are maintained in the
 | `Get-Module` | complete for the static built-in and registered-extension inventory; live/module-path modes deferred | [Get-Module port notes](cmdlets/get-module.md) |
 | `Find-Module` | complete for read-only local repository-index discovery; online repository/install modes deferred | [Find-Module control-plane notes](cmdlets/find-module.md) |
 | `Install-Module` | complete for hash-verified local file-package installation; transport/trust/package-manager modes deferred | [Install-Module control-plane notes](cmdlets/install-module.md) |
+| `Where-Object` | J2 static numeric record-predicate implementation in review; not migrated | [Where-Object port notes](cmdlets/where-object.md) |
+| `Select-Object` | J2 static explicit-field projection implementation in review; not migrated | [Select-Object port notes](cmdlets/select-object.md) |
 
 The ordered campaign backlog is in the [cmdlet migration queue](queue.md).
 Legacy-module registration experiments and their package contracts are indexed

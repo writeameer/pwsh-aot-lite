@@ -858,6 +858,76 @@
       ]
     },
     {
+      "command": "Where-Object",
+      "source": "src/System.Management.Automation/engine/InternalCommands.cs",
+      "state": "implementation-in-progress-not-migrated",
+      "variances": [
+        {
+          "id": "j2-where-generated-metadata",
+          "sourceFeature": "WhereObjectCommand Property/Value/operator aliases and parameter sets are owned by PSCmdlet metadata.",
+          "targetDecision": "GeneratedCmdletPorts.WhereObject supplies the reviewed Property, Value, EQ, NE, GT, GE, LT, and LE parameter metadata; aliases are matched from generated metadata and are not manually copied.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j2-where-static-record-predicate",
+          "sourceFeature": "Where-Object performs PSObject member access, ScriptBlock execution, and PowerShell conversion over source input.",
+          "targetDecision": "The reviewed route consumes only AotRecordBatch rows and applies one finite numeric comparison to an explicitly named record field. It adds no object binder, reflection, provider, or dynamic engine.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j2-where-closed-row-output",
+          "sourceFeature": "ProcessRecord writes the original source input object for matching rows.",
+          "targetDecision": "Matching immutable AotRecord rows preserve input order and fields; PSObject/ETS identity is unavailable by design.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j2-where-dynamic-routes-deferred",
+          "sourceFeature": "FilterScript, direct InputObject, pattern/type/collection/case-sensitive operators, and dynamic property semantics.",
+          "targetDecision": "All unreviewed routes terminate at AOT6406 before execution; no fallback uses the prior structural path.",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
+      "command": "Select-Object",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Select-Object.cs",
+      "state": "implementation-in-progress-not-migrated",
+      "variances": [
+        {
+          "id": "j2-select-generated-metadata",
+          "sourceFeature": "SelectObjectCommand Property position and parameter-set metadata are owned by PSCmdlet metadata.",
+          "targetDecision": "GeneratedCmdletPorts.SelectObject supplies the reviewed Property metadata; the AST retains the property group without a text parser or second binder.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j2-select-static-record-projection",
+          "sourceFeature": "Select-Object uses PSPropertyExpression, PSObject wrapping, note-property mutation, and output lifecycle queues.",
+          "targetDecision": "The reviewed route projects only literal AotRecord fields through the existing immutable AotRecordShape/AotRecordBatch substrate.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j2-select-explicit-shape-display",
+          "sourceFeature": "Selected-object type names and ETS/type-data determine ordinary PowerShell display behavior.",
+          "targetDecision": "Requested field spelling/order is the exact closed output shape and table; no Selected.* type name or dynamic formatter is claimed.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "j2-select-dynamic-routes-deferred",
+          "sourceFeature": "InputObject, calculated/wildcard properties, exclusion/expansion, unique/index/queue/first/last/skip/wait options.",
+          "targetDecision": "All unreviewed routes reject with AOT6404 or AOT6406 before execution; no fallback uses the prior structural path.",
+          "status": "deferred",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "MetadataCompletion",
       "source": "PowerShell completion, ArgumentCompleter, and Register-ArgumentCompleter subsystems",
       "state": "complete-static-catalog-discovery-target",

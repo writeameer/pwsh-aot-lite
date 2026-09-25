@@ -34,6 +34,8 @@ reuse, review, and verification work—not just target coding.
 | `ConvertTo-Json` | 2026-09-23T13:05:01.6890880Z | — | — | J0 closed `AotValue`-to-JSON foundation is integrated; adapter work has not begun. | queued after J0 |
 | `Join-Path` | 2026-09-24T19:50:10Z | 2026-09-24T20:06:38Z | 00:16:28 | J1 POSIX-v1 zero-authority lexical composition; verified and merged at `9a279d3`. | integrated |
 | `Split-Path` | 2026-09-24T19:50:10Z | 2026-09-24T20:06:38Z | 00:16:28 | J1 POSIX-v1 lexical decomposition/selectors; verified and merged at `9a279d3`. | integrated |
+| `Where-Object` | 2026-09-24T19:52:33Z | — | — | J2 descriptor-bound numeric record predicate; implementation pending independent review and release. | in progress, not migrated |
+| `Select-Object` | 2026-09-24T19:52:33Z | — | — | J2 descriptor-bound explicit record-field projection; implementation pending independent review and release. | in progress, not migrated |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is

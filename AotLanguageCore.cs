@@ -374,6 +374,10 @@ internal sealed class AotPipelineStatementPlan(
     IReadOnlyList<AotPipelineTailStagePlan> tailStages,
     int pipelineLength) : AotStatementPlan
 {
+    // Inspection-only plan evidence for the self-test corpus. Execution still
+    // consumes the constructor-owned immutable stages below.
+    internal IReadOnlyList<AotPipelineTailStagePlan> GetTailStagesForEvidence() => tailStages;
+
     internal override AotControlFlow Execute(AotExecutionContext context, AotScope scope, Action<AotExecutionOutput> emit)
     {
         context.ThrowIfCancellationRequested();
@@ -394,9 +398,9 @@ internal sealed class AotPipelineStatementPlan(
             }
 
             AotFunctionProducerOutput seed = function.InvokeAsPipelineProducer(context, scope, source.Arguments, source.CommandSpan);
-            IReadOnlyList<AotRecordTransform> transforms = ResolveTail(scope);
+            IReadOnlyList<IAotRecordBatchStage> stages = ResolveTail(scope);
             AotRecordShape outputShape = ResolveOutputShape(seed.DefaultColumns, source.CommandSpan);
-            AotRecordBatch batch = seed.Batch.Apply(context, transforms);
+            AotRecordBatch batch = seed.Batch.Apply(context, stages);
             emit(new AotExecutionOutput(batch, outputShape, AotTerminalPresentation.Table, source.CommandSpan));
             return AotControlFlow.Continue;
         }
@@ -438,15 +442,17 @@ internal sealed class AotPipelineStatementPlan(
             pipelineLength);
     }
 
-    private IReadOnlyList<AotRecordTransform> ResolveTail(AotScope scope) =>
+    private IReadOnlyList<IAotRecordBatchStage> ResolveTail(AotScope scope) =>
         tailStages.Select(stage => stage.Resolve(scope)).ToArray();
 
     private AotRecordShape ResolveOutputShape(IReadOnlyList<string>? sourceColumns, AotSourceSpan callSpan)
     {
-        AotProjectionTailStagePlan? projection = tailStages.OfType<AotProjectionTailStagePlan>().LastOrDefault();
-        if (projection is not null)
+        AotRecordShape? projectedShape = tailStages
+            .Select(static stage => stage.OutputShape)
+            .LastOrDefault(static shape => shape is not null);
+        if (projectedShape is not null)
         {
-            return projection.Shape;
+            return projectedShape;
         }
 
         if (sourceColumns is null)
@@ -628,13 +634,17 @@ internal abstract class AotExpressionPlan(AotSourceSpan span)
 
 internal sealed class AotLiteralExpressionPlan : AotExpressionPlan
 {
-    internal AotLiteralExpressionPlan(AotValue value, AotSourceSpan span)
+    internal AotLiteralExpressionPlan(AotValue value, AotSourceSpan span, bool isBareWord = false)
         : base(span)
     {
         Value = value;
+        IsBareWord = isBareWord;
     }
 
     internal AotValue Value { get; }
+    // Retains the only lexical provenance J2 needs: an unquoted upstream
+    // command atom versus a quoted PowerShell string. It is not a parser.
+    internal bool IsBareWord { get; }
     internal override AotValue Evaluate(AotScope scope) => Value;
 }
 
@@ -972,78 +982,9 @@ internal static class AotCommandArgumentConverter
     }
 }
 
-internal abstract class AotFilterStagePlan
-{
-    internal abstract Filter Resolve(AotScope scope);
-}
-
 internal abstract class AotPipelineTailStagePlan
 {
-    internal abstract AotRecordTransform Resolve(AotScope scope);
-}
-
-internal sealed class AotFilterTailStagePlan(AotFilterStagePlan filter, AotSourceSpan? span) : AotPipelineTailStagePlan
-{
-    internal override AotRecordTransform Resolve(AotScope scope) => new AotRecordFilterTransform(filter.Resolve(scope), span);
-}
-
-internal sealed class AotProjectionTailStagePlan(IReadOnlyList<string> columns, AotSourceSpan? span) : AotPipelineTailStagePlan
-{
-    internal IReadOnlyList<string> Columns { get; } = columns;
-
-    internal AotRecordShape Shape
-    {
-        get
-        {
-            ValidateColumns();
-            return new AotRecordShape(Columns);
-        }
-    }
-
-    internal override AotRecordTransform Resolve(AotScope scope)
-    {
-        ValidateColumns();
-        return new AotRecordProjectionTransform(Columns, span);
-    }
-
-    private void ValidateColumns()
-    {
-        HashSet<string> selected = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string column in Columns)
-        {
-            if (!selected.Add(column))
-            {
-                throw new ScriptException(AotDiagnostics.Runtime(
-                    "AOT4007",
-                    "Select-Object does not permit duplicate fields that differ only by case in the AOT subset.",
-                    span,
-                    "duplicate projection field",
-                    "Select each field only once."));
-            }
-        }
-    }
-}
-
-internal sealed class AotLiteralFilterStagePlan(Filter filter) : AotFilterStagePlan
-{
-    internal override Filter Resolve(AotScope scope) => filter;
-}
-
-internal sealed class AotVariableFilterStagePlan(string property, Comparison comparison, AotExpressionPlan value, AotSourceSpan propertySpan) : AotFilterStagePlan
-{
-    internal override Filter Resolve(AotScope scope)
-    {
-        AotValue resolved = value.Evaluate(scope);
-        if (resolved.Kind is not (AotValueKind.Integer or AotValueKind.Decimal or AotValueKind.FloatingPoint))
-        {
-            throw new ScriptException(AotDiagnostics.Scope(
-                "AOT5004",
-                "Where-Object requires a finite numeric predicate value in the AOT subset.",
-                value.Span,
-                "non-numeric predicate variable",
-                "Assign a finite numeric value before using it in this predicate."));
-        }
-
-        return new Filter(property, comparison, resolved, propertySpan);
-    }
+    internal abstract CmdletDescriptor Descriptor { get; }
+    internal abstract AotRecordShape? OutputShape { get; }
+    internal abstract IAotRecordBatchStage Resolve(AotScope scope);
 }

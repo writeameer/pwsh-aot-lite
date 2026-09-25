@@ -50,3 +50,6 @@ convention. Keep them as historical evidence; new DLAR work belongs under
 The current J1 runtime-support claim is recorded in the ordinary
 [J1 lexical path implementation review](j1-lexical-path-implementation.md);
 the J1 DLAR packages above remain design and readiness evidence.
+
+The current J2 code-evidence gate is the ordinary
+[J2 static record-transform implementation review](j2-static-record-transforms-implementation.md).
