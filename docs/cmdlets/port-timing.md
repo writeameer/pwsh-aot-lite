@@ -42,6 +42,7 @@ reuse, review, and verification work—not just target coding.
 | `Compare-Object` | 2026-09-25T08:39:31Z | 2026-09-25T08:47:46.4113200Z | 00:08:15.4113200 | J2 direct named string `SyncWindow 0` pairwise comparison; managed/native evidence verified and main release complete at `9d8ddb1`. | integrated |
 | `Select-String` | 2026-09-25T08:48:18Z | 2026-09-25T08:57:41.9616620Z | 00:09:23.9616620 | J2 direct named one-file one-pattern Raw SimpleMatch; managed/native evidence verified and main release complete at `922f083`. | integrated |
 | `Measure-Object` | unavailable (not recorded) | 2026-09-25T09:18:16.4954380Z | unavailable (start not recorded) | J2 direct named one-string TextMeasure (`Character`/`Word`/`Line`/`IgnoreWhiteSpace`) subset; managed/native evidence verified and main release complete at `e2530bb`. | integrated |
+| `Get-Unique` | unavailable (not recorded) | 2026-09-25T09:26:31.9066670Z | unavailable (start not recorded) | J2 explicit `AsString` static TextRecord pipeline subset; managed/native evidence verified. | release-pending |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is

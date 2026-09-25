@@ -1070,6 +1070,79 @@ internal sealed class MeasureObjectCmdlet : AotCmdletBase
     }
 }
 
+// Closed TextRecord extraction of GetUniqueCommand's explicit -AsString path.
+// The source compares each input with its immediate predecessor.  Its PSObject
+// and InternalTypeNames routes remain deliberately outside this adapter.
+internal sealed class GetUniqueCmdlet : AotPipelineInputCmdletBase<TextRecord>
+{
+    private static readonly CmdletDescriptor GetUniqueDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => GetUniqueDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        RequireAsString(invocation);
+        // GetUniqueCommand emits nothing when its pipeline input is absent.
+        return [];
+    }
+
+    protected override IEnumerable<IPipelineRecord> ProcessPipelineInput(
+        CommandInvocation invocation,
+        IReadOnlyList<TextRecord> input,
+        AotExecutionContext context)
+    {
+        RequireAsString(invocation);
+        StringComparison comparison = invocation.TryGetValues("CaseInsensitive", out _)
+            ? StringComparison.CurrentCultureIgnoreCase
+            : StringComparison.CurrentCulture;
+
+        List<IPipelineRecord> output = [];
+        string? previous = null;
+        bool hasPrevious = false;
+        foreach (TextRecord record in input)
+        {
+            context.ThrowIfCancellationRequested();
+            if (!hasPrevious || !string.Equals(record.Value, previous, comparison))
+            {
+                output.Add(record);
+                previous = record.Value;
+                hasPrevious = true;
+            }
+        }
+
+        return output;
+    }
+
+    private static void RequireAsString(CommandInvocation invocation)
+    {
+        if (!invocation.TryGetValues("AsString", out _))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6731",
+                "Get-Unique requires explicit -AsString in the static TextRecord subset.",
+                invocation.SourceSpan,
+                "unsupported object-comparison route",
+                "Use -AsString with a preceding AOT command that emits TextRecord values."));
+        }
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor source = GeneratedCmdletPorts.GetUnique.CreateAotDescriptor("AsString", "CaseInsensitive");
+        ParameterSpec[] namedOnly = source.Parameters
+            .Select(parameter => parameter with
+            {
+                ParameterSets = parameter.ParameterSets
+                    .Select(parameterSet => parameterSet with { Position = null })
+                    .ToArray(),
+            })
+            .ToArray();
+        return new CmdletDescriptor(source.Name, namedOnly);
+    }
+}
+
 // Exact seeded-only extraction of PolymorphicRandomNumberGenerator's helper
 // path from upstream GetRandomCommandBase. It deliberately contains no
 // cryptographic generator, runspace map, reflection, or PSObject behavior.
@@ -1443,7 +1516,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new MeasureObjectCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new MeasureObjectCmdlet(), new GetUniqueCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {

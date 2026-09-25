@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Get-Unique",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetUnique.cs",
+      "state": "complete-explicit-asstring-static-text-pipeline-subset",
+      "variances": [
+        {
+          "id": "get-unique-static-text-adjacent-comparison",
+          "sourceFeature": "GetUniqueCommand compares each pipeline PSObject with its predecessor through object, string, or type-name routes.",
+          "targetDecision": "Admit only explicit AsString over existing TextRecord pipeline input and retain the source adjacent current-culture string comparison state machine.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "get-unique-object-and-type-routes-deferred",
+          "sourceFeature": "Default comparison uses ObjectCommandComparer and OnType reads PSObject.InternalTypeNames.",
+          "targetDecision": "Do not introduce PSObject, ETS type names, reflection, or a generic object comparer; omit AsString fails closed with AOT6731.",
+          "status": "deferred",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Measure-Object",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Measure-Object.cs",
       "state": "complete-direct-single-string-text-measure-subset",
