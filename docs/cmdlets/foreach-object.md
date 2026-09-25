@@ -21,3 +21,4 @@ adds no member discovery, reflection, ETS, or runtime compilation.
 
 Managed and fresh osx-arm64 Native AOT self-tests passed. The `abc/x,de/x`
 corpus matched stock (`5`, `4`); dynamic method spelling fails with `AOT6733`.
+Integrated to `main` at `2911712`.
