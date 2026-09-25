@@ -560,6 +560,21 @@ internal sealed record BooleanRecord(bool Value) : IPipelineRecord
         : throw new ScriptException($"Select-Object does not support column '{column}' for Boolean values.");
 }
 
+// Closed output shape of CompareObjectCommand's default (non-PassThru) route.
+// It is intentionally a static two-field record, never a PSObject note-property
+// bag or a dynamically formatted comparison result.
+internal sealed record CompareObjectRecord(string InputObject, string SideIndicator) : IPipelineRecord
+{
+    public double NumberFor(string property) => throw new ScriptException($"Where-Object does not support property '{property}' for Compare-Object values.");
+
+    public string TextFor(string column) => column switch
+    {
+        "InputObject" => InputObject,
+        "SideIndicator" => SideIndicator,
+        _ => throw new ScriptException($"Select-Object does not support column '{column}' for Compare-Object values."),
+    };
+}
+
 // Port boundary for Microsoft.PowerShell.Commands.NewGuidCommand. The
 // upstream process body is one BCL decision after generated binding: emit a
 // UUID v7 normally, or Guid.Empty when -Empty is true. The existing closed
@@ -747,6 +762,96 @@ internal sealed class JoinStringCmdlet : AotCmdletBase
     private static CmdletDescriptor CreateDescriptor()
     {
         CmdletDescriptor source = GeneratedCmdletPorts.JoinString.CreateAotDescriptor("InputObject", "Separator");
+        ParameterSpec[] namedOnly = source.Parameters
+            .Select(parameter => parameter with
+            {
+                ParameterSets = parameter.ParameterSets
+                    .Select(parameterSet => parameterSet with { Position = null })
+                    .ToArray(),
+            })
+            .ToArray();
+        return new CmdletDescriptor(source.Name, namedOnly);
+    }
+}
+
+// Direct-string, SyncWindow=0 extraction of CompareObjectCommand.Process.
+// The source's OrderByProperty/PSObject comparer is deliberately not crossed:
+// this route has no property expression, conversion, culture override, or
+// dynamic output surface.
+internal sealed class CompareObjectCmdlet : AotCmdletBase
+{
+    private static readonly CmdletDescriptor CompareObjectDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => CompareObjectDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["InputObject", "SideIndicator"];
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("ReferenceObject", out string[] reference) || reference.Length == 0)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6723",
+                "Compare-Object requires named -ReferenceObject with one or more direct string values in this subset.",
+                invocation.SourceSpan,
+                "missing direct reference input",
+                "Use -ReferenceObject followed by one or more string literals."));
+        }
+
+        if (!invocation.TryGetValues("DifferenceObject", out string[] difference) || difference.Length == 0)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6724",
+                "Compare-Object requires named -DifferenceObject with one or more direct string values in this subset.",
+                invocation.SourceSpan,
+                "missing direct difference input",
+                "Use -DifferenceObject followed by one or more string literals."));
+        }
+
+        if (!invocation.TryGetValues("SyncWindow", out string[] syncWindow)
+            || syncWindow.Length != 1
+            || !string.Equals(syncWindow[0], "0", StringComparison.Ordinal))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6725",
+                "Compare-Object requires named -SyncWindow 0 in this direct-string subset.",
+                invocation.SourceSpan,
+                "unsupported comparison window",
+                "Use -SyncWindow 0 with direct string inputs."));
+        }
+
+        List<IPipelineRecord> output = [];
+        int common = Math.Min(reference.Length, difference.Length);
+        StringComparer comparer = invocation.TryGetValues("CaseSensitive", out _)
+            ? StringComparer.CurrentCulture
+            : StringComparer.CurrentCultureIgnoreCase;
+        for (int index = 0; index < common; index++)
+        {
+            if (comparer.Equals(reference[index], difference[index]))
+            {
+                continue;
+            }
+
+            output.Add(new CompareObjectRecord(difference[index], "=>"));
+            output.Add(new CompareObjectRecord(reference[index], "<="));
+        }
+
+        for (int index = common; index < difference.Length; index++)
+        {
+            output.Add(new CompareObjectRecord(difference[index], "=>"));
+        }
+
+        for (int index = common; index < reference.Length; index++)
+        {
+            output.Add(new CompareObjectRecord(reference[index], "<="));
+        }
+
+        return output;
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor source = GeneratedCmdletPorts.CompareObject.CreateAotDescriptor(
+            "ReferenceObject", "DifferenceObject", "SyncWindow", "CaseSensitive");
         ParameterSpec[] namedOnly = source.Parameters
             .Select(parameter => parameter with
             {
@@ -1132,7 +1237,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
