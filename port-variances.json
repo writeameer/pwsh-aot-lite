@@ -858,6 +858,34 @@
       ]
     },
     {
+      "command": "Get-SecureRandom",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetSecureRandomCommand.cs and GetRandomCommandBase.cs",
+      "state": "release-pending-cryptographic-int32-subset",
+      "variances": [
+        {
+          "id": "secure-random-crypto-helper",
+          "sourceFeature": "GetSecureRandomCommand inherits the base cryptographic PolymorphicRandomNumberGenerator path.",
+          "targetDecision": "Reuse the source helper's cryptographic NextBytes/InternalSample/NextDouble bounded-Int32 algorithm through RandomNumberGenerator.Create.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "secure-random-no-runspace-state",
+          "sourceFeature": "The source base stores generators in a PSCmdlet CurrentRunspace keyed map and observes runspace state changes.",
+          "targetDecision": "One direct native invocation creates and disposes one cryptographic generator; no runspace, session state, event subscription, or lifetime map is introduced.",
+          "status": "deliberate-subset",
+          "automationCandidate": "no"
+        },
+        {
+          "id": "secure-random-closed-int32-surface",
+          "sourceFeature": "The shared base supports default/unbounded, object/list, Count, Shuffle, pipeline, Int64, double, and related parameter-set routes.",
+          "targetDecision": "Admit only named Minimum and Maximum Int32 bounds and exactly one text output; every other route is rejected before execution.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Get-Random",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetRandomCommand.cs and GetRandomCommandBase.cs",
       "state": "release-pending-seeded-int32-subset",

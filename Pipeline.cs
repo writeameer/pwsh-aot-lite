@@ -646,6 +646,68 @@ internal sealed class GetRandomCmdlet : AotCmdletBase
     }
 }
 
+// Narrow source-derived slice of GetSecureRandomCommand. The upstream base
+// shares its bounded Int32 algorithm with Get-Random but owns a runspace map;
+// this stateless AOT adapter deliberately admits one direct cryptographic draw
+// and does not introduce runspace/session state.
+internal sealed class GetSecureRandomCmdlet : AotCmdletBase
+{
+    private static readonly CmdletDescriptor GetSecureRandomDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => GetSecureRandomDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Value"];
+    public override AotTerminalPresentation TerminalPresentation => AotTerminalPresentation.Prose;
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        int minimum = RequiredInt32(invocation, "Minimum");
+        int maximum = RequiredInt32(invocation, "Maximum");
+        if (minimum >= maximum)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6712",
+                "Get-SecureRandom -Minimum must be less than -Maximum in the Int32 subset.",
+                invocation.GetValueSpan("Minimum", 0),
+                "invalid secure random bounds",
+                "Use named Int32 values where Minimum is less than Maximum."));
+        }
+
+        using RandomNumberGenerator generator = RandomNumberGenerator.Create();
+        int value = UpstreamSeededRandomInt32.Next(generator, minimum, maximum);
+        return [new TextRecord(value.ToString(CultureInfo.InvariantCulture))];
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor source = GeneratedCmdletPorts.GetSecureRandom.CreateAotDescriptor("Minimum", "Maximum");
+        ParameterSpec[] namedOnly = source.Parameters
+            .Select(parameter => parameter with
+            {
+                ParameterSets = parameter.ParameterSets
+                    .Select(parameterSet => parameterSet with { Position = null })
+                    .ToArray(),
+            })
+            .ToArray();
+        return new CmdletDescriptor(source.Name, namedOnly);
+    }
+
+    private static int RequiredInt32(CommandInvocation invocation, string name)
+    {
+        if (!invocation.TryGetValues(name, out string[] values) || values.Length != 1
+            || !int.TryParse(values[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6711",
+                $"Get-SecureRandom requires named -{name} with exactly one invariant Int32 value in the subset.",
+                invocation.GetValueSpan(name, 0),
+                "invalid secure random parameter",
+                "Use -Minimum and -Maximum with whole-number values."));
+        }
+
+        return value;
+    }
+}
+
 // Exact seeded-only extraction of PolymorphicRandomNumberGenerator's helper
 // path from upstream GetRandomCommandBase. It deliberately contains no
 // cryptographic generator, runspace map, reflection, or PSObject behavior.
@@ -657,7 +719,15 @@ internal static class UpstreamSeededRandomInt32
         return (int)(NextDouble(random) * range) + minimum;
     }
 
+    internal static int Next(RandomNumberGenerator random, int minimum, int maximum)
+    {
+        long range = (long)maximum - minimum;
+        return (int)(NextDouble(random) * range) + minimum;
+    }
+
     private static double NextDouble(Random random) => NextNonNegative(random) * (1.0 / int.MaxValue);
+
+    private static double NextDouble(RandomNumberGenerator random) => NextNonNegative(random) * (1.0 / int.MaxValue);
 
     private static int NextNonNegative(Random random)
     {
@@ -666,6 +736,20 @@ internal static class UpstreamSeededRandomInt32
         {
             byte[] bytes = new byte[sizeof(int)];
             random.NextBytes(bytes);
+            value = BitConverter.ToInt32(bytes, 0);
+        }
+        while (value == int.MaxValue);
+
+        return value < 0 ? value + int.MaxValue : value;
+    }
+
+    private static int NextNonNegative(RandomNumberGenerator random)
+    {
+        int value;
+        do
+        {
+            byte[] bytes = new byte[sizeof(int)];
+            random.GetBytes(bytes);
             value = BitConverter.ToInt32(bytes, 0);
         }
         while (value == int.MaxValue);
@@ -997,7 +1081,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {
