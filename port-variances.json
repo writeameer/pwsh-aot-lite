@@ -858,6 +858,20 @@
       ]
     },
     {
+      "command": "Measure-Command",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/TimeExpressionCommand.cs",
+      "state": "deferred-mandatory-scriptblock-execution",
+      "variances": [
+        {
+          "id": "measure-command-scriptblock-execution-boundary",
+          "sourceFeature": "The mandatory Expression ScriptBlock is invoked through InvokeWithPipe for every ProcessRecord, optionally with a PSObject pipeline input; elapsed time measures that execution.",
+          "targetDecision": "No adapter is registered. The static AOT subset rejects ScriptBlockExpressionAst before execution; a timer/no-op would be fake compatibility and is prohibited.",
+          "status": "blocked",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "Select-String",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/MatchString.cs",
       "state": "complete-direct-raw-simple-file-subset",
