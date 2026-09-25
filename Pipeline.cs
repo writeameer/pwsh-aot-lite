@@ -575,6 +575,23 @@ internal sealed record CompareObjectRecord(string InputObject, string SideIndica
     };
 }
 
+// Closed TextMeasureInfo projection for Measure-Object's text parameter set.
+// Null source fields remain explicit nullability, rather than being invented
+// as zeroes or surfaced through a generic CLR object boundary.
+internal sealed record MeasureTextRecord(int? Lines, int? Words, int? Characters) : IPipelineRecord
+{
+    public double NumberFor(string property) => throw new ScriptException($"Where-Object does not support property '{property}' for Measure-Object text values.");
+
+    public string TextFor(string column) => column switch
+    {
+        "Lines" => Lines?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+        "Words" => Words?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+        "Characters" => Characters?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+        "Property" => string.Empty,
+        _ => throw new ScriptException($"Select-Object does not support column '{column}' for Measure-Object text values."),
+    };
+}
+
 // Port boundary for Microsoft.PowerShell.Commands.NewGuidCommand. The
 // upstream process body is one BCL decision after generated binding: emit a
 // UUID v7 normally, or Guid.Empty when -Empty is true. The existing closed
@@ -957,6 +974,102 @@ internal sealed class SelectStringCmdlet(IPhysicalFileResolver files) : AotCmdle
     private static bool ContainsWildcard(string value) => value.IndexOfAny(['*', '?', '[']) >= 0;
 }
 
+// Static direct-string extraction of MeasureObjectCommand's TextMeasure set.
+// The source helpers CountChar/CountWord/CountLine are structurally retained;
+// PSObject/property expressions and generic numeric statistics remain out.
+internal sealed class MeasureObjectCmdlet : AotCmdletBase
+{
+    private static readonly CmdletDescriptor MeasureObjectDescriptor = CreateDescriptor();
+
+    public override CmdletDescriptor Descriptor => MeasureObjectDescriptor;
+    public override IReadOnlyList<string> DefaultColumns { get; } = ["Lines", "Words", "Characters", "Property"];
+
+    protected override IEnumerable<IPipelineRecord> ProcessRecord(CommandInvocation invocation, AotExecutionContext context)
+    {
+        if (!invocation.TryGetValues("InputObject", out string[] values) || values.Length != 1)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6729",
+                "Measure-Object requires named -InputObject with exactly one direct string value in this subset.",
+                invocation.SourceSpan,
+                "unsupported direct input",
+                "Use one string literal with -InputObject."));
+        }
+
+        bool characters = invocation.TryGetValues("Character", out _);
+        bool words = invocation.TryGetValues("Word", out _);
+        bool lines = invocation.TryGetValues("Line", out _);
+        if (!characters && !words && !lines)
+        {
+            throw new ScriptException(AotDiagnostics.Runtime(
+                "AOT6730",
+                "Measure-Object requires at least one text statistic switch in this subset.",
+                invocation.SourceSpan,
+                "unsupported generic measurement route",
+                "Use one or more of -Character, -Word, and -Line."));
+        }
+
+        string value = values[0];
+        int? characterCount = characters ? CountCharacters(value, invocation.TryGetValues("IgnoreWhiteSpace", out _)) : null;
+        int? wordCount = words ? CountWords(value) : null;
+        int? lineCount = lines ? CountLines(value) : null;
+        return [new MeasureTextRecord(lineCount, wordCount, characterCount)];
+    }
+
+    private static CmdletDescriptor CreateDescriptor()
+    {
+        CmdletDescriptor source = GeneratedCmdletPorts.MeasureObject.CreateAotDescriptor(
+            "InputObject", "Character", "Word", "Line", "IgnoreWhiteSpace");
+        ParameterSpec[] namedOnly = source.Parameters
+            .Select(parameter => parameter with
+            {
+                ParameterSets = parameter.ParameterSets
+                    .Select(parameterSet => parameterSet with { Position = null })
+                    .ToArray(),
+            })
+            .ToArray();
+        return new CmdletDescriptor(source.Name, namedOnly);
+    }
+
+    private static int CountCharacters(string value, bool ignoreWhiteSpace) =>
+        ignoreWhiteSpace ? value.Count(static character => !char.IsWhiteSpace(character)) : value.Length;
+
+    private static int CountWords(string value)
+    {
+        int count = 0;
+        bool previousWasWhiteSpace = true;
+        foreach (char character in value)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                previousWasWhiteSpace = true;
+            }
+            else
+            {
+                if (previousWasWhiteSpace)
+                {
+                    count++;
+                }
+
+                previousWasWhiteSpace = false;
+            }
+        }
+
+        return count;
+    }
+
+    private static int CountLines(string value)
+    {
+        if (value.Length == 0)
+        {
+            return 0;
+        }
+
+        int count = value.Count(static character => character == '\n');
+        return value[^1] == '\n' ? count : count + 1;
+    }
+}
+
 // Exact seeded-only extraction of PolymorphicRandomNumberGenerator's helper
 // path from upstream GetRandomCommandBase. It deliberately contains no
 // cryptographic generator, runspace map, reflection, or PSObject behavior.
@@ -1330,7 +1443,7 @@ internal abstract class AotPipelineInputCmdletBase<TInput> : AotCmdletBase, IAot
 internal static class AotCmdletRegistry
 {
     private static readonly AotHostSubstrate Host = AotHostComposition.Substrate;
-    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
+    private static readonly IAotCmdlet[] Cmdlets = [new GetProcessCmdlet(Host.Processes), new GetUptimeCmdlet(), new GetUICultureCmdlet(Host.Culture), new GetCultureCmdlet(Host.Culture, Host.Cultures), new GetVerbCmdlet(), new GetTimeZoneCmdlet(Host.TimeZones), new GetDateCmdlet(Host.Clock), new GetFileHashCmdlet(Host.PhysicalFiles), new GetChildItemCmdlet(Host.PhysicalChildItems), new GetItemCmdlet(Host.PhysicalChildItems), new TestPathCmdlet(Host.PhysicalChildItems), new ResolvePathCmdlet(Host.PhysicalChildItems), new ConvertPathCmdlet(Host.PhysicalChildItems), new JoinPathCmdlet(), new SplitPathCmdlet(), new NewGuidCmdlet(), new GetRandomCmdlet(), new GetSecureRandomCmdlet(), new JoinStringCmdlet(), new CompareObjectCmdlet(), new SelectStringCmdlet(Host.PhysicalFiles), new MeasureObjectCmdlet(), new NewTimeSpanCmdlet(), new StartSleepCmdlet(Host.Delay), new GetHelpCmdlet(AotHostComposition.Help), new GetCommandCmdlet(AotHostComposition.Help), new GetModuleCmdlet(AotHostComposition.Modules), new FindModuleCmdlet(AotHostComposition.Repositories), new InstallModuleCmdlet(new LocalPackageModuleInstaller(AotHostComposition.Repositories, configuration: Host.Configuration))];
 
     static AotCmdletRegistry()
     {

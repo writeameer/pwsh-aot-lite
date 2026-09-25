@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Measure-Object",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Measure-Object.cs",
+      "state": "complete-direct-single-string-text-measure-subset",
+      "variances": [
+        {
+          "id": "measure-object-direct-text-statistics",
+          "sourceFeature": "MeasureObjectCommand accepts PSObject pipeline input, property expressions, parameter sets, numeric conversion, and text counters.",
+          "targetDecision": "Admit only one named direct string InputObject with Character, Word, Line, and IgnoreWhiteSpace. Preserve the source text-counter rules in a closed MeasureTextRecord adapter.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "measure-object-closed-text-record",
+          "sourceFeature": "The source produces MeasureInfo/TextMeasureInfo through PowerShell's object pipeline and formatter.",
+          "targetDecision": "Emit only the explicit Lines, Words, Characters, Property record through PipelineValueAdapter; no PSObject or dynamic formatting route is introduced.",
+          "status": "shared-runtime-replacement",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Select-String",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/MatchString.cs",
       "state": "complete-direct-raw-simple-file-subset",
