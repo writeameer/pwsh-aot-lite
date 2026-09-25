@@ -21,4 +21,4 @@ dynamic object pipeline is added.
 
 Managed and fresh osx-arm64 Native AOT self-tests passed. The `b/A,a/A,b/A`
 corpus matched stock ascending and descending order; `-Property` fails closed
-with `AOT2002`.
+with `AOT2002`. Integrated to `main` at `f4b3661`.
