@@ -860,7 +860,7 @@
     {
       "command": "Join-String",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Join-String.cs",
-      "state": "release-pending-direct-literal-string-subset",
+      "state": "complete-direct-literal-string-subset",
       "variances": [
         {
           "id": "join-string-direct-literal-surface",
