@@ -858,6 +858,20 @@
       ]
     },
     {
+      "command": "Tee-Object",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Tee-Object.cs",
+      "state": "explicit-boundary-safe-write-and-session-authority",
+      "variances": [
+        {
+          "id": "tee-object-safe-write-session-boundary",
+          "sourceFeature": "TeeObjectCommand delegates FilePath/LiteralPath/Encoding to Out-File and Variable to Set-Variable while forwarding PSObject pipeline input.",
+          "targetDecision": "No adapter until a reviewed host write-capability and session-state contract exists; the current physical-file substrate is read-only.",
+          "status": "blocked",
+          "automationCandidate": "no"
+        }
+      ]
+    },
+    {
       "command": "ForEach-Object",
       "source": "src/System.Management.Automation/engine/InternalCommands.cs",
       "state": "complete-static-text-member-length-subset",
