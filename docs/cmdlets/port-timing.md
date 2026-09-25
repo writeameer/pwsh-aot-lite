@@ -43,7 +43,7 @@ reuse, review, and verification work—not just target coding.
 | `Select-String` | 2026-09-25T08:48:18Z | 2026-09-25T08:57:41.9616620Z | 00:09:23.9616620 | J2 direct named one-file one-pattern Raw SimpleMatch; managed/native evidence verified and main release complete at `922f083`. | integrated |
 | `Measure-Object` | unavailable (not recorded) | 2026-09-25T09:18:16.4954380Z | unavailable (start not recorded) | J2 direct named one-string TextMeasure (`Character`/`Word`/`Line`/`IgnoreWhiteSpace`) subset; managed/native evidence verified and main release complete at `e2530bb`. | integrated |
 | `Get-Unique` | unavailable (not recorded) | 2026-09-25T09:27:34.9777480Z | unavailable (start not recorded) | J2 explicit `AsString` static TextRecord pipeline subset; managed/native evidence verified and main release complete at `449cc3d`. | integrated |
-| `Group-Object` | unavailable (not recorded) | 2026-09-25T09:36:32.9090290Z | unavailable (start not recorded) | J2 explicit `NoElement` static TextRecord grouping subset; managed/native evidence verified. | release-pending |
+| `Group-Object` | unavailable (not recorded) | 2026-09-25T09:37:30.6291300Z | unavailable (start not recorded) | J2 explicit `NoElement` static TextRecord grouping subset; managed/native evidence verified and main release complete at `be698f8`. | integrated |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
