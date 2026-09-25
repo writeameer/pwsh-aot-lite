@@ -858,6 +858,27 @@
       ]
     },
     {
+      "command": "Join-String",
+      "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/Join-String.cs",
+      "state": "release-pending-direct-literal-string-subset",
+      "variances": [
+        {
+          "id": "join-string-direct-literal-surface",
+          "sourceFeature": "JoinStringCommand accepts PSObject input and has a source-owned parameter set with an optional Separator defaulting through the PowerShell environment.",
+          "targetDecision": "Admit only named InputObject direct string literals and one named Separator direct string literal; missing Separator fails AOT6722 and positional binding is not admitted.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        },
+        {
+          "id": "join-string-no-object-or-format-route",
+          "sourceFeature": "The source command evaluates property expressions and conversions and applies prefix, suffix, quote, culture, and format-string behavior before writing dynamic pipeline output.",
+          "targetDecision": "Use string.Join and one existing TextRecord only. Property adaptation, PSObject/ETS, conversion, $OFS, formatting switches, pipeline input, and dynamic output are explicitly deferred.",
+          "status": "deliberate-subset",
+          "automationCandidate": "yes"
+        }
+      ]
+    },
+    {
       "command": "Get-SecureRandom",
       "source": "src/Microsoft.PowerShell.Commands.Utility/commands/utility/GetSecureRandomCommand.cs and GetRandomCommandBase.cs",
       "state": "release-pending-cryptographic-int32-subset",

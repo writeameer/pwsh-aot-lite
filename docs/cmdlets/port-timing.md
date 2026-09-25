@@ -38,6 +38,7 @@ reuse, review, and verification work—not just target coding.
 | `Select-Object` | 2026-09-24T19:52:33Z | 2026-09-25T01:02:31Z | 05:09:58 | J2 descriptor-bound explicit record-field projection; verified, reviewed, and released at `0927d11`. | integrated |
 | `Get-Random` | 2026-09-25T07:50:03Z | 2026-09-25T08:18:33.2986980Z | 00:28:30.2986980 | J2 named seeded Int32 (`SetSeed`/`Minimum`/`Maximum`) direct numeric subset; managed/native evidence and main release complete. | integrated |
 | `Get-SecureRandom` | unavailable (not recorded) | 2026-09-25T08:27:49.6113250Z | unavailable (start not recorded) | J2 named cryptographic Int32 (`Minimum`/`Maximum`) direct numeric subset; managed/native evidence and main release complete. | integrated |
+| `Join-String` | 2026-09-25T08:28:19Z | — | — | J2 direct named literal-string join (`InputObject`/`Separator`); managed and fresh Native AOT evidence complete, awaiting main release. | release-pending |
 
 When a port completes, replace its in-progress end and elapsed cells in this
 ledger and in its individual note in the same integration change. If a port is
